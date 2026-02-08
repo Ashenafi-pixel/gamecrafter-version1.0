@@ -51,3 +51,5 @@ games/
 
 # Database
 *.db
+*.db-wal
+*.db-shm
