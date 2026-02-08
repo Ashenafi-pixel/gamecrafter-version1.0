@@ -1,0 +1,292 @@
+import { create } from 'zustand';
+import { GameConfig } from './types';
+import { slotApiClient } from './utils/apiClient';
+
+interface GameStore {
+  currentStep: number;
+  totalSteps: number;
+  viewMode: 'simple' | 'advanced';
+  isSpinning: boolean;
+  gameType: string | null;
+  currentQuestion: number;
+  answers: Record<string, any>;
+  config: Partial<GameConfig>;
+  setStep: (step: number) => void;
+  setViewMode: (mode: 'simple' | 'advanced') => void;
+  setIsSpinning: (spinning: boolean) => void;
+  setGameType: (type: string | null) => void;
+  setAnswer: (questionId: string, answer: any) => void;
+  updateConfig: (update: Partial<GameConfig>) => void;
+  resetConfig: () => void;
+  completeCoreMechanics: () => void;
+  completeSymbolsSection: () => void;
+  completeUISection: () => void;
+  completeAudioSection: () => void;
+  completePlayerExperienceSection: () => void;
+}
+
+const INITIAL_CONFIG: Partial<GameConfig> = {
+  api: {
+    baseUrl: 'https://a451-66-81-180-173.ngrok-free.app',
+    apiKey: '',
+    enabled: false
+  },
+  theme: {
+    mainTheme: '',
+    artStyle: 'cartoon',
+    colorScheme: 'warm-vibrant',
+    mood: 'playful',
+    description: '',
+    references: [],
+    includeCardSymbols: true,
+    includeWild: true,
+    includeScatter: true,
+    generated: {
+      background: null,
+      symbols: [],
+      frame: null
+    }
+  },
+  rtp: {
+    baseRTP: 96.0,
+    bonusRTP: 0,
+    featureRTP: 0,
+    variants: {
+      low: 94.0,
+      medium: 96.0,
+      high: 98.0
+    },
+    targetRTP: 96.0,
+    volatilityScale: 5 // Medium on a 1-10 scale
+  },
+  volatility: {
+    level: 'medium',
+    variance: 10,
+    hitRate: 20,
+    maxWinPotential: 5000,
+    precisionValue: 5, // Medium on a 1-10 scale
+    hitFrequency: 25 // 25% hit rate
+  },
+  bet: {
+    min: 0.20,
+    max: 100,
+    increment: 0.20,
+    quickOptions: [1, 2, 5, 10, 20, 50],
+    defaultBet: 1.00,
+    maxLines: 20
+  },
+  reels: {
+    payMechanism: 'betlines',
+    layout: {
+      shape: 'rectangle',
+      reels: 5,
+      rows: 3
+    },
+    betlines: 20,
+    spinDirection: 'vertical',
+    cluster: {
+      minSymbols: 5,
+      diagonalAllowed: false,
+      payouts: {
+        5: 5,
+        8: 20,
+        12: 100
+      }
+    },
+    symbols: {
+      total: 10,
+      wilds: 1,
+      scatters: 1,
+      list: []
+    }
+  },
+  bonus: {
+    freeSpins: {
+      enabled: false,
+      count: 10,
+      triggers: [3],
+      multipliers: [1],
+      retriggers: false
+    },
+    pickAndClick: {
+      enabled: false,
+      gridSize: [3, 3],
+      picks: 3,
+      maxPrize: 100,
+      extraPicks: false,
+      multipliers: false
+    },
+    wheel: {
+      enabled: false,
+      segments: 8,
+      maxMultiplier: 50,
+      levelUp: false,
+      respin: false
+    },
+    holdAndSpin: {
+      enabled: false,
+      gridSize: [3, 3],
+      initialRespins: 3,
+      maxSymbolValue: 100,
+      resetRespins: false,
+      collectAll: false
+    },
+    jackpots: {
+      enabled: false,
+      type: 'fixed',
+      levels: ['Minor', 'Major'],
+      trigger: 'random'
+    },
+    specialFeatures: {
+      expandingWilds: false,
+      stickyWilds: false,
+      cascadingReels: false,
+      bonusWheel: false
+    }
+  },
+  audio: {
+    backgroundMusic: '',
+    spinSound: '',
+    winSounds: {
+      small: '',
+      medium: '',
+      big: '',
+      mega: ''
+    },
+    featureSounds: {},
+    soundIntensity: 'medium',
+    enableVoiceover: false
+  },
+  playerExperience: {
+    spinSpeed: 'normal',
+    autospinOptions: [10, 25, 50, 100],
+    defaultAutospin: 25,
+    skipAnimations: false,
+    bigWinThreshold: 30, // 30x bet
+    megaWinThreshold: 100 // 100x bet
+  },
+  localization: {
+    supportedLanguages: ['en'],
+    defaultLanguage: 'en',
+    supportedCurrencies: ['USD', 'EUR', 'GBP'],
+    defaultCurrency: 'USD',
+    regionalRestrictions: []
+  },
+  mobile: {
+    orientationMode: 'both',
+    touchControls: {
+      swipeToSpin: true,
+      gestureControls: true,
+      vibrateOnWin: true
+    },
+    screenAdaptation: {
+      smallScreenLayout: true,
+      largeButtonsForTouch: true
+    }
+  },
+  analytics: {
+    trackEvents: true,
+    metricsToTrack: ['spins', 'wins', 'features-triggered', 'time-played'],
+    abTestingEnabled: false
+  },
+  certification: {
+    targetMarkets: ['global'],
+    complianceChecklist: {},
+    testingResults: {
+      rtpVerification: false,
+      functionalTest: false,
+      securityAudit: false
+    },
+    regulatoryDocs: []
+  },
+  distribution: {
+    marketplaceListings: [],
+    revenueModel: 'revenue-share',
+    integrationPlatforms: [],
+    exclusivity: false
+  },
+  gameRules: {
+    helpScreens: [],
+    paytableConfig: {}
+  }
+};
+
+export const useGameStore = create<GameStore>((set) => ({
+  currentStep: 0,
+  totalSteps: 15, // Updated to match our new step count
+  viewMode: 'simple',
+  isSpinning: false,
+  gameType: null,
+  currentQuestion: 0,
+  answers: {},
+  config: INITIAL_CONFIG,
+  setStep: (step) => set({ currentStep: step }),
+  setViewMode: (mode) => set({ viewMode: mode }),
+  setIsSpinning: (spinning) => set({ isSpinning: spinning }),
+  setGameType: (type) => {
+    set({ gameType: type });
+    if (type) {
+      set({ currentStep: 0, currentQuestion: 0, answers: {}, config: INITIAL_CONFIG });
+    }
+  },
+  setAnswer: (questionId, answer) => set((state) => {
+    const newAnswers = { ...state.answers, [questionId]: answer };
+    let configUpdate = {};
+    
+    if (questionId === 'payMechanism') {
+      configUpdate = {
+        reels: {
+          ...state.config.reels,
+          payMechanism: answer,
+          ...(answer === 'cluster' ? {
+            cluster: {
+              minSymbols: 5,
+              diagonalAllowed: false,
+              payouts: {
+                5: 5,
+                8: 20,
+                12: 100
+              }
+            }
+          } : {})
+        }
+      };
+    } else if (questionId === 'gridSize') {
+      const gridConfig = answer.config || { reels: 5, rows: 3 };
+      configUpdate = {
+        reels: {
+          ...state.config.reels,
+          layout: {
+            ...state.config.reels?.layout,
+            reels: gridConfig.reels,
+            rows: gridConfig.rows
+          }
+        }
+      };
+    }
+
+    return {
+      answers: newAnswers,
+      currentQuestion: state.currentQuestion < 2 ? state.currentQuestion + 1 : state.currentQuestion,
+      config: {
+        ...state.config,
+        ...configUpdate
+      }
+    };
+  }),
+  updateConfig: (update) => set((state) => ({ 
+    config: { ...state.config, ...update }
+  })),
+  resetConfig: () => set({ 
+    config: INITIAL_CONFIG, 
+    currentStep: 0, 
+    gameType: null,
+    currentQuestion: 0,
+    answers: {}
+  }),
+  completeCoreMechanics: () => set({ currentStep: 1, currentQuestion: 0 }),
+  completeSymbolsSection: () => set((state) => ({ currentStep: 5 })),
+  completeUISection: () => set((state) => ({ currentStep: 6 })),
+  completeAudioSection: () => set((state) => ({ currentStep: 7 })),
+  completePlayerExperienceSection: () => set((state) => ({ currentStep: 8 }))
+}));

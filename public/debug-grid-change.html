@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Debug Grid Change</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #1a1a2e;
+      color: white;
+      font-family: monospace;
+      overflow: hidden;
+    }
+    
+    #app {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    #controls {
+      padding: 10px;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    
+    button {
+      padding: 8px 16px;
+      background: #4a5568;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    
+    button:hover {
+      background: #2d3748;
+    }
+    
+    #status {
+      margin-left: auto;
+      padding: 8px;
+      background: rgba(0, 0, 0, 0.8);
+      border-radius: 4px;
+    }
+    
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0a0a0a;
+    }
+    
+    #console {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 150px;
+      background: rgba(0, 0, 0, 0.9);
+      border-top: 1px solid #333;
+      padding: 10px;
+      overflow-y: auto;
+      font-size: 12px;
+    }
+    
+    .log { margin-bottom: 2px; }
+    .log.info { color: #4fc3f7; }
+    .log.warn { color: #ffb74d; }
+    .log.error { color: #e57373; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="controls">
+      <button onclick="changeGrid(3, 3)">3×3 Grid</button>
+      <button onclick="changeGrid(5, 3)">5×3 Grid</button>
+      <button onclick="changeGrid(5, 4)">5×4 Grid</button>
+      <button onclick="changeGrid(6, 4)">6×4 Grid</button>
+      <button onclick="clearConsole()">Clear</button>
+      <div id="status">Current: <span id="grid-size">-</span></div>
+    </div>
+    
+    <div id="canvas-container">
+      <div id="pixi-container" style="border: 2px solid #333;"></div>
+    </div>
+    
+    <div id="console"></div>
+  </div>
+  
+  <script src="https://pixijs.download/release/pixi.js"></script>
+  <script>
+    const logs = [];
+    let app = null;
+    let currentGrid = { cols: 0, rows: 0 };
+    let symbolGrid = [];
+    
+    function log(level, ...args) {
+      const timestamp = new Date().toLocaleTimeString();
+      const message = args.join(' ');
+      logs.push({ timestamp, level, message });
+      
+      if (logs.length > 50) logs.shift();
+      
+      const consoleEl = document.getElementById('console');
+      consoleEl.innerHTML = logs.map(log => 
+        `<div class="log ${log.level}">[${log.timestamp}] ${log.message}</div>`
+      ).join('');
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+    
+    function clearConsole() {
+      logs.length = 0;
+      document.getElementById('console').innerHTML = '';
+    }
+    
+    async function initPixi() {
+      const container = document.getElementById('pixi-container');
+      
+      app = new PIXI.Application({
+        width: 800,
+        height: 600,
+        backgroundColor: 0x1a1a2e,
+        antialias: true
+      });
+      
+      container.appendChild(app.view);
+      
+      log('info', 'PIXI initialized');
+    }
+    
+    async function changeGrid(cols, rows) {
+      log('info', `Changing grid to ${cols}×${rows}`);
+      
+      // Update status
+      document.getElementById('grid-size').textContent = `${cols}×${rows}`;
+      currentGrid = { cols, rows };
+      
+      // Clear existing grid
+      app.stage.removeChildren();
+      symbolGrid = [];
+      
+      // Calculate symbol size
+      const padding = 10;
+      const symbolWidth = Math.floor((app.view.width - padding * (cols + 1)) / cols);
+      const symbolHeight = Math.floor((app.view.height - padding * (rows + 1)) / rows);
+      const symbolSize = Math.min(symbolWidth, symbolHeight, 120);
+      
+      log('info', `Symbol size: ${symbolSize}px`);
+      
+      // Create grid container
+      const gridContainer = new PIXI.Container();
+      app.stage.addChild(gridContainer);
+      
+      // Calculate grid dimensions
+      const gridWidth = cols * (symbolSize + padding) - padding;
+      const gridHeight = rows * (symbolSize + padding) - padding;
+      
+      // Center the grid
+      gridContainer.x = (app.view.width - gridWidth) / 2;
+      gridContainer.y = (app.view.height - gridHeight) / 2;
+      
+      // Create grid background
+      const bg = new PIXI.Graphics();
+      bg.beginFill(0x0a0a0a);
+      bg.drawRoundedRect(-20, -20, gridWidth + 40, gridHeight + 40, 10);
+      bg.endFill();
+      gridContainer.addChild(bg);
+      
+      // Create symbols
+      for (let col = 0; col < cols; col++) {
+        symbolGrid[col] = [];
+        for (let row = 0; row < rows; row++) {
+          const x = col * (symbolSize + padding);
+          const y = row * (symbolSize + padding);
+          
+          // Create cell background
+          const cellBg = new PIXI.Graphics();
+          cellBg.beginFill(0x2a2a3e, 0.5);
+          cellBg.lineStyle(2, 0x4a4a6e);
+          cellBg.drawRoundedRect(x, y, symbolSize, symbolSize, 5);
+          cellBg.endFill();
+          gridContainer.addChild(cellBg);
+          
+          // Create symbol (just a colored rectangle for this test)
+          const symbol = new PIXI.Graphics();
+          const color = [0xff6b6b, 0x4ecdc4, 0x45b7d1, 0xf7dc6f, 0xbb8fce][
+            Math.floor(Math.random() * 5)
+          ];
+          symbol.beginFill(color);
+          symbol.drawRoundedRect(x + 10, y + 10, symbolSize - 20, symbolSize - 20, 5);
+          symbol.endFill();
+          gridContainer.addChild(symbol);
+          
+          // Add position text
+          const text = new PIXI.Text(`${col},${row}`, {
+            fontSize: 14,
+            fill: 0xffffff,
+            fontWeight: 'bold'
+          });
+          text.x = x + symbolSize / 2 - text.width / 2;
+          text.y = y + symbolSize / 2 - text.height / 2;
+          gridContainer.addChild(text);
+          
+          symbolGrid[col][row] = { cellBg, symbol, text };
+        }
+      }
+      
+      log('info', `Grid created successfully`);
+    }
+    
+    // Initialize on load
+    window.onload = async () => {
+      await initPixi();
+      changeGrid(5, 3); // Start with default grid
+    };
+  </script>
+</body>
+</html>

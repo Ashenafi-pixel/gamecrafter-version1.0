@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navigation Bridge</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            padding: 2rem;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+            text-align: center;
+        }
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: #2563eb;
+        }
+        .progress-container {
+            margin: 2rem 0;
+        }
+        .progress-bar {
+            height: 8px;
+            background-color: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+        .progress {
+            height: 100%;
+            background-color: #2563eb;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 2rem;
+        }
+        button {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .primary {
+            background-color: #2563eb;
+            color: white;
+        }
+        .primary:hover {
+            background-color: #1d4ed8;
+        }
+        .secondary {
+            background-color: #e2e8f0;
+            color: #475569;
+        }
+        .secondary:hover {
+            background-color: #cbd5e1;
+        }
+        .message {
+            margin-bottom: 1rem;
+            color: #475569;
+        }
+        .logs {
+            margin-top: 1rem;
+            padding: 1rem;
+            background-color: #f8fafc;
+            border-radius: 6px;
+            text-align: left;
+            font-size: 0.875rem;
+            font-family: monospace;
+            height: 100px;
+            overflow-y: auto;
+            color: #64748b;
+        }
+        .note {
+            margin-top: 2rem;
+            padding: 0.75rem;
+            background-color: #dbeafe;
+            border-radius: 6px;
+            color: #2563eb;
+            font-size: 0.875rem;
+        }
+        .error {
+            color: #ef4444;
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background-color: #fee2e2;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SlotAI Navigation Bridge</h1>
+        <p class="message" id="message">Preparing to navigate to the next step...</p>
+        
+        <div class="progress-container">
+            <div id="progress-text">0%</div>
+            <div class="progress-bar">
+                <div class="progress" id="progress"></div>
+            </div>
+        </div>
+        
+        <div id="error-message" class="error"></div>
+        
+        <div class="button-group">
+            <button class="primary" id="continue-btn">Continue</button>
+            <button class="secondary" id="home-btn">Go to Dashboard</button>
+        </div>
+        
+        <div class="logs" id="logs">
+            > Starting navigation process...
+        </div>
+        
+        <div class="note" id="note">
+            Note: This navigation bridge helps avoid React errors when moving between components.
+        </div>
+    </div>
+
+    <script>
+        // Get elements
+        const progressBar = document.getElementById('progress');
+        const progressText = document.getElementById('progress-text');
+        const messageEl = document.getElementById('message');
+        const logsEl = document.getElementById('logs');
+        const errorEl = document.getElementById('error-message');
+        const continueBtn = document.getElementById('continue-btn');
+        const homeBtn = document.getElementById('home-btn');
+        const noteEl = document.getElementById('note');
+        
+        // Get URL parameters
+        const params = new URLSearchParams(window.location.search);
+        const targetStep = params.get('step') || '0';
+        const fromStep = params.get('from') || '0';
+        const useVisualJourney = params.get('visual') === 'true';
+        
+        // Log function
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logsEl.innerHTML += `<br>> ${timestamp}: ${message}`;
+            logsEl.scrollTop = logsEl.scrollHeight;
+        }
+        
+        // Error function
+        function showError(message) {
+            errorEl.style.display = 'block';
+            errorEl.textContent = message;
+            log(`ERROR: ${message}`);
+        }
+        
+        // Update UI based on target
+        function updateUI() {
+            // Set appropriate message based on target step
+            if (targetStep === '8') {
+                messageEl.textContent = 'Navigating to API Setup...';
+                noteEl.textContent = 'Note: Navigating directly to API Setup (step 8).';
+            } else if (targetStep === '4' && useVisualJourney) {
+                messageEl.textContent = 'Navigating to Market Compliance in Visual Journey...';
+                noteEl.textContent = 'Note: Market Compliance is only available in Visual Journey mode.';
+            } else {
+                messageEl.textContent = `Navigating from step ${fromStep} to step ${targetStep}...`;
+            }
+            
+            log(`Navigation target: Step ${targetStep}${useVisualJourney ? ' (Visual Journey)' : ''}`);
+        }
+        
+        // Progress simulation
+        function simulateProgress() {
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += 5;
+                progressBar.style.width = `${progress}%`;
+                progressText.textContent = `${progress}%`;
+                
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    
+                    // Progress complete, ready for navigation
+                    log('Progress complete, ready for navigation');
+                    messageEl.textContent = 'Ready to continue!';
+                    
+                    // After a short delay, enable continue button
+                    setTimeout(() => {
+                        continueBtn.textContent = 'Continue Now';
+                        continueBtn.classList.add('ready');
+                    }, 200);
+                }
+                
+                // Add some logs during progress for visual feedback
+                if (progress === 25) {
+                    log('Clearing browser state...');
+                }
+                if (progress === 50) {
+                    log('Preparing for navigation...');
+                }
+                if (progress === 75) {
+                    log('Almost ready...');
+                }
+            }, 40);
+        }
+
+        // EXTREME STATE CLEANING
+        function nukeReactState() {
+            try {
+                log('Starting complete React state reset (EXTREME mode)');
+
+                // Step 1: Clear localStorage completely
+                try {
+                    // First save game config if we can find it
+                    let savedConfig = null;
+                    
+                    // Try to find and preserve game configuration
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        if (!key) continue;
+                        
+                        if (key.includes('config') || key.includes('game-data') || key.includes('zustand')) {
+                            const value = localStorage.getItem(key);
+                            if (value && value.includes('"config"') && value.includes('"theme"')) {
+                                try {
+                                    // Try to extract just game config
+                                    let configObj;
+                                    if (value.startsWith('{') && value.includes('"state"')) {
+                                        // Zustand format
+                                        configObj = JSON.parse(value);
+                                        if (configObj.state && configObj.state.config) {
+                                            savedConfig = configObj.state.config;
+                                            log('Preserved game config from zustand state');
+                                            break;
+                                        }
+                                    } else if (value.startsWith('{') && value.includes('"config"')) {
+                                        // Direct config format
+                                        configObj = JSON.parse(value);
+                                        if (configObj.config) {
+                                            savedConfig = configObj.config;
+                                            log('Preserved game config from direct state');
+                                            break;
+                                        }
+                                    }
+                                } catch (e) {
+                                    log('Failed to parse config: ' + e.message.substring(0, 50));
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Now clear everything
+                    localStorage.clear();
+                    log('Cleared all localStorage data');
+                    
+                    // Save cleaned game config if found
+                    if (savedConfig) {
+                        localStorage.setItem('clean-game-config', JSON.stringify({
+                            savedAt: new Date().toISOString(),
+                            config: savedConfig
+                        }));
+                        log('Restored clean game configuration after reset');
+                    }
+                } catch (e) {
+                    log('Error clearing localStorage: ' + e.message);
+                }
+                
+                // Step 2: Clear sessionStorage
+                try {
+                    sessionStorage.clear();
+                    log('Cleared all sessionStorage data');
+                } catch (e) {
+                    log('Error clearing sessionStorage: ' + e.message);
+                }
+                
+                // Step 3: Clear cookies related to React state if any
+                try {
+                    const cookies = document.cookie.split(';');
+                    let cookiesCleared = 0;
+                    
+                    cookies.forEach(cookie => {
+                        const cookieName = cookie.split('=')[0].trim();
+                        if (cookieName.includes('react') || 
+                            cookieName.includes('state') || 
+                            cookieName.includes('zustand')) {
+                            document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+                            cookiesCleared++;
+                        }
+                    });
+                    
+                    if (cookiesCleared > 0) {
+                        log(`Cleared ${cookiesCleared} state-related cookies`);
+                    }
+                } catch (e) {
+                    log('Error clearing cookies: ' + e.message);
+                }
+                
+                // Set navigation flags for extra safety
+                sessionStorage.setItem('navigation-in-progress', 'true');
+                sessionStorage.setItem('target-step', targetStep);
+                sessionStorage.setItem('from-step', fromStep);
+                sessionStorage.setItem('visual-journey', useVisualJourney ? 'true' : 'false');
+                sessionStorage.setItem('clean-navigation', 'true');
+                
+                log('React state completely reset and navigation flags set');
+                return true;
+            } catch (err) {
+                log('Critical error in React state reset: ' + err.message);
+                return false;
+            }
+        }
+
+        // CREATE NEW PAGE APPROACH
+        function createNewPageNavigation() {
+            try {
+                // This is a more extreme approach that completely bypasses React's state management
+                log('Using NEW PAGE navigation approach (most reliable)');
+                
+                // Create a simple HTML page with navigation code
+                const navigationHTML = `
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>Direct Navigation</title>
+                        <style>
+                            body {
+                                font-family: system-ui, sans-serif;
+                                background: #f0f4f8;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                height: 100vh;
+                                margin: 0;
+                            }
+                            .container {
+                                background: white;
+                                padding: 2rem;
+                                border-radius: 8px;
+                                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                                text-align: center;
+                                max-width: 500px;
+                            }
+                            .progress {
+                                height: 4px;
+                                background: #e2e8f0;
+                                margin: 1rem 0;
+                                border-radius: 2px;
+                                overflow: hidden;
+                            }
+                            .progress-bar {
+                                height: 100%;
+                                background: #3b82f6;
+                                width: 0%;
+                                transition: width 0.3s;
+                            }
+                            #log {
+                                margin-top: 1rem;
+                                padding: 0.5rem;
+                                background: #f1f5f9;
+                                border-radius: 4px;
+                                font-family: monospace;
+                                font-size: 12px;
+                                height: 100px;
+                                overflow-y: auto;
+                                text-align: left;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="container">
+                            <h2>Direct Navigation</h2>
+                            <p>Preparing to navigate to step ${targetStep}...</p>
+                            <div class="progress">
+                                <div class="progress-bar" id="progress"></div>
+                            </div>
+                            <div id="log">Starting direct navigation process...</div>
+                        </div>
+                        <script>
+                            // Simple log function
+                            function log(msg) {
+                                const logEl = document.getElementById('log');
+                                const time = new Date().toLocaleTimeString();
+                                logEl.innerHTML += "<br>" + time + ": " + msg;
+                                logEl.scrollTop = logEl.scrollHeight;
+                            }
+                            
+                            // Progress bar
+                            const progressBar = document.getElementById('progress');
+                            let progress = 0;
+                            const interval = setInterval(() => {
+                                progress += 5;
+                                progressBar.style.width = progress + '%';
+                                if (progress >= 100) {
+                                    clearInterval(interval);
+                                    performNavigation();
+                                }
+                            }, 40);
+                            
+                            // Function to clear all state
+                            function resetAllState() {
+                                try {
+                                    // Clear localStorage
+                                    localStorage.clear();
+                                    log("Cleared localStorage");
+                                    
+                                    // Clear sessionStorage
+                                    sessionStorage.clear();
+                                    log("Cleared sessionStorage");
+                                    
+                                    // Set clean navigation flag
+                                    sessionStorage.setItem('clean-navigation', 'true');
+                                    sessionStorage.setItem('target-step', '${targetStep}');
+                                    log("Set clean navigation flags");
+                                    
+                                    return true;
+                                } catch (e) {
+                                    log("Error clearing state: " + e);
+                                    return false;
+                                }
+                            }
+                            
+                            // Perform the actual navigation
+                            function performNavigation() {
+                                log("Starting navigation");
+                                
+                                // Reset all state first
+                                resetAllState();
+                                
+                                // Create the target URL with fresh parameters
+                                const url = '/?step=${targetStep}&navkey=' + Math.random().toString(36).substring(2) + 
+                                          '&t=' + Date.now() + '${useVisualJourney ? '&visual=true' : ''}' +
+                                          '&clean=true&extreme=true';
+                                          
+                                log("Navigating to: " + url);
+                                
+                                // Use location.replace to avoid back button issues
+                                setTimeout(() => {
+                                    log("Executing navigation now...");
+                                    window.location.replace(url);
+                                    
+                                    // Fallback
+                                    setTimeout(() => {
+                                        if (document.visibilityState === 'visible') {
+                                            log("Fallback navigation");
+                                            window.location.href = url;
+                                        }
+                                    }, 1000);
+                                }, 200);
+                            }
+                            
+                            // Fallback timer for reliability
+                            setTimeout(() => {
+                                if (document.visibilityState === 'visible') {
+                                    log("Auto-navigation triggered");
+                                    performNavigation();
+                                }
+                            }, 3000);
+                        </script>
+                    </body>
+                    </html>
+                `;
+                
+                // Create a blob and a URL for it
+                const blob = new Blob([navigationHTML], { type: 'text/html' });
+                const blobUrl = URL.createObjectURL(blob);
+                
+                log(`Created navigation page: ${blobUrl.substring(0, 30)}...`);
+                
+                // Navigate to the blob URL
+                setTimeout(() => {
+                    log('Navigating to direct navigation page...');
+                    window.location.href = blobUrl;
+                }, 200);
+                
+                return true;
+            } catch (e) {
+                log('Error creating navigation page: ' + e.message);
+                showError('Failed to create navigation page: ' + e.message);
+                return false;
+            }
+        }
+        
+        // Navigate to target using the simplest possible approach
+        function directNavigate() {
+            try {
+                log(`Using direct navigation to step ${targetStep}`);
+                
+                // Most direct approach - no state management, just URL
+                const url = `/?step=${targetStep}&t=${Date.now()}&direct=true${useVisualJourney ? '&visual=true' : ''}`;
+                
+                log(`Navigating directly to: ${url}`);
+                window.location.href = url;
+                
+                return true;
+            } catch (e) {
+                log('Error in direct navigation: ' + e.message);
+                return false;
+            }
+        }
+        
+        // Navigate to target - main function
+        function navigateToTarget() {
+            try {
+                log(`Starting navigation to step ${targetStep}...`);
+                
+                // Detect the problematic transition
+                const isProblematicTransition = targetStep === '8' && fromStep === '7';
+                
+                if (isProblematicTransition) {
+                    log('⚠️ Detected problematic transition (Analytics → API Setup)');
+                    log('Using extreme navigation approach...');
+                    
+                    // For problematic transitions, use the most extreme approach
+                    if (!createNewPageNavigation()) {
+                        // If that fails, try direct
+                        if (!nukeReactState()) {
+                            // If everything fails, just do direct
+                            directNavigate();
+                        } else {
+                            // After nuking state, do direct
+                            directNavigate();
+                        }
+                    }
+                } else {
+                    // For normal transitions, use our improved approach
+                    log('Using improved direct navigation approach');
+                    
+                    // Reset React state to prevent errors
+                    nukeReactState();
+                    
+                    // Build URL with parameters - IMPORTANT: norender flag helps prevent React errors
+                    const url = '/?';
+                    const params = [
+                        `step=${targetStep}`,
+                        `t=${Date.now()}`,
+                        `from=${fromStep}`,
+                        `norender=true`,
+                        `navkey=${Math.random().toString(36).substring(2, 15)}`
+                    ];
+                    
+                    if (useVisualJourney) {
+                        params.push('visual=true');
+                    }
+                    
+                    // Add restore flag if we preserved config in localStorage
+                    if (localStorage.getItem('slotai_preserved_config')) {
+                        params.push('restore=slotai_preserved_config');
+                        log('Adding preserved configuration to navigation');
+                    }
+                    
+                    const finalUrl = url + params.join('&');
+                    log(`Navigating to: ${finalUrl}`);
+                    
+                    // Use replace to avoid back button issues
+                    window.location.replace(finalUrl);
+                    
+                    // Fallback with shorter timeout
+                    setTimeout(() => {
+                        if (document.visibilityState === 'visible') {
+                            log('Fallback navigation triggered');
+                            window.location.href = finalUrl;
+                        }
+                    }, 1000);
+                }
+            } catch (error) {
+                showError(`Navigation failed: ${error.message}`);
+                log('Using emergency direct navigation');
+                
+                // Emergency direct navigation
+                window.location.href = `/?step=${targetStep}&emergency=true`;
+            }
+        }
+        
+        // Go to home dashboard
+        function goToDashboard() {
+            log('Returning to dashboard...');
+            localStorage.clear();
+            sessionStorage.clear();
+            window.location.href = '/';
+        }
+        
+        // Initialize
+        function init() {
+            updateUI();
+            simulateProgress();
+            
+            // Set up button event handlers
+            continueBtn.addEventListener('click', navigateToTarget);
+            homeBtn.addEventListener('click', goToDashboard);
+            
+            // Add initial logs
+            log(`Starting navigation from step ${fromStep} to step ${targetStep}`);
+            if (useVisualJourney) {
+                log('Using Visual Journey mode');
+            }
+            
+            // Special handling for the problematic transition (Analytics → API Setup)
+            const isAnalyticsToAPITransition = targetStep === '8' && fromStep === '7';
+            if (isAnalyticsToAPITransition) {
+                log('⚠️ Known problematic transition detected (Analytics → API Setup)');
+                log('Setting up extreme handling...');
+                
+                // Auto-navigate sooner for problematic transitions
+                setTimeout(() => {
+                    if (document.visibilityState === 'visible') {
+                        log('Starting special transition handling automatically');
+                        navigateToTarget();
+                    }
+                }, 2000);
+            } else {
+                // Standard auto-navigation
+                setTimeout(() => {
+                    if (document.visibilityState === 'visible') {
+                        log('Auto-navigation triggered');
+                        navigateToTarget();
+                    }
+                }, 3000);
+            }
+        }
+        
+        // Add page visibility handling
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') {
+                log('Page hidden, pausing navigation');
+            } else {
+                log('Page visible again, resuming');
+            }
+        });
+        
+        // Start the process
+        init();
+    </script>
+</body>
+</html>

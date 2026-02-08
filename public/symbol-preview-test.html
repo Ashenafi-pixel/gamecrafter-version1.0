@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Symbol Preview Wrapper Test</title>
+  <link rel="stylesheet" href="/src/index.css">
+  <script type="module">
+    import React from 'react';
+    import ReactDOM from 'react-dom/client';
+    import SymbolPreviewWrapper from '../src/components/visual-journey/grid-preview/SymbolPreviewWrapper';
+    import { GameStoreProvider } from '../src/store';
+    
+    // Create test symbols array
+    const testSymbols = [
+      '/public/assets/symbols/wild.png',
+      '/public/assets/symbols/scatter.png',
+      '/public/assets/symbols/high_1.png',
+      '/public/assets/symbols/high_2.png',
+      '/public/assets/symbols/high_3.png',
+      '/public/assets/symbols/mid_1.png',
+      '/public/assets/symbols/mid_2.png',
+      '/public/assets/symbols/low_1.png',
+      '/public/assets/symbols/low_2.png',
+      '/public/assets/symbols/low_3.png'
+    ];
+    
+    // Function to dispatch symbols to the wrapper
+    function dispatchSymbols() {
+      window.dispatchEvent(new CustomEvent('symbolsChanged', {
+        detail: { symbols: testSymbols }
+      }));
+      console.log('Dispatched symbols event with test symbols');
+    }
+    
+    // Set up global access
+    window.dispatchSymbols = dispatchSymbols;
+    
+    // Main component for the test
+    function SymbolPreviewTest() {
+      React.useEffect(() => {
+        // Dispatch initial symbols after a short delay
+        setTimeout(() => {
+          dispatchSymbols();
+        }, 500);
+      }, []);
+      
+      return (
+        <div className="flex flex-col h-screen">
+          <div className="bg-gray-800 text-white p-4">
+            <h1 className="text-xl font-bold">Symbol Preview Wrapper Test</h1>
+            <p className="text-sm opacity-80">This page tests the standalone SymbolPreviewWrapper component</p>
+            <div className="flex gap-2 mt-2">
+              <button 
+                onClick={dispatchSymbols}
+                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+              >
+                Dispatch Test Symbols
+              </button>
+            </div>
+          </div>
+          
+          <div className="flex-1 overflow-hidden">
+            <GameStoreProvider>
+              <SymbolPreviewWrapper />
+            </GameStoreProvider>
+          </div>
+        </div>
+      );
+    }
+    
+    // Mount the app
+    ReactDOM.createRoot(document.getElementById('root')).render(
+      <React.StrictMode>
+        <SymbolPreviewTest />
+      </React.StrictMode>
+    );
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+</body>
+</html>

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Go To Step 2</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      background-color: #f0f0f0;
+      text-align: center;
+    }
+    
+    .container {
+      max-width: 500px;
+      background-color: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    h1 {
+      color: #E60012;
+      margin-top: 0;
+    }
+    
+    p {
+      color: #444;
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+    
+    .button {
+      display: inline-block;
+      background-color: #E60012;
+      color: white;
+      text-decoration: none;
+      padding: 15px 25px;
+      border-radius: 5px;
+      margin: 10px 0;
+      font-weight: bold;
+      transition: all 0.2s ease;
+    }
+    
+    .button:hover {
+      background-color: #cc0010;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .countdown {
+      font-size: 24px;
+      font-weight: bold;
+      color: #E60012;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Step 2 Navigation</h1>
+    
+    <p>
+      You will be redirected to Step 2 (Game Type Selection) in <span id="countdown" class="countdown">5</span> seconds...
+    </p>
+    
+    <p>
+      If automatic redirection doesn't work, please click the button below:
+    </p>
+    
+    <a href="/?step=1&force=true&t=0" class="button" id="step2-button">
+      Go to Step 2 Now
+    </a>
+  </div>
+  
+  <script>
+    // Set up and start the countdown
+    let countdownValue = 5;
+    const countdownElement = document.getElementById('countdown');
+    const button = document.getElementById('step2-button');
+    
+    // Add random timestamp to prevent caching
+    button.href = `/?step=1&force=true&t=${Date.now()}`;
+    
+    // Start countdown
+    const countdownInterval = setInterval(function() {
+      countdownValue--;
+      countdownElement.textContent = countdownValue;
+      
+      if (countdownValue <= 0) {
+        clearInterval(countdownInterval);
+        // Save navigation data to localStorage
+        localStorage.setItem('slotai_emergency_nav', 'true');
+        localStorage.setItem('slotai_target_step', '1');
+        localStorage.setItem('slotai_timestamp', Date.now().toString());
+        
+        // Navigate to Step 2
+        window.location.href = `/?step=1&force=true&t=${Date.now()}`;
+      }
+    }, 1000);
+    
+    // Initialize navigation data on load
+    window.addEventListener('load', function() {
+      localStorage.setItem('slotai_emergency_nav', 'true');
+      localStorage.setItem('slotai_target_step', '1');
+      localStorage.setItem('slotai_timestamp', Date.now().toString());
+      
+      // Add random timestamp to prevent caching
+      button.href = `/?step=1&force=true&t=${Date.now()}`;
+    });
+  </script>
+</body>
+</html>

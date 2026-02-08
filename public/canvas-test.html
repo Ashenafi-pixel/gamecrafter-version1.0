@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Test</title>
+    <style>
+        body { margin: 0; padding: 20px; background: #1a1a1a; color: white; font-family: Arial, sans-serif; }
+        #canvas-container { width: 800px; height: 600px; border: 2px solid #333; margin: 20px 0; position: relative; }
+        .status { padding: 10px; background: #333; margin: 10px 0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🎯 Canvas Debug Test</h1>
+    <div class="status" id="status">Initializing...</div>
+    <div id="canvas-container"></div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/pixi.js@7.4.3/dist/pixi.min.js"></script>
+    <script>
+        const status = document.getElementById('status');
+        const container = document.getElementById('canvas-container');
+        
+        function updateStatus(msg) {
+            status.textContent = msg;
+            console.log(msg);
+        }
+        
+        async function testCanvas() {
+            try {
+                updateStatus('🎮 Creating PIXI Application...');
+                
+                const app = new PIXI.Application({
+                    width: 800,
+                    height: 600,
+                    backgroundColor: 0x1a1a1a,
+                    antialias: true
+                });
+                
+                updateStatus('🖼️ Adding canvas to DOM...');
+                container.appendChild(app.view);
+                
+                updateStatus('🎨 Creating test sprite...');
+                
+                // Create test graphics
+                const graphics = new PIXI.Graphics();
+                graphics.beginFill(0xFFD700); // Gold
+                graphics.drawRect(-50, -50, 100, 100);
+                graphics.endFill();
+                graphics.x = 400;
+                graphics.y = 300;
+                
+                app.stage.addChild(graphics);
+                
+                updateStatus('🎬 Starting animation...');
+                
+                // Animate
+                let rotation = 0;
+                app.ticker.add(() => {
+                    rotation += 0.02;
+                    graphics.rotation = rotation;
+                });
+                
+                updateStatus('✅ Canvas test successful! You should see a rotating gold square.');
+                
+            } catch (error) {
+                updateStatus('❌ Canvas test failed: ' + error.message);
+                console.error('Canvas test error:', error);
+            }
+        }
+        
+        // Start test
+        testCanvas();
+    </script>
+</body>
+</html>

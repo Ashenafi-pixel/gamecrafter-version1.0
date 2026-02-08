@@ -1,0 +1,21 @@
+{
+  "gameId": "dasd_20260111",
+  "createdAt": "2026-01-11T14:59:59.687Z",
+  "updatedAt": "2026-01-11T14:59:59.687Z",
+  "folders": [
+    "symbols",
+    "symbols/wild",
+    "symbols/scatter",
+    "symbols/high",
+    "symbols/medium",
+    "symbols/low",
+    "background",
+    "frame",
+    "titles",
+    "ui",
+    "sound",
+    "sound/effects",
+    "sound/music",
+    "gameconfig"
+  ]
+}

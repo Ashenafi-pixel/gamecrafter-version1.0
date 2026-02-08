@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SlotAI Step 2 Force Navigation</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background-color: #f0f2f5;
+    }
+    .container {
+      background-color: white;
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+    }
+    h1 {
+      font-size: 24px;
+      margin-bottom: 16px;
+      color: #333;
+    }
+    p {
+      color: #666;
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+    .button {
+      background-color: #E60012;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin: 8px;
+    }
+    .button:hover {
+      background-color: #C5000F;
+      transform: translateY(-1px);
+    }
+    .button.secondary {
+      background-color: #f5f5f5;
+      color: #333;
+      border: 1px solid #ddd;
+    }
+    .button.secondary:hover {
+      background-color: #ebebeb;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Step Navigation Helper</h1>
+    <p>Use this page to force navigation to specific steps if the main app navigation is not working.</p>
+    
+    <button class="button" onclick="navigateToStep(1)">Go to Step 2: Game Type</button>
+    <button class="button secondary" onclick="navigateToStep(0)">Back to Step 1</button>
+    <p style="font-size: 12px; margin-top: 16px; color: #999;">
+      If none of the buttons work, try refreshing the main page or clearing your browser cache.
+    </p>
+  </div>
+
+  <script>
+    function navigateToStep(step) {
+      // Set localStorage to indicate we want to force navigation
+      localStorage.setItem('slotai_force_step', step.toString());
+      localStorage.setItem('slotai_force_timestamp', Date.now().toString());
+      
+      // Navigate back to main app with special parameters
+      window.location.href = '/?step=' + step + '&force=true&t=' + Date.now();
+    }
+  </script>
+</body>
+</html>

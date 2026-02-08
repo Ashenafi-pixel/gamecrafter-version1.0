@@ -1,0 +1,31 @@
+{
+  "gameId": "fruit-fiesta",
+  "theme": {
+    "mainTheme": "Fruit Fiesta",
+    "artStyle": "cartoon",
+    "colorScheme": "vibrant",
+    "mood": "playful",
+    "description": "A classic fruit-themed slot game with a modern twist"
+  },
+  "bet": {
+    "min": 0.1,
+    "max": 50,
+    "increment": 0.1
+  },
+  "rtp": {
+    "baseRTP": 92,
+    "bonusRTP": 2,
+    "featureRTP": 2,
+    "targetRTP": 96,
+    "volatilityScale": 4
+  },
+  "reels": {
+    "payMechanism": "betlines",
+    "layout": {
+      "shape": "rectangle",
+      "reels": 5,
+      "rows": 3
+    },
+    "betlines": 10
+  }
+}

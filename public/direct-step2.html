@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SlotAI - Direct Step 2 Access</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    .card {
+      transition: all 0.3s ease;
+    }
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+    .loader {
+      border-top-color: #3b82f6;
+      animation: spinner 0.8s linear infinite;
+    }
+    @keyframes spinner {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div class="max-w-4xl mx-auto p-6">
+    <header class="mb-10 text-center">
+      <h1 class="text-3xl font-bold text-gray-800 mb-2">SlotAI - Direct Access to Step 2</h1>
+      <p class="text-gray-600">This page helps you navigate directly to Step 2 (Game Type Selection)</p>
+    </header>
+
+    <div class="bg-white rounded-xl shadow-md overflow-hidden mb-8 p-6 border border-gray-200">
+      <div class="flex items-center mb-4">
+        <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-3">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h2 class="text-xl font-semibold text-gray-800">What's happening?</h2>
+      </div>
+      
+      <p class="text-gray-700 mb-4">
+        You're seeing this page because there was an issue navigating from Step 1 (Theme Selection) to Step 2 (Game Type Selection).
+        This can happen due to state management complexities in React applications.
+      </p>
+      
+      <div class="bg-blue-50 rounded-lg p-4 border border-blue-100 mb-6">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-blue-800">Don't worry!</h3>
+            <div class="mt-2 text-sm text-blue-700">
+              <p>Your theme selection and data are still saved. We're just going to load Step 2 directly.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+      <div class="card bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
+        <div class="p-6">
+          <div class="flex items-center mb-4">
+            <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 mr-3">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-800">Option 1: Automatic Redirect</h3>
+          </div>
+          
+          <p class="text-gray-700 mb-4">
+            Click the button below to be automatically redirected to Step 2. We'll set up your game type and preserve your selections.
+          </p>
+          
+          <div class="flex justify-center">
+            <button id="autoRedirectBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors font-medium flex items-center">
+              <span>Continue to Step 2</span>
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="card bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
+        <div class="p-6">
+          <div class="flex items-center mb-4">
+            <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 mr-3">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-800">Option 2: Return to Start</h3>
+          </div>
+          
+          <p class="text-gray-700 mb-4">
+            If you prefer, you can return to the beginning and go through the steps again. Your selections will be preserved.
+          </p>
+          
+          <div class="flex justify-center">
+            <button id="returnHomeBtn" class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg transition-colors font-medium flex items-center">
+              <span>Return to Homepage</span>
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="loadingIndicator" class="hidden">
+      <div class="bg-white rounded-xl shadow-md overflow-hidden p-6 text-center border border-gray-200">
+        <div class="inline-block loader w-12 h-12 border-4 rounded-full mb-4"></div>
+        <h3 class="text-lg font-semibold text-gray-800 mb-2">Redirecting...</h3>
+        <p class="text-gray-600">Please wait while we prepare your game configuration.</p>
+      </div>
+    </div>
+
+    <footer class="text-center mt-8 text-gray-500 text-sm">
+      <p>SlotAI ©2025 • Emergency Navigation System</p>
+    </footer>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const autoRedirectBtn = document.getElementById('autoRedirectBtn');
+      const returnHomeBtn = document.getElementById('returnHomeBtn');
+      const loadingIndicator = document.getElementById('loadingIndicator');
+      
+      // Set up state for navigation
+      const setupState = () => {
+        // Store emergency navigation flag
+        localStorage.setItem('slotai_emergency_nav', 'true');
+        localStorage.setItem('slotai_target_step', '1');
+        localStorage.setItem('slotai_timestamp', Date.now().toString());
+        
+        // Force classic-reels selection - critical for Step 2
+        const gameData = {
+          selectedGameType: 'classic-reels',
+          gameTypeInfo: {
+            id: 'classic-reels',
+            title: 'Classic Reels',
+            description: '5x3 grid with payline wins',
+            features: ['Multiple paylines', 'Traditional symbols', 'Familiar mechanics'],
+            selectedAt: new Date().toISOString()
+          }
+        };
+        
+        localStorage.setItem('slotai_game_data', JSON.stringify(gameData));
+        
+        // Add cache buster to force fresh load
+        return '/?step=1&t=' + Date.now();
+      };
+      
+      // Show loading indicator
+      const showLoading = () => {
+        loadingIndicator.classList.remove('hidden');
+        autoRedirectBtn.disabled = true;
+        returnHomeBtn.disabled = true;
+      };
+      
+      // Auto redirect button
+      autoRedirectBtn.addEventListener('click', function() {
+        showLoading();
+        setTimeout(() => {
+          window.location.href = setupState();
+        }, 1000);
+      });
+      
+      // Return home button
+      returnHomeBtn.addEventListener('click', function() {
+        showLoading();
+        setTimeout(() => {
+          window.location.href = '/?reset=true&t=' + Date.now();
+        }, 1000);
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emergency Step 2 Navigation</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background-color: #f0f0f0;
+    }
+    
+    .container {
+      max-width: 600px;
+      width: 100%;
+      background-color: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.15);
+      border-top: 6px solid #E60012;
+    }
+    
+    h1 {
+      color: #E60012;
+      margin-top: 0;
+      font-size: 24px;
+    }
+    
+    .step {
+      margin: 20px 0;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background-color: #f9f9f9;
+    }
+    
+    .step h2 {
+      margin-top: 0;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+    }
+    
+    .step-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      background-color: #E60012;
+      color: white;
+      border-radius: 50%;
+      margin-right: 10px;
+      font-size: 16px;
+      font-weight: bold;
+    }
+    
+    button {
+      background-color: #E60012;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 10px;
+      width: 100%;
+    }
+    
+    button:hover {
+      background-color: #C5000F;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(230, 0, 18, 0.2);
+    }
+    
+    .log {
+      margin-top: 20px;
+      padding: 10px;
+      background-color: #222;
+      color: #00ff00;
+      border-radius: 4px;
+      font-family: monospace;
+      height: 200px;
+      overflow-y: auto;
+    }
+    
+    .status {
+      display: flex;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    
+    .status-indicator {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      margin-right: 10px;
+      background-color: #ccc;
+    }
+    
+    .status-indicator.success {
+      background-color: #4caf50;
+    }
+    
+    .status-indicator.error {
+      background-color: #f44336;
+    }
+    
+    .status-indicator.working {
+      background-color: #ff9800;
+      animation: blink 1s infinite;
+    }
+    
+    @keyframes blink {
+      0% { opacity: 0.4; }
+      50% { opacity: 1; }
+      100% { opacity: 0.4; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Emergency Step 2 Navigation</h1>
+    
+    <div class="status">
+      <div class="status-indicator" id="statusIndicator"></div>
+      <div id="statusText">Ready to navigate</div>
+    </div>
+    
+    <div class="step">
+      <h2><span class="step-number">1</span> Clear Cache &amp; Storage</h2>
+      <p>This will clear localStorage and sessionStorage to remove any navigation blocks.</p>
+      <button onclick="clearBrowserData()">Clear Browser Data</button>
+    </div>
+    
+    <div class="step">
+      <h2><span class="step-number">2</span> Navigate to Step 2</h2>
+      <p>This will attempt 3 different methods to force the app to Step 2 (Game Type).</p>
+      <button onclick="executeNavigation()">FORCE NAVIGATE TO STEP 2</button>
+    </div>
+    
+    <div class="step">
+      <h2><span class="step-number">3</span> Manual Recovery</h2>
+      <p>If automatic navigation fails, you can try these manual steps:</p>
+      <button onclick="returnToApp()">Return to SlotAI App</button>
+    </div>
+    
+    <div class="log" id="log"></div>
+  </div>
+
+  <script>
+    // Log element
+    const logEl = document.getElementById('log');
+    const statusIndicator = document.getElementById('statusIndicator');
+    const statusText = document.getElementById('statusText');
+    
+    // Log function
+    function log(message) {
+      const time = new Date().toLocaleTimeString();
+      logEl.innerHTML += `[${time}] ${message}<br>`;
+      logEl.scrollTop = logEl.scrollHeight;
+      console.log(`[${time}] ${message}`);
+    }
+    
+    // Set status
+    function setStatus(status, message) {
+      statusIndicator.className = 'status-indicator ' + status;
+      statusText.textContent = message;
+    }
+    
+    // Clear browser data
+    function clearBrowserData() {
+      setStatus('working', 'Clearing browser data...');
+      log('Clearing localStorage and sessionStorage...');
+      
+      try {
+        // Save only what we need for navigation
+        const savedGameData = localStorage.getItem('savedGameData');
+        
+        // Clear all storage
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        // Restore critical data
+        if (savedGameData) {
+          localStorage.setItem('savedGameData', savedGameData);
+        }
+        
+        log('Browser data cleared successfully');
+        setStatus('success', 'Browser data cleared');
+      } catch (err) {
+        log(`Error clearing data: ${err.message}`);
+        setStatus('error', 'Error clearing data');
+      }
+    }
+    
+    // Method 1: Direct localStorage setting with gameType
+    function method1_DirectLocalStorage() {
+      log('Method 1: Setting direct localStorage values');
+      
+      try {
+        // Create base game configuration
+        const baseConfig = {
+          gameId: 'emergency_' + new Date().toISOString().slice(0, 10).replace(/-/g, ''),
+          theme: {
+            mainTheme: 'Emergency Theme',
+            description: 'A default theme',
+            selectedThemeId: 'default-theme',
+            colors: {
+              primary: '#E60012',
+              secondary: '#0052cc',
+              accent: '#ff6600',
+              background: '#ffffff'
+            }
+          },
+          // This is important: we need to store that we're on step 1 (index 1)
+          currentStep: 1,
+          // Visual journey step tracking
+          visualJourney: {
+            currentStep: 1,
+            totalSteps: 12,
+            progress: 8,
+            completedSteps: {
+              'theme-design': true
+            }
+          }
+        };
+        
+        // Set game type
+        localStorage.setItem('slotai_game_type', 'visual_journey');
+        
+        // Store game config
+        localStorage.setItem('slotai_emergency_config', JSON.stringify(baseConfig));
+        localStorage.setItem('slotai_emergency_step', '1');
+        localStorage.setItem('slotai_force_step', '1');
+        localStorage.setItem('slotai_timestamp', Date.now().toString());
+        
+        // Also set the standard navigation flags
+        localStorage.setItem('slotai_emergency_nav', 'true');
+        localStorage.setItem('slotai_target_step', '1');
+        
+        log('Method 1 completed: All localStorage values set');
+        return true;
+      } catch (err) {
+        log(`Method 1 failed: ${err.message}`);
+        return false;
+      }
+    }
+    
+    // Method 2: URL Parameters with reload
+    function method2_URLParameters() {
+      log('Method 2: Setting up URL parameters navigation');
+      
+      try {
+        // Build URL with all possible parameters that might help
+        const params = new URLSearchParams();
+        params.set('step', '1');                      // Target step (0-indexed)
+        params.set('force', 'true');                  // Force flag
+        params.set('gameType', 'visual_journey');     // Game type
+        params.set('mode', 'visual');                 // Mode
+        params.set('t', Date.now().toString());       // Timestamp for cache busting
+        params.set('emergency', 'true');              // Emergency flag
+        
+        const url = `/?${params.toString()}`;
+        log(`Method 2 prepared: Will navigate to ${url}`);
+        
+        // Set a flag so we know to try method 3 if this fails
+        localStorage.setItem('tried_method_2', 'true');
+        localStorage.setItem('last_navigation_attempt', Date.now().toString());
+        
+        return url;
+      } catch (err) {
+        log(`Method 2 failed: ${err.message}`);
+        return null;
+      }
+    }
+    
+    // Method 3: Create a special HTML file with embedded state
+    function method3_EmbeddedHTML() {
+      log('Method 3: Preparing embedded HTML state approach');
+      
+      try {
+        // This method generates instructions for a more manual approach
+        log('Method 3: Please follow these steps:');
+        log('1. Re-launch the app in a new tab');
+        log('2. When it loads, open Developer Tools (F12)');
+        log('3. Go to the Console tab');
+        log('4. Copy and paste this code:');
+        
+        const codeSnippet = `
+// Emergency navigation script
+(function() {
+  console.log('🚨 EMERGENCY NAVIGATION SCRIPT RUNNING');
+  
+  // Get the Zustand store
+  const store = window.useGameStore ? window.useGameStore.getState() : null;
+  
+  if (store) {
+    console.log('Found Zustand store, attempting navigation');
+    
+    // Create emergency theme and gameId if needed
+    if (!store.config.gameId || !store.config.theme?.selectedThemeId) {
+      console.log('Setting emergency theme and gameId');
+      
+      store.updateConfig({
+        gameId: 'emergency_' + new Date().toISOString().slice(0, 10).replace(/-/g, ''),
+        theme: {
+          mainTheme: 'Emergency Theme',
+          description: 'A default theme',
+          selectedThemeId: 'default-theme',
+          colors: {
+            primary: '#E60012',
+            secondary: '#0052cc',
+            accent: '#ff6600',
+            background: '#ffffff'
+          }
+        }
+      });
+    }
+    
+    // Set game type if needed
+    if (!store.gameType) {
+      store.setGameType('visual_journey');
+    }
+    
+    // Force navigation to step 1 (Game Type)
+    setTimeout(() => {
+      console.log('FORCE NAVIGATION TO STEP 1 (Game Type)');
+      store.setStep(1);
+      console.log('Navigation command sent!');
+    }, 500);
+    
+    console.log('🚨 EMERGENCY NAVIGATION COMPLETE');
+  } else {
+    console.error('Could not find Zustand store!');
+  }
+})();`;
+
+        log(`<code>${codeSnippet}</code>`);
+        
+        return 'manual-steps';
+      } catch (err) {
+        log(`Method 3 failed: ${err.message}`);
+        return null;
+      }
+    }
+    
+    // Main navigation function
+    async function executeNavigation() {
+      setStatus('working', 'Navigation in progress...');
+      log('Starting emergency navigation to Step 2 (Game Type)...');
+      
+      // Execute Method 1 (localStorage)
+      const method1Result = method1_DirectLocalStorage();
+      log(`Method 1 ${method1Result ? 'succeeded' : 'failed'}`);
+      
+      // Execute Method 2 (URL parameters)
+      const method2Url = method2_URLParameters();
+      
+      if (method2Url) {
+        log('Executing Method 2: Redirecting with URL parameters...');
+        setStatus('working', 'Redirecting to app with parameters...');
+        
+        // Redirect after a short delay
+        setTimeout(() => {
+          window.location.href = method2Url;
+        }, 1000);
+      } else {
+        // If Method 2 failed, show Method 3
+        const method3Result = method3_EmbeddedHTML();
+        setStatus('error', 'Automatic navigation failed. Please try manual steps.');
+      }
+    }
+    
+    // Return to app
+    function returnToApp() {
+      window.location.href = '/?t=' + Date.now();
+    }
+    
+    // Init
+    window.onload = function() {
+      log('Emergency navigation tool ready');
+      setStatus('', 'Ready to navigate');
+      
+      // Check if we're returning after a failed navigation attempt
+      const lastAttempt = localStorage.getItem('last_navigation_attempt');
+      const triedMethod2 = localStorage.getItem('tried_method_2');
+      
+      if (lastAttempt && triedMethod2) {
+        const attemptTime = parseInt(lastAttempt, 10);
+        const now = Date.now();
+        const timeSinceAttempt = now - attemptTime;
+        
+        // If we tried method 2 within the last minute, assume it failed
+        if (timeSinceAttempt < 60000) {
+          log('Detected return from failed Method 2 attempt');
+          method3_EmbeddedHTML();
+          setStatus('error', 'Method 2 failed. Please try manual steps.');
+          
+          // Clear the flags
+          localStorage.removeItem('tried_method_2');
+          localStorage.removeItem('last_navigation_attempt');
+        }
+      }
+    };
+  </script>
+</body>
+</html>

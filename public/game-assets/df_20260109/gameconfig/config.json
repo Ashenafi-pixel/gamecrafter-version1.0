@@ -1,0 +1,21 @@
+{
+  "gameId": "df_20260109",
+  "createdAt": "2026-01-09T21:11:21.240Z",
+  "updatedAt": "2026-01-09T21:11:21.240Z",
+  "folders": [
+    "symbols",
+    "symbols/wild",
+    "symbols/scatter",
+    "symbols/high",
+    "symbols/medium",
+    "symbols/low",
+    "background",
+    "frame",
+    "titles",
+    "ui",
+    "sound",
+    "sound/effects",
+    "sound/music",
+    "gameconfig"
+  ]
+}

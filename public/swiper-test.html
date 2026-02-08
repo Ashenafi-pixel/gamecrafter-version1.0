@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GameFrameDesigner with Swiper Test</title>
+  <script type="module">
+    // Import React components directly using Vite's module system
+    import React from 'react';
+    import ReactDOM from 'react-dom/client';
+    import GameFrameDesignerWithSwiper from '../src/components/visual-journey/game-frame/GameFrameDesignerWithSwiper.tsx';
+    
+    // Clear localStorage cache
+    try {
+      localStorage.clear();
+    } catch (e) {
+      console.warn('Failed to clear localStorage:', e);
+    }
+    
+    // Wait for DOM to be ready
+    document.addEventListener('DOMContentLoaded', () => {
+      const rootElement = document.getElementById('root');
+      if (!rootElement) {
+        console.error('Root element not found');
+        return;
+      }
+    
+      try {
+        // Override console methods to display in the UI
+        const consoleEl = document.getElementById('console-output');
+        const originalConsoleLog = console.log;
+        const originalConsoleError = console.error;
+        
+        console.log = function() {
+          originalConsoleLog.apply(console, arguments);
+          const args = Array.from(arguments).map(arg => 
+            typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+          ).join(' ');
+          consoleEl.innerHTML += `<div class="log-entry">[LOG] ${args}</div>`;
+          consoleEl.scrollTop = consoleEl.scrollHeight;
+        };
+        
+        console.error = function() {
+          originalConsoleError.apply(console, arguments);
+          const args = Array.from(arguments).map(arg => 
+            typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+          ).join(' ');
+          consoleEl.innerHTML += `<div class="log-entry error">[ERROR] ${args}</div>`;
+          consoleEl.scrollTop = consoleEl.scrollHeight;
+        };
+        
+        // Create React component
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(
+          React.createElement(React.StrictMode, null,
+            React.createElement(GameFrameDesignerWithSwiper, null)
+          )
+        );
+        
+        // Log successful rendering
+        console.log('GameFrameDesignerWithSwiper rendered successfully');
+      } catch (error) {
+        console.error('Failed to render component:', error);
+        document.getElementById('error').textContent = 
+          `Error: ${error.message}. Check console for details.`;
+      }
+    });
+  </script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      max-width: 1200px;
+      margin: 0 auto;
+      gap: 20px;
+    }
+    .component-container {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    .console-container {
+      background-color: #1e1e1e;
+      color: #ffffff;
+      padding: 16px;
+      border-radius: 8px;
+      max-height: 300px;
+      overflow: auto;
+    }
+    .header {
+      padding: 16px;
+      border-bottom: 1px solid #eaeaea;
+    }
+    h1 {
+      margin: 0;
+      font-size: 1.5rem;
+      color: #333;
+    }
+    #console-output {
+      font-family: monospace;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .log-entry {
+      margin-bottom: 8px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .error {
+      color: #ff6b6b;
+    }
+    #error {
+      color: #e53e3e;
+      padding: 16px;
+      background-color: #fff5f5;
+      border-radius: 4px;
+      margin-top: 20px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="component-container">
+      <div class="header">
+        <h1>GameFrameDesigner with Swiper</h1>
+      </div>
+      <div id="root"></div>
+    </div>
+    
+    <div class="console-container">
+      <div id="console-output"></div>
+    </div>
+    
+    <div id="error"></div>
+  </div>
+</body>
+</html>

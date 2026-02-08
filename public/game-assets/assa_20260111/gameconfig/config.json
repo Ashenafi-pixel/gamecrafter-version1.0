@@ -1,0 +1,21 @@
+{
+  "gameId": "assa_20260111",
+  "createdAt": "2026-01-11T07:41:15.054Z",
+  "updatedAt": "2026-01-11T07:41:15.054Z",
+  "folders": [
+    "symbols",
+    "symbols/wild",
+    "symbols/scatter",
+    "symbols/high",
+    "symbols/medium",
+    "symbols/low",
+    "background",
+    "frame",
+    "titles",
+    "ui",
+    "sound",
+    "sound/effects",
+    "sound/music",
+    "gameconfig"
+  ]
+}

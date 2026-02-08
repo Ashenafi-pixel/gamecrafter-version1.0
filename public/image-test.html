@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .image-test {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .image-container {
+            margin-top: 10px;
+            padding: 5px;
+            border: 1px dashed #ccc;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 200px;
+            background: #f9f9f9;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .status {
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .success {
+            color: green;
+        }
+        .error {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <h1>Image Test Page</h1>
+    <p>This page tests whether images can be loaded from different paths.</p>
+
+    <div class="image-test">
+        <h2>Style Images Test</h2>
+        <div class="image-container">
+            <img id="cartoon-image" src="/assets/frames/styles/cartoon.png" style="max-width:300px; max-height:300px;" alt="Cartoon style">
+        </div>
+        <div class="status" id="cartoon-status">Loading...</div>
+    </div>
+
+    <div class="image-test">
+        <h2>Decoration Images Test</h2>
+        <div class="image-container">
+            <img id="minimal-image" src="/assets/frames/decorations/minimal.png" style="max-width:200px; max-height:200px;" alt="Minimal decoration">
+        </div>
+        <div class="status" id="minimal-status">Loading...</div>
+    </div>
+
+    <div class="image-test">
+        <h2>Symbol Image Test (Known working path)</h2>
+        <div class="image-container">
+            <img id="symbol-image" src="/assets/symbols/high_1.png" style="max-width:200px; max-height:200px;" alt="Symbol test">
+        </div>
+        <div class="status" id="symbol-status">Loading...</div>
+    </div>
+
+    <script>
+        // Check image load status
+        function checkImage(imageId, statusId) {
+            const img = document.getElementById(imageId);
+            const status = document.getElementById(statusId);
+            
+            img.onload = function() {
+                status.textContent = "Success! Image loaded.";
+                status.className = "status success";
+                console.log(`${imageId} loaded successfully from ${img.src}`);
+            };
+            
+            img.onerror = function() {
+                status.textContent = `Error! Failed to load image from ${img.src}`;
+                status.className = "status error";
+                console.error(`${imageId} failed to load from ${img.src}`);
+            };
+        }
+
+        // Check all images
+        window.onload = function() {
+            checkImage("cartoon-image", "cartoon-status");
+            checkImage("minimal-image", "minimal-status");
+            checkImage("symbol-image", "symbol-status");
+        };
+    </script>
+</body>
+</html>

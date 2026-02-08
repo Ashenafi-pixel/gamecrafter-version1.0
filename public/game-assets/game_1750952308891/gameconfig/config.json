@@ -1,0 +1,21 @@
+{
+  "gameId": "game_1750952308891",
+  "createdAt": "2025-06-26T15:38:57.665Z",
+  "updatedAt": "2025-06-26T15:38:57.665Z",
+  "folders": [
+    "symbols",
+    "symbols/wild",
+    "symbols/scatter",
+    "symbols/high",
+    "symbols/medium",
+    "symbols/low",
+    "background",
+    "frame",
+    "titles",
+    "ui",
+    "sound",
+    "sound/effects",
+    "sound/music",
+    "gameconfig"
+  ]
+}

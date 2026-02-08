@@ -1,0 +1,206 @@
+const toggleFullScreen = () => {
+  if (!document.fullscreenElement) {
+    // Enter fullscreen mode
+    const gameContainer = document.getElementById('slot-game-container');
+    if (gameContainer && gameContainer.requestFullscreen) {
+      // Save original dimensions
+      setOriginalDimensions({ width: bgWidth, height: bgHeight });
+      
+      gameContainer.requestFullscreen()
+        .then(() => {
+          setIsFullscreen(true);
+          
+          // Apply fullscreen changes after a short delay to ensure proper rendering
+          setTimeout(() => {
+            if (!appRef.current) return;
+            
+            const screenWidth = window.innerWidth;
+            const screenHeight = window.innerHeight;
+            
+            console.log(`Going fullscreen: ${screenWidth}x${screenHeight}`);
+            
+            // Store the current symbols before rebuilding
+            const currentReelSymbols = reelsRef.current.map(reel => {
+              if (reel.getVisibleSymbols) {
+                return reel.getVisibleSymbols();
+              }
+              return [];
+            });
+            
+            // Rebuild the application for fullscreen
+            rebuildApplicationForSize(screenWidth, screenHeight, currentReelSymbols, true);
+            
+          }, 100); // Small delay to ensure DOM updates are complete
+        })
+        .catch(err => {
+          console.error(`Error entering fullscreen: ${err.message}`);
+        });
+    }
+  } else if (document.exitFullscreen) {
+    // Exit fullscreen mode
+    document.exitFullscreen()
+      .then(() => {
+        setIsFullscreen(false);
+        
+        // Store the current symbols before rebuilding
+        const currentReelSymbols = reelsRef.current.map(reel => {
+          if (reel.getVisibleSymbols) {
+            return reel.getVisibleSymbols();
+          }
+          return [];
+        });
+        
+        // Apply changes after a short delay to ensure proper rendering
+        setTimeout(() => {
+          if (!appRef.current) return;
+          
+          console.log(`Exiting fullscreen, restoring to: ${originalDimensions.width}x${originalDimensions.height}`);
+          
+          // Rebuild with original dimensions
+          rebuildApplicationForSize(originalDimensions.width, originalDimensions.height, currentReelSymbols, false);
+          
+        }, 100);
+      })
+      .catch(err => {
+        console.error(`Error exiting fullscreen: ${err.message}`);
+      });
+  }
+};
+
+// Helper function to rebuild the application for a given size
+const rebuildApplicationForSize = (width: number, height: number, currentReelSymbols: any[], isFullscreen: boolean) => {
+  // Destroy the current application
+  if (appRef.current) {
+    appRef.current.destroy(true);
+    appRef.current = null;
+  }
+  
+  // Clear the container
+  if (pixiContainerRef.current) {
+    pixiContainerRef.current.innerHTML = '';
+    
+    // Create new app with the specified dimensions
+    const app = new PIXI.Application({
+      width: width,
+      height: height,
+      backgroundColor: 0x000000,
+      resolution: window.devicePixelRatio || 1,
+      antialias: true,
+    });
+    
+    pixiContainerRef.current.appendChild(app.view as unknown as Node);
+    pixiContainerRef.current.style.width = `${width}px`;
+    pixiContainerRef.current.style.height = `${height}px`;
+    
+    appRef.current = app;
+    
+    // Recreate all containers
+    // 1. Background
+    const bgContainer = new PIXI.Container();
+    app.stage.addChild(bgContainer);
+    bgContainerRef.current = bgContainer;
+    
+    // 2. Frame
+    const frameContainer = new PIXI.Container();
+    app.stage.addChild(frameContainer);
+    frameContainerRef.current = frameContainer;
+    
+    // Create background and frame
+    const bgTexture = texturesRef.current['background'] || createPlaceholderTexture(app, width, height, 0x000022);
+    const frameTexture = texturesRef.current['frame'] || createPlaceholderTexture(app, width, height, 0x00000000);
+    
+    // Add background sprite
+    const background = new PIXI.Sprite(bgTexture);
+    background.width = width;
+    background.height = height;
+    bgContainer.addChild(background);
+    
+    // Add frame sprite
+    const frame = new PIXI.Sprite(frameTexture);
+    frame.width = width;
+    frame.height = height;
+    frameContainer.addChild(frame);
+    
+    // 3. Reels container
+    const reelsMainContainer = new PIXI.Container();
+    
+    if (isFullscreen) {
+      // For fullscreen, scale the reels to fit
+      const reelAreaWidth = REEL_WIDTH * numReels;
+      const reelAreaHeight = SYMBOL_SIZE * numRows;
+      
+      // Scale to fit 80% of the screen height
+      const scale = (height * 0.8) / reelAreaHeight;
+      const centeredX = (width - (reelAreaWidth * scale)) / 2;
+      const centeredY = (height - (reelAreaHeight * scale)) / 2;
+      
+      reelsMainContainer.scale.set(scale);
+      reelsMainContainer.x = centeredX;
+      reelsMainContainer.y = centeredY;
+      
+      console.log(`Reels scaled to ${scale} at ${centeredX},${centeredY}`);
+      
+      // Scale win containers to match
+      winLinesContainer.scale.set(scale);
+      winLinesContainer.x = reelsMainContainer.x;
+      winLinesContainer.y = reelsMainContainer.y;
+      
+      winAnimationContainer.scale.set(scale);
+      winAnimationContainer.x = reelsMainContainer.x;
+      winAnimationContainer.y = reelsMainContainer.y;
+    } else {
+      // For normal mode, use standard positioning
+      reelsMainContainer.x = (width - (REEL_WIDTH * numReels)) / 2;
+      reelsMainContainer.y = (height - (SYMBOL_SIZE * numRows)) / 2 - 20 + REEL_OFFSET_Y;
+      
+      // Position win containers
+      winLinesContainer.x = reelsMainContainer.x;
+      winLinesContainer.y = reelsMainContainer.y;
+      winLinesContainer.scale.set(1);
+      
+      winAnimationContainer.x = 0;
+      winAnimationContainer.y = 0;
+      winAnimationContainer.scale.set(1);
+    }
+    
+    app.stage.addChild(reelsMainContainer);
+    
+    // 4. Win lines container
+    const winLinesContainer = new PIXI.Container();
+    app.stage.addChild(winLinesContainer);
+    
+    // 5. Win animations container
+    const winAnimationContainer = new PIXI.Container();
+    app.stage.addChild(winAnimationContainer);
+    winAnimationContainerRef.current = winAnimationContainer;
+    
+    // Recreate reels with current state
+    reelsRef.current = [];
+    
+    for (let i = 0; i < numReels; i++) {
+      const reel = new Reel(texturesRef.current, i * REEL_WIDTH, numRows);
+      reelsMainContainer.addChild(reel.container);
+      
+      // If we have saved symbol states, restore them
+      if (currentReelSymbols[i] && currentReelSymbols[i].length) {
+        reel.prepareResults(currentReelSymbols[i]);
+        reel.position = Math.round(reel.position / SYMBOL_SIZE) * SYMBOL_SIZE;
+        reel.updateSymbolPositions();
+      }
+      
+      reelsRef.current.push(reel);
+    }
+    
+    // Force a render
+    app.renderer.render(app.stage);
+  }
+};
+
+// Helper function to create a placeholder texture
+const createPlaceholderTexture = (app: PIXI.Application, width: number, height: number, color: number) => {
+  const graphics = new PIXI.Graphics();
+  graphics.beginFill(color);
+  graphics.drawRect(0, 0, width, height);
+  graphics.endFill();
+  return app.renderer.generateTexture(graphics);
+};

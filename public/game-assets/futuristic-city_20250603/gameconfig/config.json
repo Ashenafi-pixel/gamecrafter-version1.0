@@ -1,0 +1,20 @@
+{
+  "gameId": "futuristic-city_20250603",
+  "createdAt": "2025-06-03T16:32:34.918Z",
+  "updatedAt": "2025-06-03T16:32:34.918Z",
+  "folders": [
+    "symbols",
+    "symbols/wild",
+    "symbols/scatter",
+    "symbols/high",
+    "symbols/medium",
+    "symbols/low",
+    "background",
+    "frame",
+    "ui",
+    "sound",
+    "sound/effects",
+    "sound/music",
+    "gameconfig"
+  ]
+}

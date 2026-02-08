@@ -1,0 +1,31 @@
+{
+  "gameId": "space-adventure",
+  "theme": {
+    "mainTheme": "Space Adventure",
+    "artStyle": "cartoon",
+    "colorScheme": "cosmic-dark",
+    "mood": "exciting",
+    "description": "An interstellar slot adventure with planets, astronauts, and alien creatures"
+  },
+  "bet": {
+    "min": 0.2,
+    "max": 100,
+    "increment": 0.2
+  },
+  "rtp": {
+    "baseRTP": 88,
+    "bonusRTP": 5,
+    "featureRTP": 3,
+    "targetRTP": 96,
+    "volatilityScale": 8
+  },
+  "reels": {
+    "payMechanism": "betlines",
+    "layout": {
+      "shape": "rectangle",
+      "reels": 5,
+      "rows": 3
+    },
+    "betlines": 25
+  }
+}

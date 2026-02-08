@@ -1,0 +1,20 @@
+{
+  "gameId": "ancient-aztec_20250602",
+  "createdAt": "2025-06-02T19:37:22.093Z",
+  "updatedAt": "2025-06-02T19:37:22.093Z",
+  "folders": [
+    "symbols",
+    "symbols/wild",
+    "symbols/scatter",
+    "symbols/high",
+    "symbols/medium",
+    "symbols/low",
+    "background",
+    "frame",
+    "ui",
+    "sound",
+    "sound/effects",
+    "sound/music",
+    "gameconfig"
+  ]
+}

@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Gem Animator</title>
+    <style>
+        body { 
+            font-family: Arial; 
+            background: #222; 
+            color: white; 
+            text-align: center; 
+            padding: 20px; 
+        }
+        .upload-area { 
+            background: #444; 
+            padding: 20px; 
+            margin: 20px; 
+            border-radius: 10px; 
+        }
+        .frame-slot { 
+            display: inline-block; 
+            width: 100px; 
+            height: 100px; 
+            border: 2px dashed #666; 
+            margin: 5px; 
+            cursor: pointer; 
+            border-radius: 5px;
+            vertical-align: top;
+        }
+        .frame-slot.filled { 
+            border-color: gold; 
+            background: rgba(255,215,0,0.1); 
+        }
+        .frame-slot img { 
+            width: 90px; 
+            height: 90px; 
+            margin: 5px; 
+        }
+        canvas { 
+            border: 2px solid #666; 
+            background: transparent; 
+            margin: 20px; 
+        }
+        button { 
+            background: gold; 
+            color: black; 
+            border: none; 
+            padding: 10px 20px; 
+            margin: 5px; 
+            border-radius: 5px; 
+            cursor: pointer; 
+        }
+        input[type="range"] { 
+            width: 200px; 
+        }
+    </style>
+</head>
+<body>
+    <h1>🔴 Simple Gem Animator</h1>
+    
+    <div class="upload-area">
+        <h3>Upload Your Gem Frames</h3>
+        <div id="frameSlots"></div>
+        <button onclick="addSlot()">Add Frame</button>
+        <button onclick="clearFrames()">Clear</button>
+        <button onclick="testPattern()">Test Pattern</button>
+    </div>
+    
+    <div class="upload-area">
+        <h3>Animation Preview</h3>
+        <canvas id="canvas" width="200" height="200"></canvas><br>
+        <button onclick="play()">Play</button>
+        <button onclick="stop()">Stop</button>
+        <button onclick="exportRef()">Export Reference</button><br>
+        Speed: <input type="range" id="speed" min="50" max="500" value="150"> <span id="speedText">150ms</span>
+        <div id="info">No frames loaded</div>
+    </div>
+
+    <script>
+        var frames = [];
+        var playing = false;
+        var frameIndex = 0;
+        var interval = null;
+        var speed = 150;
+
+        function addSlot() {
+            var container = document.getElementById('frameSlots');
+            var slot = document.createElement('div');
+            slot.className = 'frame-slot';
+            slot.innerHTML = 'Click to upload';
+            
+            var input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.style.display = 'none';
+            
+            slot.onclick = function() { input.click(); };
+            
+            input.onchange = function() {
+                if (this.files[0]) {
+                    var reader = new FileReader();
+                    reader.onload = function(e) {
+                        var img = new Image();
+                        img.onload = function() {
+                            frames.push(img);
+                            slot.className = 'frame-slot filled';
+                            slot.innerHTML = '';
+                            slot.appendChild(img);
+                            updateInfo();
+                        };
+                        img.src = e.target.result;
+                    };
+                    reader.readAsDataURL(this.files[0]);
+                }
+            };
+            
+            container.appendChild(slot);
+        }
+
+        function clearFrames() {
+            frames = [];
+            document.getElementById('frameSlots').innerHTML = '';
+            stop();
+            updateInfo();
+        }
+
+        function testPattern() {
+            clearFrames();
+            for (var i = 0; i < 6; i++) {
+                var canvas = document.createElement('canvas');
+                canvas.width = 100;
+                canvas.height = 100;
+                var ctx = canvas.getContext('2d');
+                
+                var angle = (i / 6) * Math.PI * 2;
+                ctx.fillStyle = 'red';
+                ctx.beginPath();
+                ctx.arc(50, 50, 30, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                ctx.arc(50 + Math.cos(angle) * 15, 50 + Math.sin(angle) * 15, 8, 0, Math.PI * 2);
+                ctx.fill();
+                
+                var img = new Image();
+                img.src = canvas.toDataURL();
+                frames.push(img);
+                
+                var slot = document.createElement('div');
+                slot.className = 'frame-slot filled';
+                slot.appendChild(img.cloneNode());
+                document.getElementById('frameSlots').appendChild(slot);
+            }
+            updateInfo();
+        }
+
+        function updateInfo() {
+            document.getElementById('info').textContent = frames.length + ' frames loaded';
+        }
+
+        function play() {
+            if (frames.length < 2) return;
+            playing = true;
+            interval = setInterval(function() {
+                frameIndex = (frameIndex + 1) % frames.length;
+                draw();
+            }, speed);
+        }
+
+        function stop() {
+            playing = false;
+            if (interval) clearInterval(interval);
+        }
+
+        function draw() {
+            var canvas = document.getElementById('canvas');
+            var ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (frames[frameIndex]) {
+                ctx.drawImage(frames[frameIndex], 50, 50, 100, 100);
+            }
+        }
+
+        function exportRef() {
+            if (frames.length < 2) {
+                alert('Need at least 2 frames');
+                return;
+            }
+
+            var canvas = document.createElement('canvas');
+            canvas.width = 150;
+            canvas.height = 150;
+            var ctx = canvas.getContext('2d');
+
+            var frameData = [];
+            for (var i = 0; i < frames.length; i++) {
+                ctx.clearRect(0, 0, 150, 150);
+                ctx.drawImage(frames[i], 0, 0, 150, 150);
+                frameData.push(canvas.toDataURL());
+            }
+
+            var html = '<!DOCTYPE html><html><head><title>Gem Reference</title></head>';
+            html += '<body style="text-align:center;background:#222;color:white;">';
+            html += '<h1>Perfect Gem Animation Reference</h1>';
+            html += '<canvas id="c" width="150" height="150" style="border:2px solid #666;"></canvas>';
+            html += '<script>';
+            html += 'var frames=' + JSON.stringify(frameData) + ';';
+            html += 'var canvas=document.getElementById("c");';
+            html += 'var ctx=canvas.getContext("2d");';
+            html += 'var frame=0;';
+            html += 'function animate(){';
+            html += 'var img=new Image();';
+            html += 'img.onload=function(){ctx.clearRect(0,0,150,150);ctx.drawImage(img,0,0);};';
+            html += 'img.src=frames[frame];';
+            html += 'frame=(frame+1)%frames.length;';
+            html += '}';
+            html += 'setInterval(animate,' + speed + ');';
+            html += '</script></body></html>';
+
+            var blob = new Blob([html], {type: 'text/html'});
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'gem-reference.html';
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            alert('Reference exported! Open the HTML file to see perfect animation.');
+        }
+
+        document.getElementById('speed').oninput = function() {
+            speed = parseInt(this.value);
+            document.getElementById('speedText').textContent = speed + 'ms';
+            if (playing) {
+                stop();
+                play();
+            }
+        };
+
+        // Initialize with 6 slots
+        for (var i = 0; i < 6; i++) addSlot();
+        updateInfo();
+    </script>
+</body>
+</html>

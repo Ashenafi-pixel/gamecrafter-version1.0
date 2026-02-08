@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/assets/brand/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Premium Slot Preview</title>
+  <link rel="stylesheet" href="/src/index.css">
+  <style>
+    html, body, #root {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background-color: #f9fafb;
+    }
+    .preview-container {
+      height: 100vh;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    .header {
+      background-color: #1e293b;
+      color: white;
+      padding: 1rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      z-index: 10;
+    }
+    .content {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 1rem;
+    }
+    .preview-box {
+      width: 100%;
+      max-width: 1200px;
+      height: calc(100% - 2rem);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      border-radius: 0.5rem;
+      background-color: white;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+  <div class="preview-container">
+    <div class="header">
+      <h1 class="text-xl font-bold">Premium Slot Preview</h1>
+      <p class="text-sm opacity-75">Complete standalone view with all features</p>
+    </div>
+    <div class="content">
+      <div class="preview-box" id="root"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    // This directly imports the needed components and initializes properly
+    import React from 'react';
+    import ReactDOM from 'react-dom/client';
+    import GridPreviewWrapper from '/src/components/visual-journey/grid-preview/GridPreviewWrapper.tsx';
+    import { useGameStore } from '/src/store.ts';
+    
+    // Setup mock symbols
+    const TEST_SYMBOLS = [
+      '/public/assets/symbols/wild.png',
+      '/public/assets/symbols/scatter.png',
+      '/public/assets/symbols/high_1.png',
+      '/public/assets/symbols/high_2.png',
+      '/public/assets/symbols/high_3.png',
+      '/public/assets/symbols/mid_1.png',
+      '/public/assets/symbols/mid_2.png',
+      '/public/assets/symbols/low_1.png',
+      '/public/assets/symbols/low_2.png',
+      '/public/assets/symbols/low_3.png'
+    ];
+    
+    // Create a wrapper component to handle store initialization
+    function PreviewWrapper() {
+      const updateConfig = useGameStore(state => state.updateConfig);
+      
+      React.useEffect(() => {
+        // Initialize store with correct grid configuration
+        updateConfig({
+          reels: {
+            layout: {
+              reels: 5,
+              rows: 3,
+              orientation: 'landscape'
+            }
+          },
+          theme: {
+            mainTheme: "premium slot game",
+            generated: {
+              symbols: TEST_SYMBOLS
+            }
+          }
+        });
+        
+        // Also dispatch the gridConfigChanged event that Step 3 uses
+        window.dispatchEvent(new CustomEvent('gridConfigChanged', {
+          detail: {
+            reels: 5,
+            rows: 3,
+            orientation: 'landscape'
+          }
+        }));
+        
+        // Also dispatch symbolsChanged event
+        window.dispatchEvent(new CustomEvent('symbolsChanged', {
+          detail: {
+            symbols: TEST_SYMBOLS
+          }
+        }));
+        
+        // Make a button to regenerate symbols
+        const dispatchButton = document.createElement('button');
+        dispatchButton.textContent = 'Redispatch Symbol Events';
+        dispatchButton.className = 'fixed top-20 right-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow z-50';
+        dispatchButton.onclick = () => {
+          window.dispatchEvent(new CustomEvent('symbolsChanged', {
+            detail: { symbols: TEST_SYMBOLS }
+          }));
+          window.dispatchEvent(new CustomEvent('gridConfigChanged', {
+            detail: {
+              reels: 5,
+              rows: 3,
+              orientation: 'landscape'
+            }
+          }));
+          console.log('Re-dispatched symbol and grid events');
+        };
+        document.body.appendChild(dispatchButton);
+      }, [updateConfig]);
+      
+      return <GridPreviewWrapper />;
+    }
+    
+    // Render directly
+    ReactDOM.createRoot(document.getElementById('root')).render(
+      <React.StrictMode>
+        <PreviewWrapper />
+      </React.StrictMode>
+    );
+  </script>
+</body>
+</html>

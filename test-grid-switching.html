@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grid Switching Test</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: sans-serif;
+      background: #1a1a2e;
+      color: white;
+    }
+    .controls {
+      margin-bottom: 20px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    button {
+      padding: 10px 20px;
+      background: #4a5568;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #2d3748;
+    }
+    button.active {
+      background: #805ad5;
+    }
+    #preview-container {
+      width: 100%;
+      height: 600px;
+      border: 2px solid #4a5568;
+      border-radius: 10px;
+      overflow: hidden;
+      position: relative;
+    }
+    .status {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 10px;
+      border-radius: 5px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Grid Switching Test</h1>
+  
+  <div class="controls">
+    <button id="desktop-btn" class="active" onclick="setMode('desktop')">Desktop</button>
+    <button id="mobile-portrait-btn" onclick="setMode('mobile-portrait')">Mobile Portrait</button>
+    <button id="mobile-landscape-btn" onclick="setMode('mobile-landscape')">Mobile Landscape</button>
+    <span>Grid: <select id="grid-size" onchange="updateGrid()">
+      <option value="5x3">5x3</option>
+      <option value="3x3">3x3</option>
+      <option value="6x4">6x4</option>
+    </select></span>
+  </div>
+  
+  <div id="preview-container">
+    <div class="status" id="status">Loading...</div>
+  </div>
+  
+  <script type="module">
+    let currentMode = 'desktop';
+    let gridSize = { reels: 5, rows: 3 };
+    
+    // Wait for React app to load
+    setTimeout(() => {
+      // Navigate to step 3
+      window.location.hash = '#/slot/step/2';
+      
+      // Update status
+      document.getElementById('status').textContent = `Mode: ${currentMode} | Grid: ${gridSize.reels}x${gridSize.rows}`;
+    }, 1000);
+    
+    window.setMode = function(mode) {
+      currentMode = mode;
+      
+      // Update button states
+      document.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
+      document.getElementById(mode === 'desktop' ? 'desktop-btn' : 
+                          mode === 'mobile-portrait' ? 'mobile-portrait-btn' : 
+                          'mobile-landscape-btn').classList.add('active');
+      
+      // Update container dimensions
+      const container = document.getElementById('preview-container');
+      if (mode === 'desktop') {
+        container.style.width = '100%';
+        container.style.height = '600px';
+      } else if (mode === 'mobile-portrait') {
+        container.style.width = '400px';
+        container.style.height = '700px';
+      } else {
+        container.style.width = '700px';
+        container.style.height = '400px';
+      }
+      
+      // Trigger resize event
+      window.dispatchEvent(new Event('resize'));
+      
+      // Update status
+      document.getElementById('status').textContent = `Mode: ${currentMode} | Grid: ${gridSize.reels}x${gridSize.rows}`;
+      
+      // Log to console
+      console.log('Grid mode changed to:', mode);
+    };
+    
+    window.updateGrid = function() {
+      const value = document.getElementById('grid-size').value;
+      const [reels, rows] = value.split('x').map(Number);
+      gridSize = { reels, rows };
+      
+      // Update status
+      document.getElementById('status').textContent = `Mode: ${currentMode} | Grid: ${gridSize.reels}x${gridSize.rows}`;
+      
+      // Would need to update the store here
+      console.log('Grid size changed to:', gridSize);
+    };
+  </script>
+</body>
+</html>

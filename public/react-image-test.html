@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>React Image Test</title>
+  <script type="module">
+    // Import React components directly using Vite's module system
+    import React from 'react';
+    import ReactDOM from 'react-dom/client';
+    import ImageTestApp from '../src/components/ImageTestApp.tsx';
+    
+    // Clear localStorage cache
+    try {
+      localStorage.clear();
+    } catch (e) {
+      console.warn('Failed to clear localStorage:', e);
+    }
+    
+    // Wait for DOM to be ready
+    document.addEventListener('DOMContentLoaded', () => {
+      const rootElement = document.getElementById('root');
+      if (!rootElement) {
+        console.error('Root element not found');
+        return;
+      }
+    
+      try {
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(
+          React.createElement(React.StrictMode, null,
+            React.createElement(ImageTestApp, null)
+          )
+        );
+      } catch (error) {
+        console.error('Failed to render app:', error);
+        document.getElementById('error').textContent = 
+          `Error: ${error.message}. Check console for details.`;
+      }
+    });
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="error" style="color: red; margin: 20px; font-family: monospace;"></div>
+</body>
+</html>

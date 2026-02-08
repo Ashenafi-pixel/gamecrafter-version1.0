@@ -1,0 +1,90 @@
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [react()],
+  
+  // Optimize build settings for better performance and memory efficiency
+  build: {
+    // Disable source maps for better performance
+    sourcemap: false,
+    
+    // Chunk size warnings at 500kb instead of default 1mb
+    chunkSizeWarningLimit: 500,
+    
+    // Optimize rollup output bundle
+    rollupOptions: {
+      output: {
+        // Ensure large vendor libraries are split into separate chunks
+        manualChunks: {
+          // Put React and React DOM in a separate chunk
+          'react-vendor': ['react', 'react-dom', 'react/jsx-runtime'],
+          
+          // Put animation libraries in a separate chunk
+          'animation-vendor': ['framer-motion', 'gsap', 'pixi.js'],
+          
+          // Put utility libraries in a separate chunk
+          'util-vendor': ['zustand', 'clsx']
+        },
+      },
+    },
+    
+    // Improve memory usage by optimizing build
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        // Remove console.logs in production
+        drop_console: true,
+        // Remove debugger statements
+        drop_debugger: true
+      }
+    }
+  },
+  
+  // Optimize development server for better performance
+  server: {
+    // Increase memory limit for the Vite dev server
+    force: true,
+    hmr: {
+      // Completely disable HMR to prevent memory issues
+      // Comment this out if you need hot reloading during development
+      protocol: 'ws',
+      overlay: false, // Disable the error overlay which can cause memory issues
+    },
+    
+    // Initial page to load on server start
+    open: '/?safe_mode=true',
+    
+    // Lower watch throttle to prevent excessive fs events
+    watch: {
+      usePolling: false,
+      interval: 1000,
+    }
+  },
+  
+  // Optimize asset handling
+  assetsInclude: ['**/*.png', '**/*.jpg', '**/*.svg'],
+  
+  // Set higher memory limits for build
+  optimizeDeps: {
+    // Force exclude problematic packages from optimization
+    exclude: ['pixi.js'],
+    // Include specific packages for optimization
+    include: ['react', 'react-dom', 'zustand'],
+  },
+  
+  // Resolve aliases for cleaner imports
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+  
+  // Configure CSS optimization
+  css: {
+    // Disable source maps for CSS
+    devSourcemap: false,
+  },
+});

@@ -1,0 +1,21 @@
+{
+  "gameId": "sasusi_20250626",
+  "createdAt": "2025-06-26T07:25:24.949Z",
+  "updatedAt": "2025-06-26T07:25:24.949Z",
+  "folders": [
+    "symbols",
+    "symbols/wild",
+    "symbols/scatter",
+    "symbols/high",
+    "symbols/medium",
+    "symbols/low",
+    "background",
+    "frame",
+    "titles",
+    "ui",
+    "sound",
+    "sound/effects",
+    "sound/music",
+    "gameconfig"
+  ]
+}

@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Sprite Detection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .button:hover {
+            background: #0056b3;
+        }
+        .results {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success { color: #28a745; font-weight: bold; }
+        .error { color: #dc3545; font-weight: bold; }
+        .warning { color: #ffc107; font-weight: bold; }
+        .info { color: #17a2b8; font-weight: bold; }
+        #imagePreview {
+            max-width: 400px;
+            max-height: 400px;
+            border: 2px dashed #ccc;
+            margin: 10px 0;
+        }
+        .sprite-result {
+            display: inline-block;
+            margin: 5px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #f9f9f9;
+        }
+        .sprite-image {
+            max-width: 80px;
+            max-height: 80px;
+            display: block;
+            margin: 5px auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 Enhanced Sprite Detection Test</h1>
+    <p>Test the bulletproof sprite detection system for WILD symbols</p>
+
+    <div class="test-section">
+        <h2>📁 Image Upload</h2>
+        <input type="file" id="imageInput" accept="image/*">
+        <img id="imagePreview" style="display: none;">
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 Test Controls</h2>
+        <button class="button" onclick="testBulletproofDetection()">Test Bulletproof Detection</button>
+        <button class="button" onclick="testAIGeneration()">Test AI Generation + Detection</button>
+        <button class="button" onclick="clearResults()">Clear Results</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Expected Results</h2>
+        <div class="results">
+Expected for WILD + pig symbol:
+✅ 5 sprites total (W-I-L-D + pig)
+✅ 4 sprites classified as 'letter' 
+✅ 1 sprite classified as 'symbol' (pig)
+✅ All letters detected separately (no "WID")
+✅ Pig symbol properly identified
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔍 Detection Results</h2>
+        <div id="results" class="results">Ready to test...</div>
+    </div>
+
+    <div class="test-section">
+        <h2>🖼️ Detected Sprites</h2>
+        <div id="spriteResults"></div>
+    </div>
+
+    <script>
+        // Bulletproof Sprite Detector Implementation
+        class BulletproofSpriteDetector {
+            constructor() {
+                this.canvas = document.createElement('canvas');
+                this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
+            }
+
+            async detectSprites(imageUrl) {
+                this.log('🎯 BULLETPROOF: Starting simple, reliable detection...');
+                
+                try {
+                    const imageData = await this.loadImage(imageUrl);
+                    
+                    // HYBRID APPROACH: Try both connected regions AND bounding box detection
+                    const connectedRegions = this.findConnectedRegions(imageData);
+                    this.log(`🔍 BULLETPROOF: Found ${connectedRegions.length} connected regions`);
+                    
+                    // Also try density-based bounding box detection for complex symbols
+                    const boundingBoxRegions = this.findDensityBasedRegions(imageData);
+                    this.log(`🔍 BULLETPROOF: Found ${boundingBoxRegions.length} density-based regions`);
+                    
+                    // Combine and deduplicate regions
+                    const allRegions = this.combineRegions(connectedRegions, boundingBoxRegions);
+                    this.log(`🔍 BULLETPROOF: Combined total: ${allRegions.length} regions`);
+                    
+                    // DEBUG: Let's see ALL regions before filtering
+                    this.log(`🔍 DEBUG: All ${allRegions.length} regions found:`);
+                    allRegions.forEach((r, i) => {
+                        this.log(`  ${i+1}. Region ${r.id}: ${r.pixels} pixels at (${r.bounds.x},${r.bounds.y}) size ${r.bounds.width}x${r.bounds.height}`);
+                    });
+                    
+                    const meaningfulRegions = allRegions.filter(r => r.pixels >= 500 && r.pixels <= 300000);
+                    this.log(`✅ BULLETPROOF: ${meaningfulRegions.length} meaningful regions after filtering`);
+                    
+                    const classified = this.classifySimple(meaningfulRegions);
+                    
+                    // Check if we have the right count and types
+                    const expectedCount = 5; // W-I-L-D + pig
+                    let finalClassified = classified;
+                    
+                    const letterCount = classified.filter(s => s.type === 'letter').length;
+                    const symbolCount = classified.filter(s => s.type === 'symbol').length;
+                    
+                    this.log(`🔍 BULLETPROOF: Found ${letterCount} letters, ${symbolCount} symbols (total: ${classified.length})`);
+                    
+                    // Only split if we're missing sprites AND don't have a proper symbol
+                    if (classified.length < expectedCount && symbolCount === 0) {
+                        this.log(`🔧 BULLETPROOF: Missing sprites and no symbol found. Trying to split merged regions...`);
+                        finalClassified = this.splitMergedRegions(classified, imageData);
+                    } else if (classified.length >= expectedCount) {
+                        this.log(`✅ BULLETPROOF: Good sprite count detected, skipping region splitting`);
+                    }
+                    
+                    const sprites = await this.createSprites(finalClassified, imageData, imageUrl);
+                    
+                    this.log(`🎯 BULLETPROOF: Detection complete - ${sprites.length} sprites found`);
+                    this.log('   Types: ' + sprites.map(s => `${s.type}(${s.pixels}px)`).join(', '));
+                    
+                    return sprites;
+                    
+                } catch (error) {
+                    this.log(`❌ BULLETPROOF: Detection failed: ${error.message}`);
+                    return [];
+                }
+            }
+
+            async loadImage(imageUrl) {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    
+                    img.onload = () => {
+                        this.canvas.width = img.width;
+                        this.canvas.height = img.height;
+                        this.ctx.drawImage(img, 0, 0);
+                        
+                        const imageData = this.ctx.getImageData(0, 0, img.width, img.height);
+                        resolve(imageData);
+                    };
+                    
+                    img.onerror = reject;
+                    img.src = imageUrl;
+                });
+            }
+
+            findConnectedRegions(imageData) {
+                const width = imageData.width;
+                const height = imageData.height;
+                const data = imageData.data;
+                const visited = new Uint8Array(width * height);
+                const regions = [];
+
+                let regionId = 0;
+
+                for (let y = 0; y < height; y++) {
+                    for (let x = 0; x < width; x++) {
+                        const index = y * width + x;
+                        const pixelIndex = index * 4;
+                        const alpha = data[pixelIndex + 3];
+                        
+                        if (alpha > 50 && visited[index] === 0) {
+                            const regionPixels = this.floodFill(imageData, x, y, visited);
+                            
+                            if (regionPixels.length >= 500) {
+                                let minX = regionPixels[0].x, maxX = regionPixels[0].x;
+                                let minY = regionPixels[0].y, maxY = regionPixels[0].y;
+                                let totalX = 0, totalY = 0;
+                                
+                                for (const pixel of regionPixels) {
+                                    minX = Math.min(minX, pixel.x);
+                                    maxX = Math.max(maxX, pixel.x);
+                                    minY = Math.min(minY, pixel.y);
+                                    maxY = Math.max(maxY, pixel.y);
+                                    totalX += pixel.x;
+                                    totalY += pixel.y;
+                                }
+                                
+                                regions.push({
+                                    id: regionId++,
+                                    bounds: {
+                                        x: minX,
+                                        y: minY,
+                                        width: maxX - minX + 1,
+                                        height: maxY - minY + 1
+                                    },
+                                    pixels: regionPixels.length,
+                                    centroid: {
+                                        x: totalX / regionPixels.length,
+                                        y: totalY / regionPixels.length
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
+
+                return regions;
+            }
+
+            floodFill(imageData, startX, startY, visited) {
+                const width = imageData.width;
+                const height = imageData.height;
+                const data = imageData.data;
+                const pixels = [];
+                const stack = [{x: startX, y: startY}];
+
+                while (stack.length > 0) {
+                    const {x, y} = stack.pop();
+                    const index = y * width + x;
+
+                    if (x < 0 || x >= width || y < 0 || y >= height || visited[index] === 1) {
+                        continue;
+                    }
+
+                    const pixelIndex = index * 4;
+                    const alpha = data[pixelIndex + 3];
+                    
+                    if (alpha <= 50) {
+                        continue;
+                    }
+
+                    visited[index] = 1;
+                    pixels.push({x, y});
+
+                    stack.push(
+                        {x: x + 1, y},
+                        {x: x - 1, y},
+                        {x, y: y + 1},
+                        {x, y: y - 1}
+                    );
+                }
+
+                return pixels;
+            }
+
+            classifySimple(regions) {
+                const sorted = [...regions].sort((a, b) => b.pixels - a.pixels);
+                
+                this.log(`🔍 BULLETPROOF: Classifying ${sorted.length} regions by size:`);
+                sorted.forEach((r, i) => this.log(`  ${i+1}. Region ${r.id}: ${r.pixels} pixels`));
+                
+                const classified = sorted.map((region, index) => {
+                    // FIXED CLASSIFICATION - much clearer thresholds based on actual image analysis
+                    let type;
+                    
+                    // The pig symbol should be much larger than letters (55k+ pixels)
+                    // Letters (W,I,L,D) should be 10k-50k pixels
+                    if (region.pixels > 100000) {
+                        // Only very large regions (pig symbol with gradients)
+                        type = 'symbol';
+                        this.log(`🐷 BULLETPROOF: Region ${region.id} (${region.pixels} pixels) → SYMBOL (pig - much larger than letters)`);
+                    } else if (region.pixels >= 10000) {
+                        // Medium regions (individual letters W, I, L, D)
+                        type = 'letter';
+                        this.log(`🔤 BULLETPROOF: Region ${region.id} (${region.pixels} pixels) → LETTER (individual letter)`);
+                    } else {
+                        // Small regions (likely fragments or shadows - ignore)
+                        type = 'letter'; // Keep as letter but with low confidence
+                        this.log(`🔸 BULLETPROOF: Region ${region.id} (${region.pixels} pixels) → LETTER (small fragment)`);
+                    }
+                    
+                    // Higher confidence for appropriately sized regions
+                    let confidence;
+                    if (type === 'symbol' && region.pixels > 100000) {
+                        confidence = 1.0; // High confidence for pig symbol
+                    } else if (type === 'letter' && region.pixels >= 10000 && region.pixels <= 100000) {
+                        confidence = 1.0; // High confidence for properly sized letters
+                    } else {
+                        confidence = 0.5; // Lower confidence for edge cases
+                    }
+                    
+                    return {
+                        id: region.id,
+                        type,
+                        bounds: region.bounds,
+                        pixels: region.pixels,
+                        confidence
+                    };
+                });
+
+                // Dynamically keep regions based on content
+                const maxRegions = Math.min(classified.length, 10); // Cap at 10 for safety
+                const topN = classified.slice(0, maxRegions);
+                
+                this.log(`🎯 BULLETPROOF: Top ${topN.length} regions selected:`);
+                topN.forEach((r, i) => this.log(`  ${i+1}. ${r.type.toUpperCase()} - ${r.pixels} pixels (confidence: ${r.confidence})`));
+                
+                return topN;
+            }
+
+            splitMergedRegions(classified, imageData) {
+                const result = [...classified];
+                
+                for (const region of classified) {
+                    if (region.pixels > 25000) {
+                        this.log(`🔧 BULLETPROOF: Attempting to split large region ${region.id} (${region.pixels} pixels)`);
+                        
+                        const splitRegions = this.trySplitRegion(region, imageData);
+                        
+                        if (splitRegions.length > 1) {
+                            this.log(`✅ BULLETPROOF: Split region ${region.id} into ${splitRegions.length} parts`);
+                            
+                            const originalIndex = result.findIndex(r => r.id === region.id);
+                            if (originalIndex !== -1) {
+                                result.splice(originalIndex, 1, ...splitRegions);
+                            }
+                        }
+                    }
+                }
+                
+                this.log(`🔧 BULLETPROOF: After splitting: ${result.length} total regions`);
+                return result.slice(0, 8);
+            }
+
+            trySplitRegion(region, imageData) {
+                const { bounds } = region;
+                const splitRegions = [];
+                
+                const thirds = Math.floor(bounds.width / 3);
+                
+                for (let i = 0; i < 3; i++) {
+                    const splitBounds = {
+                        x: bounds.x + (i * thirds),
+                        y: bounds.y,
+                        width: thirds,
+                        height: bounds.height
+                    };
+                    
+                    const pixelCount = this.countPixelsInBounds(splitBounds, imageData);
+                    
+                    if (pixelCount > 1000) {
+                        splitRegions.push({
+                            id: region.id * 10 + i,
+                            type: 'letter',
+                            bounds: splitBounds,
+                            pixels: pixelCount,
+                            confidence: region.confidence * 0.8
+                        });
+                    }
+                }
+                
+                return splitRegions.length > 1 ? splitRegions : [region];
+            }
+
+            countPixelsInBounds(bounds, imageData) {
+                const data = imageData.data;
+                const width = imageData.width;
+                let count = 0;
+                
+                for (let y = bounds.y; y < bounds.y + bounds.height && y < imageData.height; y++) {
+                    for (let x = bounds.x; x < bounds.x + bounds.width && x < width; x++) {
+                        const index = (y * width + x) * 4;
+                        const alpha = data[index + 3];
+                        
+                        if (alpha > 30) {
+                            count++;
+                        }
+                    }
+                }
+                
+                return count;
+            }
+
+            // NEW: Density-based region detection for complex symbols like pig
+            findDensityBasedRegions(imageData) {
+                const width = imageData.width;
+                const height = imageData.height;
+                const data = imageData.data;
+                
+                // Create a density map by dividing image into grid cells
+                const cellSize = 32; // 32x32 pixel cells
+                const densityMap = [];
+                
+                for (let y = 0; y < height; y += cellSize) {
+                    for (let x = 0; x < width; x += cellSize) {
+                        const density = this.calculateCellDensity(imageData, x, y, cellSize);
+                        if (density > 0.1) { // At least 10% filled
+                            densityMap.push({
+                                x, y, 
+                                density,
+                                cellSize
+                            });
+                        }
+                    }
+                }
+                
+                // Group adjacent dense cells into regions
+                const regions = this.groupDenseCells(densityMap, width, height);
+                
+                this.log(`🔍 DENSITY: Found ${regions.length} dense regions`);
+                return regions;
+            }
+
+            calculateCellDensity(imageData, startX, startY, cellSize) {
+                const data = imageData.data;
+                const width = imageData.width;
+                const height = imageData.height;
+                
+                let opaquePixels = 0;
+                let totalPixels = 0;
+                
+                for (let y = startY; y < Math.min(startY + cellSize, height); y++) {
+                    for (let x = startX; x < Math.min(startX + cellSize, width); x++) {
+                        const index = (y * width + x) * 4;
+                        const alpha = data[index + 3];
+                        
+                        totalPixels++;
+                        if (alpha > 30) {
+                            opaquePixels++;
+                        }
+                    }
+                }
+                
+                return totalPixels > 0 ? opaquePixels / totalPixels : 0;
+            }
+
+            groupDenseCells(densityMap, width, height) {
+                const cellSize = 32;
+                const visited = new Set();
+                const regions = [];
+                
+                for (const cell of densityMap) {
+                    const cellKey = `${cell.x},${cell.y}`;
+                    if (visited.has(cellKey)) continue;
+                    
+                    // Find connected dense cells
+                    const group = this.floodFillDenseCells(cell, densityMap, visited, cellSize);
+                    
+                    if (group.length >= 4) { // At least 4 cells = meaningful region
+                        // Calculate bounding box for the group
+                        const minX = Math.min(...group.map(c => c.x));
+                        const maxX = Math.max(...group.map(c => c.x + cellSize));
+                        const minY = Math.min(...group.map(c => c.y));
+                        const maxY = Math.max(...group.map(c => c.y + cellSize));
+                        
+                        const regionWidth = maxX - minX;
+                        const regionHeight = maxY - minY;
+                        const estimatedPixels = regionWidth * regionHeight * 0.3; // Estimate based on density
+                        
+                        regions.push({
+                            id: `density_${regions.length}`,
+                            bounds: {
+                                x: minX,
+                                y: minY,
+                                width: regionWidth,
+                                height: regionHeight
+                            },
+                            pixels: Math.round(estimatedPixels),
+                            centroid: {
+                                x: minX + regionWidth / 2,
+                                y: minY + regionHeight / 2
+                            },
+                            source: 'density'
+                        });
+                    }
+                }
+                
+                return regions;
+            }
+
+            floodFillDenseCells(startCell, densityMap, visited, cellSize) {
+                const group = [];
+                const stack = [startCell];
+                
+                while (stack.length > 0) {
+                    const cell = stack.pop();
+                    const cellKey = `${cell.x},${cell.y}`;
+                    
+                    if (visited.has(cellKey)) continue;
+                    
+                    visited.add(cellKey);
+                    group.push(cell);
+                    
+                    // Find adjacent cells
+                    for (const other of densityMap) {
+                        const otherKey = `${other.x},${other.y}`;
+                        if (visited.has(otherKey)) continue;
+                        
+                        // Check if cells are adjacent
+                        const dx = Math.abs(other.x - cell.x);
+                        const dy = Math.abs(other.y - cell.y);
+                        
+                        if ((dx === cellSize && dy === 0) || (dx === 0 && dy === cellSize) || 
+                            (dx === cellSize && dy === cellSize)) {
+                            stack.push(other);
+                        }
+                    }
+                }
+                
+                return group;
+            }
+
+            // Combine and deduplicate regions from different detection methods
+            combineRegions(connectedRegions, boundingBoxRegions) {
+                const combined = [...connectedRegions];
+                
+                // Add bounding box regions that don't significantly overlap with connected regions
+                for (const bbRegion of boundingBoxRegions) {
+                    let hasSignificantOverlap = false;
+                    
+                    for (const connRegion of connectedRegions) {
+                        const overlap = this.calculateOverlapPercentage(bbRegion.bounds, connRegion.bounds);
+                        if (overlap > 0.5) { // 50% overlap threshold
+                            hasSignificantOverlap = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!hasSignificantOverlap) {
+                        this.log(`🆕 DENSITY: Adding new region at (${bbRegion.bounds.x},${bbRegion.bounds.y}) with ${bbRegion.pixels} pixels`);
+                        combined.push(bbRegion);
+                    } else {
+                        this.log(`⚠️ DENSITY: Skipping overlapping region at (${bbRegion.bounds.x},${bbRegion.bounds.y})`);
+                    }
+                }
+                
+                return combined;
+            }
+
+            calculateOverlapPercentage(bounds1, bounds2) {
+                const x1 = Math.max(bounds1.x, bounds2.x);
+                const y1 = Math.max(bounds1.y, bounds2.y);
+                const x2 = Math.min(bounds1.x + bounds1.width, bounds2.x + bounds2.width);
+                const y2 = Math.min(bounds1.y + bounds1.height, bounds2.y + bounds2.height);
+                
+                if (x1 >= x2 || y1 >= y2) return 0; // No overlap
+                
+                const overlapArea = (x2 - x1) * (y2 - y1);
+                const area1 = bounds1.width * bounds1.height;
+                const area2 = bounds2.width * bounds2.height;
+                const smallerArea = Math.min(area1, area2);
+                
+                return overlapArea / smallerArea;
+            }
+
+            async createSprites(classified, originalImage, imageUrl) {
+                const sprites = [];
+
+                for (const region of classified) {
+                    const spriteCanvas = document.createElement('canvas');
+                    const spriteCtx = spriteCanvas.getContext('2d');
+                    
+                    spriteCanvas.width = region.bounds.width;
+                    spriteCanvas.height = region.bounds.height;
+                    
+                    const regionImageData = this.ctx.getImageData(
+                        region.bounds.x,
+                        region.bounds.y,
+                        region.bounds.width,
+                        region.bounds.height
+                    );
+                    
+                    spriteCtx.putImageData(regionImageData, 0, 0);
+                    const spriteDataUrl = spriteCanvas.toDataURL('image/png');
+                    
+                    sprites.push({
+                        id: `bulletproof_${region.id}`,
+                        type: region.type,
+                        bounds: region.bounds,
+                        pixels: region.pixels,
+                        confidence: region.confidence,
+                        imageData: spriteDataUrl
+                    });
+                }
+
+                return sprites;
+            }
+
+            log(message) {
+                console.log(message);
+                const resultsDiv = document.getElementById('results');
+                if (resultsDiv) {
+                    resultsDiv.textContent += message + '\n';
+                }
+            }
+        }
+
+        // Global detector instance
+        const detector = new BulletproofSpriteDetector();
+        let currentImageUrl = null;
+
+        // Handle image upload
+        document.getElementById('imageInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    currentImageUrl = e.target.result;
+                    const preview = document.getElementById('imagePreview');
+                    preview.src = currentImageUrl;
+                    preview.style.display = 'block';
+                    log('📁 Image loaded successfully');
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        async function testBulletproofDetection() {
+            if (!currentImageUrl) {
+                log('❌ Please upload an image first');
+                return;
+            }
+
+            log('\n🎯 === TESTING BULLETPROOF DETECTION ===');
+            
+            try {
+                const sprites = await detector.detectSprites(currentImageUrl);
+                
+                // Analyze results
+                log('\n📊 === ANALYSIS ===');
+                log(`Total sprites detected: ${sprites.length}`);
+                
+                const letterSprites = sprites.filter(s => s.type === 'letter');
+                const symbolSprites = sprites.filter(s => s.type === 'symbol');
+                
+                log(`Letters: ${letterSprites.length}`);
+                log(`Symbols: ${symbolSprites.length}`);
+                
+                // Check for expected results
+                if (sprites.length === 5 && letterSprites.length === 4 && symbolSprites.length === 1) {
+                    log('✅ SUCCESS: Perfect detection! Found W-I-L-D + pig symbol');
+                } else if (sprites.length < 5) {
+                    log(`⚠️ WARNING: Only ${sprites.length} sprites found, expected 5`);
+                } else {
+                    log(`⚠️ WARNING: Found ${sprites.length} sprites, expected 5`);
+                }
+                
+                // Display sprite images
+                displaySpriteResults(sprites);
+                
+            } catch (error) {
+                log(`❌ ERROR: ${error.message}`);
+            }
+        }
+
+        async function testAIGeneration() {
+            log('\n🤖 === TESTING AI GENERATION + DETECTION ===');
+            log('This would test the enhanced AI prompts...');
+            log('(AI generation requires API keys and server)');
+        }
+
+        function displaySpriteResults(sprites) {
+            const container = document.getElementById('spriteResults');
+            container.innerHTML = '';
+            
+            sprites.forEach((sprite, index) => {
+                const div = document.createElement('div');
+                div.className = 'sprite-result';
+                
+                const img = document.createElement('img');
+                img.src = sprite.imageData;
+                img.className = 'sprite-image';
+                img.title = `${sprite.type} - ${sprite.pixels} pixels`;
+                
+                const info = document.createElement('div');
+                info.innerHTML = `
+                    <strong>${sprite.type.toUpperCase()}</strong><br>
+                    ${sprite.pixels} pixels<br>
+                    Confidence: ${sprite.confidence.toFixed(2)}
+                `;
+                
+                div.appendChild(img);
+                div.appendChild(info);
+                container.appendChild(div);
+            });
+        }
+
+        function clearResults() {
+            document.getElementById('results').textContent = 'Ready to test...';
+            document.getElementById('spriteResults').innerHTML = '';
+        }
+
+        function log(message) {
+            console.log(message);
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.textContent += message + '\n';
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+
+        // Initialize
+        log('🎯 Enhanced Sprite Detection Test Ready');
+        log('Upload a WILD + pig symbol image and click "Test Bulletproof Detection"');
+    </script>
+</body>
+</html>

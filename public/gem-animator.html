@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gem Frame Animator</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: white;
+            text-align: center;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #ffd700;
+            margin-bottom: 30px;
+        }
+        .upload-section {
+            background: #2d1b69;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .frames-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .frame-slot {
+            border: 2px dashed #666;
+            padding: 10px;
+            border-radius: 8px;
+            min-height: 100px;
+            cursor: pointer;
+        }
+        .frame-slot.filled {
+            border-color: #ffd700;
+            background: rgba(255, 215, 0, 0.1);
+        }
+        .frame-slot img {
+            max-width: 80px;
+            max-height: 80px;
+            border-radius: 4px;
+        }
+        .animation-section {
+            background: #2d1b69;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        #animationCanvas {
+            border: 2px solid #666;
+            border-radius: 8px;
+            background: transparent;
+            margin: 20px auto;
+            display: block;
+        }
+        button {
+            background: #ffd700;
+            color: #1a1a2e;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 0 10px;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #ffed4e;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .speed-control {
+            margin: 10px 0;
+        }
+        .speed-control input {
+            width: 200px;
+            margin: 0 10px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            background: rgba(0, 123, 255, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔴 Gem Frame Animator</h1>
+        <p>Upload your gem frames and create perfect rotation animation!</p>
+
+        <div class="upload-section">
+            <h3>📁 Upload Frames</h3>
+            <div class="frames-grid" id="framesGrid">
+                <!-- Slots will be created here -->
+            </div>
+            <button onclick="addFrameSlot()">Add Frame Slot</button>
+            <button onclick="clearAll()">Clear All</button>
+            <button onclick="createTestFrames()">Test Pattern</button>
+            <div id="status" class="status">Ready to upload frames</div>
+        </div>
+
+        <div class="animation-section">
+            <h3>🎭 Animation Preview</h3>
+            <canvas id="animationCanvas" width="300" height="300"></canvas>
+            <div id="frameInfo">Frame: 0 / 0</div>
+            
+            <div style="margin: 20px 0;">
+                <button onclick="startAnim()" id="playBtn">Play</button>
+                <button onclick="stopAnim()" id="stopBtn">Stop</button>
+                <button onclick="exportAnimation()" id="exportBtn">📹 Export Reference</button>
+            </div>
+            
+            <div class="speed-control">
+                <label>Speed:</label>
+                <input type="range" id="speedSlider" min="50" max="500" value="150">
+                <span id="speedText">150ms</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let frames = [];
+        let isAnimating = false;
+        let currentFrame = 0;
+        let animSpeed = 150;
+        let animInterval = null;
+
+        // Initialize with 6 frame slots
+        function initFrameSlots() {
+            for (let i = 0; i < 6; i++) {
+                addFrameSlot();
+            }
+        }
+
+        function addFrameSlot() {
+            const grid = document.getElementById('framesGrid');
+            const slotIndex = frames.length;
+            
+            const slot = document.createElement('div');
+            slot.className = 'frame-slot';
+            slot.innerHTML = '<div>Click to upload<br>Frame ' + (slotIndex + 1) + '</div>';
+            
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.style.position = 'absolute';
+            input.style.opacity = '0';
+            input.style.width = '100%';
+            input.style.height = '100%';
+            input.style.cursor = 'pointer';
+            
+            input.onchange = function() {
+                if (this.files && this.files[0]) {
+                    console.log('File selected:', this.files[0].name);
+                    loadFrame(slotIndex, this.files[0], slot);
+                }
+            };
+            
+            slot.style.position = 'relative';
+            slot.appendChild(input);
+            slot.onclick = function(e) {
+                e.preventDefault();
+                input.click();
+            };
+            
+            grid.appendChild(slot);
+            frames.push(null);
+        }
+
+        function loadFrame(index, file, slot) {
+            console.log('Loading frame', index, file.name);
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    frames[index] = img;
+                    slot.className = 'frame-slot filled';
+                    
+                    // Clear previous content and add new image
+                    slot.innerHTML = '<div>Frame ' + (index + 1) + '</div><img src="' + img.src + '" style="max-width:80px;max-height:80px;">';
+                    
+                    // Re-add the file input for replacing
+                    const newInput = document.createElement('input');
+                    newInput.type = 'file';
+                    newInput.accept = 'image/*';
+                    newInput.style.position = 'absolute';
+                    newInput.style.opacity = '0';
+                    newInput.style.width = '100%';
+                    newInput.style.height = '100%';
+                    newInput.style.cursor = 'pointer';
+                    newInput.style.top = '0';
+                    newInput.style.left = '0';
+                    
+                    newInput.onchange = function() {
+                        if (this.files && this.files[0]) {
+                            loadFrame(index, this.files[0], slot);
+                        }
+                    };
+                    
+                    slot.appendChild(newInput);
+                    
+                    updateStatus();
+                    console.log('Frame loaded successfully:', index);
+                };
+                img.onerror = function() {
+                    console.error('Failed to load image');
+                    alert('Failed to load image. Please try again.');
+                };
+                img.src = e.target.result;
+            };
+            reader.onerror = function() {
+                console.error('Failed to read file');
+                alert('Failed to read file. Please try again.');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function clearAll() {
+            frames = [];
+            document.getElementById('framesGrid').innerHTML = '';
+            stopAnim();
+            updateStatus();
+        }
+
+        function createTestFrames() {
+            clearAll();
+            
+            for (let i = 0; i < 6; i++) {
+                addFrameSlot();
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = 100;
+                canvas.height = 100;
+                const ctx = canvas.getContext('2d');
+                
+                const angle = (i / 6) * Math.PI * 2;
+                
+                // Red gem
+                ctx.fillStyle = '#ff4444';
+                ctx.beginPath();
+                ctx.arc(50, 50, 30, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Rotating highlight
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(50 + Math.cos(angle) * 15, 50 + Math.sin(angle) * 15, 8, 0, Math.PI * 2);
+                ctx.fill();
+                
+                const img = new Image();
+                img.onload = function() {
+                    frames[i] = img;
+                    const slots = document.querySelectorAll('.frame-slot');
+                    slots[i].className = 'frame-slot filled';
+                    slots[i].innerHTML = '<div>Frame ' + (i + 1) + '</div><img src="' + img.src + '">';
+                    if (i === 5) updateStatus();
+                };
+                img.src = canvas.toDataURL();
+            }
+        }
+
+        function updateStatus() {
+            const loadedCount = frames.filter(f => f !== null).length;
+            document.getElementById('status').textContent = loadedCount + ' frames loaded';
+            document.getElementById('playBtn').disabled = loadedCount < 2;
+            document.getElementById('exportBtn').disabled = loadedCount < 2;
+        }
+
+        function startAnim() {
+            if (isAnimating) return;
+            isAnimating = true;
+            
+            animInterval = setInterval(function() {
+                const validFrames = frames.filter(f => f !== null);
+                if (validFrames.length === 0) return;
+                
+                currentFrame = (currentFrame + 1) % validFrames.length;
+                drawFrame();
+            }, animSpeed);
+        }
+
+        function stopAnim() {
+            isAnimating = false;
+            if (animInterval) {
+                clearInterval(animInterval);
+                animInterval = null;
+            }
+        }
+
+        function drawFrame() {
+            const canvas = document.getElementById('animationCanvas');
+            const ctx = canvas.getContext('2d');
+            const validFrames = frames.filter(f => f !== null);
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (validFrames[currentFrame]) {
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                const size = 150;
+                
+                ctx.drawImage(
+                    validFrames[currentFrame],
+                    centerX - size/2, centerY - size/2, size, size
+                );
+            }
+            
+            document.getElementById('frameInfo').textContent = 
+                'Frame: ' + (currentFrame + 1) + ' / ' + validFrames.length;
+        }
+
+        function exportAnimation() {
+            const validFrames = frames.filter(f => f !== null);
+            if (validFrames.length < 2) return;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = 150;
+            canvas.height = 150;
+            const ctx = canvas.getContext('2d');
+
+            const frameData = [];
+            validFrames.forEach(frame => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
+                frameData.push(canvas.toDataURL());
+            });
+
+            const htmlContent = [
+                '<!DOCTYPE html>',
+                '<html><head><title>Gem Animation Reference</title></head>',
+                '<body style="text-align:center;background:#222;color:white;">',
+                '<h1>Perfect Gem Rotation Reference</h1>',
+                '<p>This is EXACTLY how the gem should rotate!</p>',
+                '<canvas id="c" width="150" height="150" style="border:2px solid #666;"></canvas><br>',
+                '<button onclick="toggle()">Play/Pause</button>',
+                '<script>',
+                'var frames=' + JSON.stringify(frameData) + ';',
+                'var canvas=document.getElementById("c");',
+                'var ctx=canvas.getContext("2d");',
+                'var frame=0,playing=true;',
+                'function draw(){',
+                'if(!playing)return;',
+                'var img=new Image();',
+                'img.onload=function(){ctx.clearRect(0,0,150,150);ctx.drawImage(img,0,0);};',
+                'img.src=frames[frame];',
+                'frame=(frame+1)%frames.length;',
+                '}',
+                'function toggle(){playing=!playing;}',
+                'setInterval(draw,' + animSpeed + ');',
+                '</script></body></html>'
+            ].join('');
+
+            const blob = new Blob([htmlContent], {type: 'text/html'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'gem-reference.html';
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            alert('Reference animation exported! Open the HTML file to see the perfect rotation.');
+        }
+
+        // Speed control
+        document.getElementById('speedSlider').oninput = function() {
+            animSpeed = parseInt(this.value);
+            document.getElementById('speedText').textContent = animSpeed + 'ms';
+            if (isAnimating) {
+                stopAnim();
+                startAnim();
+            }
+        };
+
+        // Initialize
+        initFrameSlots();
+        updateStatus();
+        drawFrame();
+    </script>
+</body>
+</html>

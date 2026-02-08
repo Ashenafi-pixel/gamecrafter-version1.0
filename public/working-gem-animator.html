@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Working Gem Animator</title>
+    <style>
+        body { 
+            font-family: Arial; 
+            background: #222; 
+            color: white; 
+            text-align: center; 
+            padding: 20px; 
+        }
+        .upload-area { 
+            background: #444; 
+            padding: 20px; 
+            margin: 20px; 
+            border-radius: 10px; 
+        }
+        .frames-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .frame-slot { 
+            border: 2px dashed #666; 
+            padding: 15px;
+            cursor: pointer; 
+            border-radius: 5px;
+            min-height: 100px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #333;
+        }
+        .frame-slot:hover {
+            border-color: #999;
+            background: #444;
+        }
+        .frame-slot.filled { 
+            border-color: gold; 
+            background: rgba(255,215,0,0.1); 
+        }
+        .frame-slot img { 
+            width: 60px; 
+            height: 60px; 
+            margin: 5px; 
+            border-radius: 3px;
+        }
+        canvas { 
+            border: 2px solid #666; 
+            background: rgba(0,0,0,0.5); 
+            margin: 20px; 
+        }
+        button { 
+            background: gold; 
+            color: black; 
+            border: none; 
+            padding: 10px 20px; 
+            margin: 5px; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            font-weight: bold;
+        }
+        button:hover {
+            background: #ffed4e;
+        }
+        input[type="range"] { 
+            width: 200px; 
+        }
+        .hidden { 
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        .status {
+            background: rgba(0,100,200,0.3);
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔴 Working Gem Animator</h1>
+    
+    <div class="upload-area">
+        <h3>Upload Your 16 Gem Frames</h3>
+        <div class="frames-grid" id="frameSlots">
+            <!-- Slots will be created here -->
+        </div>
+        <button onclick="clearAll()">Clear All</button>
+        <button onclick="testPattern()">Test Pattern</button>
+        <div id="status" class="status">Ready to upload frames. Click any slot above.</div>
+    </div>
+    
+    <div class="upload-area">
+        <h3>Animation Preview</h3>
+        <canvas id="canvas" width="300" height="300"></canvas><br>
+        <button onclick="play()" id="playBtn">Play</button>
+        <button onclick="stop()" id="stopBtn">Stop</button>
+        <button onclick="exportRef()" id="exportBtn">Export Reference</button><br><br>
+        Speed: <input type="range" id="speed" min="50" max="500" value="150" oninput="updateSpeed()"> 
+        <span id="speedText">150ms</span>
+        <div id="info" class="status">No frames loaded</div>
+    </div>
+
+    <script>
+        console.log('Script starting...');
+        
+        var frames = new Array(16).fill(null);
+        var playing = false;
+        var frameIndex = 0;
+        var interval = null;
+        var speed = 150;
+
+        function updateSpeed() {
+            speed = parseInt(document.getElementById('speed').value);
+            document.getElementById('speedText').textContent = speed + 'ms';
+            if (playing) {
+                stop();
+                play();
+            }
+        }
+
+        function createSlots() {
+            console.log('Creating slots...');
+            var container = document.getElementById('frameSlots');
+            container.innerHTML = '';
+            
+            for (var i = 0; i < 16; i++) {
+                var slot = document.createElement('div');
+                slot.className = 'frame-slot';
+                slot.innerHTML = '<div>Frame ' + (i + 1) + '<br><small>Click to upload</small></div>';
+                slot.style.position = 'relative';
+                
+                var input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*';
+                input.className = 'hidden';
+                input.setAttribute('data-index', i);
+                
+                input.addEventListener('change', function(e) {
+                    var index = parseInt(e.target.getAttribute('data-index'));
+                    var file = e.target.files[0];
+                    if (file) {
+                        console.log('Loading frame', index, file.name);
+                        loadFrame(index, file);
+                    }
+                });
+                
+                slot.addEventListener('click', function(e) {
+                    e.target.closest('.frame-slot').querySelector('input').click();
+                });
+                
+                slot.appendChild(input);
+                container.appendChild(slot);
+            }
+            console.log('Created 16 slots');
+        }
+
+        function loadFrame(index, file) {
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                var img = new Image();
+                img.onload = function() {
+                    frames[index] = img;
+                    updateSlot(index, img);
+                    updateStatus();
+                    console.log('Frame', index, 'loaded successfully');
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function updateSlot(index, img) {
+            var slots = document.querySelectorAll('.frame-slot');
+            var slot = slots[index];
+            slot.className = 'frame-slot filled';
+            slot.innerHTML = '<div>Frame ' + (index + 1) + '</div>';
+            
+            var imgEl = document.createElement('img');
+            imgEl.src = img.src;
+            slot.appendChild(imgEl);
+            
+            var input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.className = 'hidden';
+            input.setAttribute('data-index', index);
+            input.addEventListener('change', function(e) {
+                var file = e.target.files[0];
+                if (file) loadFrame(index, file);
+            });
+            slot.appendChild(input);
+        }
+
+        function updateStatus() {
+            var loaded = frames.filter(function(f) { return f !== null; }).length;
+            document.getElementById('status').textContent = loaded + '/16 frames loaded';
+            document.getElementById('info').textContent = loaded + ' frames loaded';
+        }
+
+        function clearAll() {
+            frames = new Array(16).fill(null);
+            stop();
+            createSlots();
+            updateStatus();
+        }
+
+        function testPattern() {
+            console.log('Creating test pattern...');
+            for (var i = 0; i < 8; i++) {
+                (function(frameIndex) {
+                    var canvas = document.createElement('canvas');
+                    canvas.width = 100;
+                    canvas.height = 100;
+                    var ctx = canvas.getContext('2d');
+                    
+                    var angle = (frameIndex / 8) * Math.PI * 2;
+                    
+                    // Red gem
+                    ctx.fillStyle = '#ff4444';
+                    ctx.beginPath();
+                    ctx.arc(50, 50, 30, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // White highlight
+                    ctx.fillStyle = 'white';
+                    ctx.beginPath();
+                    ctx.arc(50 + Math.cos(angle) * 15, 50 + Math.sin(angle) * 15, 8, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Frame number
+                    ctx.fillStyle = 'black';
+                    ctx.font = '12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText((frameIndex + 1).toString(), 50, 55);
+                    
+                    var img = new Image();
+                    img.onload = function() {
+                        frames[frameIndex] = img;
+                        updateSlot(frameIndex, img);
+                        if (frameIndex === 7) {
+                            updateStatus();
+                            console.log('Test pattern complete');
+                        }
+                    };
+                    img.src = canvas.toDataURL();
+                })(i);
+            }
+        }
+
+        function play() {
+            var validFrames = frames.filter(function(f) { return f !== null; });
+            if (validFrames.length < 2) {
+                alert('Need at least 2 frames to play animation');
+                return;
+            }
+            
+            console.log('Starting animation with', validFrames.length, 'frames');
+            playing = true;
+            
+            interval = setInterval(function() {
+                var attempts = 0;
+                do {
+                    frameIndex = (frameIndex + 1) % frames.length;
+                    attempts++;
+                } while (frames[frameIndex] === null && attempts < frames.length);
+                
+                if (frames[frameIndex] !== null) {
+                    draw();
+                }
+            }, speed);
+        }
+
+        function stop() {
+            playing = false;
+            if (interval) {
+                clearInterval(interval);
+                interval = null;
+            }
+            console.log('Animation stopped');
+        }
+
+        function draw() {
+            var canvas = document.getElementById('canvas');
+            var ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (frames[frameIndex]) {
+                var centerX = canvas.width / 2;
+                var centerY = canvas.height / 2;
+                var size = 120;
+                ctx.drawImage(frames[frameIndex], centerX - size/2, centerY - size/2, size, size);
+            }
+        }
+
+        function exportRef() {
+            var validFrames = frames.filter(function(f) { return f !== null; });
+            if (validFrames.length < 2) {
+                alert('Need at least 2 frames');
+                return;
+            }
+
+            console.log('Exporting', validFrames.length, 'frames...');
+            
+            var canvas = document.createElement('canvas');
+            canvas.width = 150;
+            canvas.height = 150;
+            var ctx = canvas.getContext('2d');
+
+            var frameData = [];
+            for (var i = 0; i < frames.length; i++) {
+                if (frames[i] !== null) {
+                    ctx.clearRect(0, 0, 150, 150);
+                    ctx.drawImage(frames[i], 0, 0, 150, 150);
+                    frameData.push(canvas.toDataURL());
+                }
+            }
+
+            var html = [
+                '<!DOCTYPE html>',
+                '<html><head><title>Perfect Gem Reference</title></head>',
+                '<body style="text-align:center;background:#222;color:white;font-family:Arial;">',
+                '<h1>Perfect Gem Animation Reference</h1>',
+                '<p>This is EXACTLY how the gem should rotate!</p>',
+                '<p>Frames: ' + validFrames.length + ' | Speed: ' + speed + 'ms</p>',
+                '<canvas id="c" width="150" height="150" style="border:2px solid #666;background:transparent;"></canvas><br><br>',
+                '<button onclick="toggle()" id="toggleBtn">Pause</button>',
+                '<button onclick="changeSpeed(-25)">Slower</button>',
+                '<button onclick="changeSpeed(25)">Faster</button>',
+                '<p>Speed: <span id="currentSpeed">' + speed + '</span>ms</p>',
+                '<script>',
+                'var frames=' + JSON.stringify(frameData) + ';',
+                'var canvas=document.getElementById("c");',
+                'var ctx=canvas.getContext("2d");',
+                'var frame=0,playing=true,interval,currentSpeed=' + speed + ';',
+                'function animate(){',
+                'if(!playing)return;',
+                'var img=new Image();',
+                'img.onload=function(){ctx.clearRect(0,0,150,150);ctx.drawImage(img,0,0);};',
+                'img.src=frames[frame];',
+                'frame=(frame+1)%frames.length;',
+                '}',
+                'function start(){clearInterval(interval);interval=setInterval(animate,currentSpeed);}',
+                'function toggle(){playing=!playing;document.getElementById("toggleBtn").textContent=playing?"Pause":"Play";if(playing)start();}',
+                'function changeSpeed(delta){currentSpeed=Math.max(25,Math.min(1000,currentSpeed+delta));document.getElementById("currentSpeed").textContent=currentSpeed;if(playing)start();}',
+                'start();',
+                '</script></body></html>'
+            ].join('');
+
+            var blob = new Blob([html], {type: 'text/html'});
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'perfect-gem-reference.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            alert('Perfect animation reference exported! Open the HTML file to see how the gem should rotate.');
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Page loaded, initializing...');
+            createSlots();
+            updateStatus();
+        });
+        
+        // Fallback initialization
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                createSlots();
+                updateStatus();
+            });
+        } else {
+            createSlots();
+            updateStatus();
+        }
+        
+        console.log('Script loaded successfully');
+    </script>
+</body>
+</html>

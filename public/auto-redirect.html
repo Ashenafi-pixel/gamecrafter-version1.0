@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redirecting to Step 2...</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+      background-color: #f8f9fa;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .logo {
+      font-size: 24px;
+      font-weight: bold;
+      color: #E60012;
+      margin-bottom: 20px;
+    }
+    
+    .container {
+      max-width: 600px;
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      padding: 30px;
+    }
+    
+    h1 {
+      color: #E60012;
+      font-size: 22px;
+      margin-top: 0;
+    }
+    
+    p {
+      margin: 15px 0;
+      line-height: 1.6;
+    }
+    
+    .redirect-progress {
+      width: 100%;
+      height: 4px;
+      background-color: #e9ecef;
+      border-radius: 2px;
+      margin: 20px 0;
+      overflow: hidden;
+    }
+    
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background-color: #E60012;
+      transition: width 3s linear;
+    }
+    
+    button {
+      background-color: #E60012;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      font-weight: 500;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    
+    button:hover {
+      background-color: #c5000f;
+    }
+  </style>
+</head>
+<body>
+  <div class="logo">SlotAI</div>
+  
+  <div class="container">
+    <h1>Navigation Fix: Redirecting to Step 2</h1>
+    
+    <p>We detected an issue with the navigation between steps 1 and 2.</p>
+    <p>You will be automatically redirected to our standalone Step 2 page in a few seconds.</p>
+    
+    <div class="redirect-progress">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+    
+    <button onclick="redirectNow()">Go to Step 2 Now</button>
+  </div>
+  
+  <script>
+    // Start the progress bar animation
+    document.addEventListener('DOMContentLoaded', function() {
+      const progressBar = document.getElementById('progressBar');
+      progressBar.style.width = '100%';
+    });
+    
+    // Function to redirect immediately
+    function redirectNow() {
+      window.location.href = '/standalone-step2.html';
+    }
+    
+    // Auto-redirect after 3 seconds
+    setTimeout(redirectNow, 3000);
+    
+    // Store game data from localStorage to help with the transition
+    try {
+      const store = window.localStorage;
+      if (store) {
+        // Check for any existing theme or game ID data
+        const gameId = store.getItem('slotai_game_id');
+        const themeData = store.getItem('slotai_theme_data');
+        
+        if (gameId || themeData) {
+          // We have existing data, make sure it's preserved
+          console.log('Preserving existing game data for Step 2');
+          store.setItem('slotai_emergency_config', JSON.stringify({
+            gameId: gameId,
+            theme: themeData ? JSON.parse(themeData) : null
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Error handling localStorage:', err);
+    }
+  </script>
+</body>
+</html>

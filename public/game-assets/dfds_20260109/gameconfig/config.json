@@ -1,0 +1,21 @@
+{
+  "gameId": "dfds_20260109",
+  "createdAt": "2026-01-09T21:09:37.107Z",
+  "updatedAt": "2026-01-09T21:09:37.107Z",
+  "folders": [
+    "symbols",
+    "symbols/wild",
+    "symbols/scatter",
+    "symbols/high",
+    "symbols/medium",
+    "symbols/low",
+    "background",
+    "frame",
+    "titles",
+    "ui",
+    "sound",
+    "sound/effects",
+    "sound/music",
+    "gameconfig"
+  ]
+}

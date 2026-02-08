@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Step 3 Grid Test</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    
+    .console {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 200px;
+      background: rgba(0, 0, 0, 0.95);
+      border-top: 1px solid #333;
+      padding: 10px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    
+    .log {
+      margin-bottom: 4px;
+      padding: 2px 4px;
+    }
+    
+    .log.info { color: #4fc3f7; }
+    .log.warn { color: #ffb74d; }
+    .log.error { color: #e57373; }
+    
+    .controls {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.9);
+      padding: 10px;
+      border-radius: 5px;
+      border: 1px solid #333;
+      z-index: 1000;
+    }
+    
+    button {
+      display: block;
+      width: 100%;
+      margin-bottom: 5px;
+      padding: 8px;
+      background: #2d3748;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    
+    button:hover {
+      background: #4a5568;
+    }
+    
+    #main-frame {
+      width: 100vw;
+      height: calc(100vh - 200px);
+      border: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <button onclick="clearLogs()">Clear Console</button>
+    <button onclick="location.reload()">Reload</button>
+  </div>
+  
+  <iframe id="main-frame" src="/#/slot/step/2"></iframe>
+  
+  <div class="console" id="console"></div>
+  
+  <script>
+    const logs = [];
+    const consoleEl = document.getElementById('console');
+    
+    function addLog(type, ...args) {
+      const timestamp = new Date().toLocaleTimeString();
+      const message = args.map(arg => 
+        typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+      ).join(' ');
+      
+      logs.push({ type, timestamp, message });
+      
+      if (logs.length > 100) {
+        logs.shift();
+      }
+      
+      renderLogs();
+    }
+    
+    function renderLogs() {
+      consoleEl.innerHTML = logs.map(log => 
+        `<div class="log ${log.type}">[${log.timestamp}] ${log.message}</div>`
+      ).join('');
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+    
+    function clearLogs() {
+      logs.length = 0;
+      renderLogs();
+    }
+    
+    // Wait for iframe to load
+    const iframe = document.getElementById('main-frame');
+    
+    iframe.onload = () => {
+      setTimeout(() => {
+        // Inject console interceptor
+        try {
+          iframe.contentWindow.eval(`
+            // Store original console methods
+            const originalConsole = {
+              log: console.log,
+              warn: console.warn,
+              error: console.error
+            };
+            
+            // Override console methods
+            console.log = (...args) => {
+              originalConsole.log(...args);
+              // Filter for relevant logs
+              const message = args.join(' ');
+              if (message.includes('Grid') || 
+                  message.includes('grid') || 
+                  message.includes('Step3') ||
+                  message.includes('UnifiedSlotPreview') ||
+                  message.includes('GridPreviewWrapper') ||
+                  message.includes('Renderer') ||
+                  message.includes('GameEngine')) {
+                window.parent.postMessage({
+                  type: 'log',
+                  level: 'info',
+                  args: args
+                }, '*');
+              }
+            };
+            
+            console.warn = (...args) => {
+              originalConsole.warn(...args);
+              window.parent.postMessage({
+                type: 'log',
+                level: 'warn',
+                args: args
+              }, '*');
+            };
+            
+            console.error = (...args) => {
+              originalConsole.error(...args);
+              window.parent.postMessage({
+                type: 'log',
+                level: 'error',
+                args: args
+              }, '*');
+            };
+            
+            // Listen for grid config changes
+            window.addEventListener('gridConfigChanged', (e) => {
+              console.log('Grid Config Changed Event:', e.detail);
+            });
+            
+            window.addEventListener('slotGridUpdated', (e) => {
+              console.log('Slot Grid Updated Event:', e.detail);
+            });
+            
+            console.log('Console interceptor installed');
+          `);
+          
+          addLog('info', 'Test page loaded - Step 3 grid monitoring active');
+        } catch (err) {
+          addLog('error', 'Failed to inject console interceptor:', err.message);
+        }
+      }, 1000);
+    };
+    
+    // Listen for messages from iframe
+    window.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'log') {
+        addLog(event.data.level, ...event.data.args);
+      }
+    });
+  </script>
+</body>
+</html>

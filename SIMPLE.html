@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Gem Animator</title>
+</head>
+<body style="background:#222;color:white;font-family:Arial;padding:20px;text-align:center;">
+
+<h1>Gem Animator</h1>
+
+<div id="slots" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;max-width:800px;margin:0 auto;"></div>
+
+<br>
+<button onclick="play()" style="background:gold;color:black;padding:10px 20px;border:none;border-radius:5px;margin:5px;">PLAY</button>
+<button onclick="stop()" style="background:gold;color:black;padding:10px 20px;border:none;border-radius:5px;margin:5px;">STOP</button>
+
+<br><br>
+<canvas id="canvas" width="300" height="300" style="border:2px solid white;"></canvas>
+
+<script>
+var images = [];
+var playing = false;
+var currentFrame = 0;
+
+// Create 16 upload buttons
+for(var i = 0; i < 16; i++) {
+    var btn = document.createElement('button');
+    btn.innerHTML = 'Upload Frame ' + (i+1);
+    btn.style.cssText = 'width:100%;height:100px;background:#444;color:white;border:2px dashed #666;cursor:pointer;';
+    btn.onclick = (function(index) {
+        return function() {
+            var input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = function() {
+                if(this.files[0]) {
+                    var reader = new FileReader();
+                    reader.onload = function(e) {
+                        var img = new Image();
+                        img.onload = function() {
+                            images[index] = img;
+                            btn.innerHTML = 'Frame ' + (index+1) + ' ✓';
+                            btn.style.background = 'green';
+                        };
+                        img.src = e.target.result;
+                    };
+                    reader.readAsDataURL(this.files[0]);
+                }
+            };
+            input.click();
+        };
+    })(i);
+    document.getElementById('slots').appendChild(btn);
+    images[i] = null;
+}
+
+function play() {
+    if(playing) return;
+    playing = true;
+    
+    setInterval(function() {
+        if(!playing) return;
+        
+        // Find next image
+        var found = false;
+        for(var attempts = 0; attempts < 16; attempts++) {
+            currentFrame = (currentFrame + 1) % 16;
+            if(images[currentFrame]) {
+                found = true;
+                break;
+            }
+        }
+        
+        if(found) {
+            var canvas = document.getElementById('canvas');
+            var ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 300, 300);
+            ctx.drawImage(images[currentFrame], 0, 0, 300, 300);
+        }
+    }, 150);
+}
+
+function stop() {
+    playing = false;
+}
+</script>
+
+</body>
+</html>

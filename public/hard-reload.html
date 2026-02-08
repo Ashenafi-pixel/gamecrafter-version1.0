@@ -1,0 +1,165 @@
+<\!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Hard Reload SlotAI</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      text-align: center;
+      max-width: 500px;
+    }
+    h1 {
+      margin-top: 0;
+      color: #333;
+    }
+    button {
+      background: #0052CC;
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 4px;
+      font-size: 1rem;
+      cursor: pointer;
+      margin: 0.5rem;
+    }
+    button:hover {
+      background: #003d99;
+    }
+    .progress {
+      margin-top: 1rem;
+      height: 20px;
+      width: 100%;
+      background: #eee;
+      border-radius: 10px;
+      overflow: hidden;
+      position: relative;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: #0052CC;
+      transition: width 0.3s;
+    }
+    .status {
+      margin-top: 1rem;
+      font-style: italic;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Hard Reload SlotAI</h1>
+    <p>Use this utility to completely clear browser cache and reload the application with the latest code.</p>
+    
+    <div>
+      <button id="clearCacheBtn">Clear Cache &amp; Reload</button>
+      <button id="resetLocalStorageBtn">Reset Local Storage</button>
+    </div>
+    
+    <div class="progress">
+      <div id="progressBar" class="progress-bar"></div>
+    </div>
+    
+    <p id="status" class="status">Ready</p>
+  </div>
+
+  <script>
+    const progressBar = document.getElementById('progressBar');
+    const statusEl = document.getElementById('status');
+    
+    async function updateProgress(percent, message) {
+      progressBar.style.width = `${percent}%`;
+      statusEl.textContent = message;
+    }
+    
+    async function clearCache() {
+      try {
+        updateProgress(10, 'Clearing application cache...');
+        
+        // Clear all caches
+        if ('caches' in window) {
+          const cacheNames = await caches.keys();
+          await Promise.all(
+            cacheNames.map(cacheName => caches.delete(cacheName))
+          );
+        }
+        
+        updateProgress(30, 'Unregistering service workers...');
+        
+        // Unregister all service workers
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(
+            registrations.map(registration => registration.unregister())
+          );
+        }
+        
+        updateProgress(50, 'Clearing localStorage...');
+        
+        // Clear localStorage
+        localStorage.clear();
+        
+        // Set timestamp to prevent caching
+        localStorage.setItem('cache_version', Date.now().toString());
+        sessionStorage.clear();
+        
+        updateProgress(70, 'Setting up for reload...');
+        
+        // Force refresh by adding timestamp to URL
+        const timestamp = new Date().getTime();
+        const separator = window.location.href.includes('?') ? '&' : '?';
+        
+        // Prepare the URL for the application's root
+        const rootUrl = window.location.href.replace('/hard-reload.html', '/');
+        const urlWithTimestamp = `${rootUrl}${separator}t=${timestamp}`;
+        
+        updateProgress(90, 'Redirecting to fresh application...');
+        
+        // Short delay for visual feedback
+        setTimeout(() => {
+          updateProgress(100, 'Done\!');
+          window.location.href = urlWithTimestamp;
+        }, 500);
+      } catch (error) {
+        updateProgress(0, `Error: ${error.message}`);
+        console.error('Cache clearing failed:', error);
+      }
+    }
+    
+    function resetLocalStorage() {
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+        updateProgress(100, 'Local storage reset successfully');
+        setTimeout(() => {
+          updateProgress(0, 'Ready');
+        }, 2000);
+      } catch (error) {
+        updateProgress(0, `Error: ${error.message}`);
+      }
+    }
+    
+    document.getElementById('clearCacheBtn').addEventListener('click', clearCache);
+    document.getElementById('resetLocalStorageBtn').addEventListener('click', resetLocalStorage);
+  </script>
+</body>
+</html>

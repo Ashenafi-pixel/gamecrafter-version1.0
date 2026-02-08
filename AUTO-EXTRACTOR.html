@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auto Sprite Sheet Extractor</title>
+</head>
+<body style="background:#222;color:white;font-family:Arial;padding:20px;text-align:center;">
+
+<h1>🔴 Auto Sprite Sheet Extractor</h1>
+
+<input type="file" id="upload" accept="image/*" style="margin:20px;">
+<button onclick="extractFrames()" id="extractBtn" disabled style="background:gold;color:black;padding:10px 20px;border:none;border-radius:5px;">Extract 16 Frames</button>
+
+<br><br>
+
+<div id="frames" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;max-width:800px;margin:20px auto;"></div>
+
+<br>
+<button onclick="play()" style="background:gold;color:black;padding:10px 20px;border:none;border-radius:5px;margin:5px;">PLAY ANIMATION</button>
+<button onclick="stop()" style="background:gold;color:black;padding:10px 20px;border:none;border-radius:5px;margin:5px;">STOP</button>
+<button onclick="exportFrames()" style="background:gold;color:black;padding:10px 20px;border:none;border-radius:5px;margin:5px;">DOWNLOAD ALL FRAMES</button>
+
+<br><br>
+<canvas id="canvas" width="300" height="300" style="border:2px solid white;"></canvas>
+
+<script>
+var sourceImage = null;
+var extractedFrames = [];
+var playing = false;
+var currentFrame = 0;
+
+document.getElementById('upload').onchange = function() {
+    if(this.files[0]) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            var img = new Image();
+            img.onload = function() {
+                sourceImage = img;
+                document.getElementById('extractBtn').disabled = false;
+                console.log('Loaded sprite sheet:', img.width, 'x', img.height);
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(this.files[0]);
+    }
+};
+
+function extractFrames() {
+    if(!sourceImage) return;
+    
+    console.log('Extracting frames from sprite sheet...');
+    
+    // 4x4 grid = 16 frames
+    var framesPerRow = 4;
+    var frameWidth = sourceImage.width / framesPerRow;
+    var frameHeight = sourceImage.height / framesPerRow;
+    
+    console.log('Frame size:', frameWidth, 'x', frameHeight);
+    
+    extractedFrames = [];
+    var framesDiv = document.getElementById('frames');
+    framesDiv.innerHTML = '';
+    
+    for(var i = 0; i < 16; i++) {
+        var row = Math.floor(i / framesPerRow);
+        var col = i % framesPerRow;
+        
+        var sourceX = col * frameWidth;
+        var sourceY = row * frameHeight;
+        
+        console.log('Frame', i+1, '- Position:', sourceX, sourceY);
+        
+        // Create canvas for this frame
+        var canvas = document.createElement('canvas');
+        canvas.width = frameWidth;
+        canvas.height = frameHeight;
+        var ctx = canvas.getContext('2d');
+        
+        // Extract the frame
+        ctx.drawImage(
+            sourceImage,
+            sourceX, sourceY, frameWidth, frameHeight,  // source
+            0, 0, frameWidth, frameHeight               // destination
+        );
+        
+        // Store the frame
+        var frameImg = new Image();
+        frameImg.src = canvas.toDataURL();
+        extractedFrames.push(frameImg);
+        
+        // Show preview
+        var preview = document.createElement('div');
+        preview.style.cssText = 'border:2px solid #666;padding:10px;background:#333;';
+        preview.innerHTML = '<div>Frame ' + (i+1) + '</div>';
+        
+        var previewImg = document.createElement('img');
+        previewImg.src = canvas.toDataURL();
+        previewImg.style.cssText = 'width:100px;height:100px;';
+        preview.appendChild(previewImg);
+        
+        framesDiv.appendChild(preview);
+    }
+    
+    console.log('Extracted', extractedFrames.length, 'frames');
+}
+
+var animationInterval = null;
+
+function play() {
+    if(playing || extractedFrames.length === 0) return;
+    playing = true;
+    currentFrame = 0;
+    
+    animationInterval = setInterval(function() {
+        if(!playing) {
+            clearInterval(animationInterval);
+            return;
+        }
+        
+        var canvas = document.getElementById('canvas');
+        var ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, 300, 300);
+        
+        // Draw current frame centered
+        var centerX = 150;
+        var centerY = 150;
+        var size = 120;
+        ctx.drawImage(extractedFrames[currentFrame], centerX - size/2, centerY - size/2, size, size);
+        
+        // Move to next frame
+        currentFrame = (currentFrame + 1) % extractedFrames.length;
+        
+        console.log('Playing frame:', currentFrame);
+    }, 120);
+}
+
+function stop() {
+    playing = false;
+}
+
+function exportFrames() {
+    if(extractedFrames.length === 0) {
+        alert('No frames extracted yet!');
+        return;
+    }
+    
+    console.log('Exporting', extractedFrames.length, 'frames...');
+    
+    for(var i = 0; i < extractedFrames.length; i++) {
+        (function(index) {
+            var canvas = document.createElement('canvas');
+            canvas.width = 200;
+            canvas.height = 180;
+            var ctx = canvas.getContext('2d');
+            
+            // Draw frame at your manual cut size (200x180)
+            ctx.drawImage(extractedFrames[index], 0, 0, 200, 180);
+            
+            canvas.toBlob(function(blob) {
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = (index + 1) + '.png';
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+        })(i);
+    }
+    
+    alert('Downloading all 16 frames as individual PNG files!');
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gem Frame Uploader</title>
+    <style>
+        body { font-family: Arial; background: #222; color: white; padding: 20px; text-align: center; }
+        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-width: 600px; margin: 20px auto; }
+        .slot { border: 2px dashed #666; padding: 20px; border-radius: 5px; cursor: pointer; min-height: 80px; display: flex; align-items: center; justify-content: center; background: #333; }
+        .slot:hover { border-color: #999; background: #444; }
+        .slot.filled { border-color: gold; background: rgba(255,215,0,0.1); }
+        .slot img { width: 60px; height: 60px; border-radius: 3px; }
+        canvas { border: 2px solid #666; margin: 20px; background: rgba(0,0,0,0.5); }
+        button { background: gold; color: black; border: none; padding: 10px 20px; margin: 5px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .status { background: #444; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <h1>🔴 Gem Frame Uploader</h1>
+    
+    <div class="status" id="status">Click Test Pattern to see how it works, then upload your gem frames</div>
+    
+    <div class="grid" id="grid"></div>
+    
+    <button onclick="testPattern()">Test Pattern</button>
+    <button onclick="clearAll()">Clear All</button>
+    <br><br>
+    
+    <canvas id="canvas" width="300" height="300"></canvas><br>
+    <button onclick="play()" id="playBtn">Play</button>
+    <button onclick="stop()" id="stopBtn">Stop</button>
+    <button onclick="exportAnimation()">Export Reference</button>
+
+    <script type="text/javascript">
+var frames = [];
+var playing = false;
+var frameIndex = 0;
+var interval = null;
+
+function init() {
+    var grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    frames = [];
+    
+    for (var i = 0; i < 16; i++) {
+        var slot = document.createElement('div');
+        slot.className = 'slot';
+        slot.innerHTML = 'Frame ' + (i + 1);
+        slot.setAttribute('data-index', i);
+        
+        slot.onclick = function() {
+            var input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            var index = parseInt(this.getAttribute('data-index'));
+            
+            input.onchange = function() {
+                if (this.files[0]) {
+                    loadFrame(index, this.files[0]);
+                }
+            };
+            input.click();
+        };
+        
+        grid.appendChild(slot);
+        frames.push(null);
+    }
+    updateStatus();
+}
+
+function loadFrame(index, file) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var img = new Image();
+        img.onload = function() {
+            frames[index] = img;
+            var slots = document.querySelectorAll('.slot');
+            var slot = slots[index];
+            slot.className = 'slot filled';
+            slot.innerHTML = '';
+            var imgEl = document.createElement('img');
+            imgEl.src = img.src;
+            slot.appendChild(imgEl);
+            updateStatus();
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function updateStatus() {
+    var loaded = 0;
+    for (var i = 0; i < frames.length; i++) {
+        if (frames[i] !== null) loaded++;
+    }
+    document.getElementById('status').textContent = loaded + '/16 frames loaded';
+}
+
+function testPattern() {
+    for (var i = 0; i < 8; i++) {
+        createTestFrame(i);
+    }
+}
+
+function createTestFrame(i) {
+    var canvas = document.createElement('canvas');
+    canvas.width = 100;
+    canvas.height = 100;
+    var ctx = canvas.getContext('2d');
+    
+    var angle = (i / 8) * Math.PI * 2;
+    ctx.fillStyle = 'red';
+    ctx.beginPath();
+    ctx.arc(50, 50, 30, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = 'white';
+    ctx.beginPath();
+    ctx.arc(50 + Math.cos(angle) * 15, 50 + Math.sin(angle) * 15, 8, 0, Math.PI * 2);
+    ctx.fill();
+    
+    var img = new Image();
+    img.onload = function() {
+        frames[i] = img;
+        var slots = document.querySelectorAll('.slot');
+        var slot = slots[i];
+        slot.className = 'slot filled';
+        slot.innerHTML = '';
+        var imgEl = document.createElement('img');
+        imgEl.src = img.src;
+        slot.appendChild(imgEl);
+        if (i === 7) updateStatus();
+    };
+    img.src = canvas.toDataURL();
+}
+
+function clearAll() {
+    init();
+}
+
+function play() {
+    var validFrames = [];
+    for (var i = 0; i < frames.length; i++) {
+        if (frames[i] !== null) validFrames.push(frames[i]);
+    }
+    
+    if (validFrames.length < 2) {
+        alert('Need at least 2 frames');
+        return;
+    }
+    
+    playing = true;
+    var validIndex = 0;
+    
+    interval = setInterval(function() {
+        validIndex = (validIndex + 1) % validFrames.length;
+        
+        var canvas = document.getElementById('canvas');
+        var ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        var centerX = canvas.width / 2;
+        var centerY = canvas.height / 2;
+        ctx.drawImage(validFrames[validIndex], centerX - 60, centerY - 60, 120, 120);
+    }, 150);
+}
+
+function stop() {
+    playing = false;
+    if (interval) clearInterval(interval);
+}
+
+function exportAnimation() {
+    var validFrames = [];
+    for (var i = 0; i < frames.length; i++) {
+        if (frames[i] !== null) {
+            var canvas = document.createElement('canvas');
+            canvas.width = 150;
+            canvas.height = 150;
+            var ctx = canvas.getContext('2d');
+            ctx.drawImage(frames[i], 0, 0, 150, 150);
+            validFrames.push(canvas.toDataURL());
+        }
+    }
+    
+    if (validFrames.length < 2) {
+        alert('Need at least 2 frames');
+        return;
+    }
+    
+    var html = '<!DOCTYPE html><html><head><title>Gem Reference</title></head><body style="text-align:center;background:#222;color:white;"><h1>Perfect Gem Animation</h1><canvas id="c" width="150" height="150" style="border:2px solid #666;"></canvas><script>var frames=' + JSON.stringify(validFrames) + ';var canvas=document.getElementById("c");var ctx=canvas.getContext("2d");var frame=0;setInterval(function(){var img=new Image();img.onload=function(){ctx.clearRect(0,0,150,150);ctx.drawImage(img,0,0);};img.src=frames[frame];frame=(frame+1)%frames.length;},150);</script></body></html>';
+    
+    var blob = new Blob([html], {type: 'text/html'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'gem-reference.html';
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    alert('Animation exported!');
+}
+
+init();
+    </script>
+</body>
+</html>

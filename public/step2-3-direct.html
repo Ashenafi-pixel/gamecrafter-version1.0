@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Direct Reel Configuration</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: #f5f5f5;
+      color: #333;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #eee;
+    }
+    .title {
+      color: #222;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #666;
+      font-weight: normal;
+    }
+    .grid-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+      margin-bottom: 30px;
+    }
+    .grid-card {
+      width: 220px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      overflow: hidden;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    .grid-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    .grid-card.selected {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 2px #3b82f6;
+    }
+    .grid-preview {
+      height: 150px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background-color: #f9fafb;
+    }
+    .grid-image {
+      width: 80%;
+      height: 80%;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+    }
+    .grid-cell {
+      width: 25px;
+      height: 25px;
+      background-color: #d1d5db;
+      margin: 2px;
+      border-radius: 3px;
+    }
+    .grid-content {
+      padding: 15px;
+    }
+    .grid-title {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    .grid-description {
+      color: #666;
+      font-size: 14px;
+    }
+    .section {
+      margin-bottom: 30px;
+    }
+    .section-title {
+      font-size: 18px;
+      margin-bottom: 15px;
+      color: #1e3a8a;
+    }
+    .button-container {
+      display: flex;
+      justify-content: center;
+      margin-top: 30px;
+    }
+    .button {
+      background-color: #3b82f6;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .button:hover {
+      background-color: #2563eb;
+    }
+    .button:disabled {
+      background-color: #9ca3af;
+      cursor: not-allowed;
+    }
+    .pay-mechanism {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    .pay-option {
+      flex: 1;
+      min-width: 180px;
+      padding: 15px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .pay-option:hover {
+      background-color: #f9fafb;
+    }
+    .pay-option.selected {
+      border-color: #3b82f6;
+      background-color: #eff6ff;
+    }
+    .pay-title {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    .pay-description {
+      font-size: 14px;
+      color: #666;
+    }
+    .info {
+      background-color: #eff6ff;
+      color: #1e40af;
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      border-left: 4px solid #3b82f6;
+    }
+    .step-indicator {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    .step {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background-color: #e5e7eb;
+      color: #6b7280;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      margin: 0 5px;
+      position: relative;
+    }
+    .step::after {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 2px;
+      background-color: #e5e7eb;
+      right: -15px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+    .step:last-child::after {
+      display: none;
+    }
+    .step.active {
+      background-color: #3b82f6;
+      color: white;
+    }
+    .step.completed {
+      background-color: #10b981;
+      color: white;
+    }
+    .step.completed::after, .step.active::after {
+      background-color: #10b981;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1 class="title">Direct Reel Configuration</h1>
+      <h2 class="subtitle">Step 3: Configure your game grid and pay mechanism</h2>
+      <div class="info">
+        This page allows you to directly access Step 3 of the slot creation process.
+        Your theme and game type selections have been preserved.
+      </div>
+      
+      <div class="step-indicator">
+        <div class="step completed">1</div>
+        <div class="step completed">2</div>
+        <div class="step active">3</div>
+        <div class="step">4</div>
+        <div class="step">5</div>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h3 class="section-title">1. Select Your Grid Layout</h3>
+      <div class="grid-options">
+        <!-- 5x3 Grid Option -->
+        <div class="grid-card" data-grid="5x3" onclick="selectGrid(this, '5x3')">
+          <div class="grid-preview">
+            <div class="grid-image">
+              <!-- 5x3 Grid -->
+              <div style="display: flex;">
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+              </div>
+              <div style="display: flex;">
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+              </div>
+              <div style="display: flex;">
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+              </div>
+            </div>
+          </div>
+          <div class="grid-content">
+            <div class="grid-title">5x3 Grid (Standard)</div>
+            <div class="grid-description">Classic slot layout with 5 reels and 3 rows</div>
+          </div>
+        </div>
+        
+        <!-- 6x4 Grid Option -->
+        <div class="grid-card" data-grid="6x4" onclick="selectGrid(this, '6x4')">
+          <div class="grid-preview">
+            <div class="grid-image">
+              <!-- 6x4 Grid -->
+              <div style="display: flex;">
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+              </div>
+              <div style="display: flex;">
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+              </div>
+              <div style="display: flex;">
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+              </div>
+              <div style="display: flex;">
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+              </div>
+            </div>
+          </div>
+          <div class="grid-content">
+            <div class="grid-title">6x4 Grid (Extended)</div>
+            <div class="grid-description">Larger grid with more winning possibilities</div>
+          </div>
+        </div>
+        
+        <!-- 3x3 Grid Option -->
+        <div class="grid-card" data-grid="3x3" onclick="selectGrid(this, '3x3')">
+          <div class="grid-preview">
+            <div class="grid-image">
+              <!-- 3x3 Grid -->
+              <div style="display: flex;">
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+              </div>
+              <div style="display: flex;">
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+              </div>
+              <div style="display: flex;">
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+                <div class="grid-cell"></div>
+              </div>
+            </div>
+          </div>
+          <div class="grid-content">
+            <div class="grid-title">3x3 Grid (Compact)</div>
+            <div class="grid-description">Classic fruit machine style layout</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h3 class="section-title">2. Choose Pay Mechanism</h3>
+      <div class="pay-mechanism">
+        <!-- Paylines Option -->
+        <div class="pay-option" data-pay="paylines" onclick="selectPayMechanism(this, 'paylines')">
+          <div class="pay-title">Paylines</div>
+          <div class="pay-description">Traditional slot mechanism where wins occur on specific lines across the reels</div>
+        </div>
+        
+        <!-- Ways to Win Option -->
+        <div class="pay-option" data-pay="ways" onclick="selectPayMechanism(this, 'ways')">
+          <div class="pay-title">Ways to Win</div>
+          <div class="pay-description">Matching symbols on adjacent reels pay regardless of position</div>
+        </div>
+        
+        <!-- Cluster Pays Option -->
+        <div class="pay-option" data-pay="cluster" onclick="selectPayMechanism(this, 'cluster')">
+          <div class="pay-title">Cluster Pays</div>
+          <div class="pay-description">Groups of matching symbols that touch horizontally or vertically</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="button-container">
+      <button id="continueButton" class="button" disabled onclick="continueToNextStep()">Continue to Next Step</button>
+    </div>
+  </div>
+
+  <script>
+    let selectedGrid = null;
+    let selectedPayMechanism = null;
+    
+    // Function to select a grid
+    function selectGrid(element, grid) {
+      // Remove selection from all grid cards
+      document.querySelectorAll('.grid-card').forEach(card => {
+        card.classList.remove('selected');
+      });
+      
+      // Add selection to clicked card
+      element.classList.add('selected');
+      
+      // Store selected grid
+      selectedGrid = grid;
+      
+      // Enable continue button if both selections are made
+      updateContinueButton();
+      
+      // Show notification
+      showNotification(`${element.querySelector('.grid-title').textContent} selected!`);
+    }
+    
+    // Function to select a pay mechanism
+    function selectPayMechanism(element, mechanism) {
+      // Remove selection from all pay options
+      document.querySelectorAll('.pay-option').forEach(option => {
+        option.classList.remove('selected');
+      });
+      
+      // Add selection to clicked option
+      element.classList.add('selected');
+      
+      // Store selected mechanism
+      selectedPayMechanism = mechanism;
+      
+      // Enable continue button if both selections are made
+      updateContinueButton();
+      
+      // Show notification
+      showNotification(`${element.querySelector('.pay-title').textContent} selected!`);
+    }
+    
+    // Function to update continue button state
+    function updateContinueButton() {
+      const button = document.getElementById('continueButton');
+      if (selectedGrid && selectedPayMechanism) {
+        button.disabled = false;
+      } else {
+        button.disabled = true;
+      }
+    }
+    
+    // Function to save configuration
+    function saveConfiguration() {
+      // Parse grid dimensions
+      const [reels, rows] = selectedGrid.split('x').map(Number);
+      
+      // Get existing game data
+      let gameData = {};
+      try {
+        const savedData = localStorage.getItem('slotai_game_data');
+        if (savedData) {
+          gameData = JSON.parse(savedData);
+        }
+      } catch (e) {
+        console.error('Error loading saved game data:', e);
+      }
+      
+      // Add reel configuration
+      gameData = {
+        ...gameData,
+        reels: {
+          ...(gameData.reels || {}),
+          payMechanism: selectedPayMechanism,
+          layout: {
+            shape: 'rectangle',
+            reels: reels,
+            rows: rows
+          }
+        }
+      };
+      
+      // Add specific configurations based on pay mechanism
+      if (selectedPayMechanism === 'paylines') {
+        gameData.reels.betlines = reels === 5 && rows === 3 ? 20 : 
+                                  reels === 6 && rows === 4 ? 30 : 10;
+      } else if (selectedPayMechanism === 'cluster') {
+        gameData.reels.cluster = {
+          minSymbols: 5,
+          diagonalAllowed: false
+        };
+      }
+      
+      // Save to localStorage
+      localStorage.setItem('slotai_game_data', JSON.stringify(gameData));
+      console.log('Game configuration saved:', gameData);
+    }
+    
+    // Function to continue to the next step
+    function continueToNextStep() {
+      if (!selectedGrid || !selectedPayMechanism) {
+        alert('Please complete all selections before continuing');
+        return;
+      }
+      
+      // Save configuration
+      saveConfiguration();
+      
+      // Set up emergency navigation data
+      localStorage.setItem('slotai_emergency_nav', 'true');
+      localStorage.setItem('slotai_target_step', '3'); // Go to step 3 (Step 4 in the UI which is 0-indexed)
+      localStorage.setItem('slotai_timestamp', Date.now().toString());
+      
+      // Navigate to main app with params to force the correct step
+      window.location.href = '/?step=3&force=true&preserve_ui=true&t=' + Date.now();
+    }
+    
+    // Function to show notification
+    function showNotification(message) {
+      // Check if notification container exists
+      let container = document.getElementById('notification-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'notification-container';
+        container.style.cssText = `
+          position: fixed;
+          bottom: 20px;
+          right: 20px;
+          z-index: 1000;
+        `;
+        document.body.appendChild(container);
+      }
+      
+      // Create notification
+      const notification = document.createElement('div');
+      notification.style.cssText = `
+        background-color: #10b981;
+        color: white;
+        padding: 12px 16px;
+        border-radius: 6px;
+        margin-bottom: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transform: translateY(20px);
+        opacity: 0;
+        transition: all 0.3s ease;
+      `;
+      notification.textContent = message;
+      
+      // Add to container
+      container.appendChild(notification);
+      
+      // Animate in
+      setTimeout(() => {
+        notification.style.transform = 'translateY(0)';
+        notification.style.opacity = '1';
+      }, 10);
+      
+      // Animate out and remove
+      setTimeout(() => {
+        notification.style.transform = 'translateY(20px)';
+        notification.style.opacity = '0';
+        
+        setTimeout(() => {
+          container.removeChild(notification);
+        }, 300);
+      }, 3000);
+    }
+    
+    // On load, check if we have previously selected options
+    window.addEventListener('DOMContentLoaded', () => {
+      try {
+        const gameData = localStorage.getItem('slotai_game_data');
+        if (gameData) {
+          const parsedData = JSON.parse(gameData);
+          
+          // Check for grid selection
+          if (parsedData.reels?.layout) {
+            const { reels, rows } = parsedData.reels.layout;
+            const gridType = `${reels}x${rows}`;
+            const gridElement = document.querySelector(`.grid-card[data-grid="${gridType}"]`);
+            if (gridElement) {
+              selectGrid(gridElement, gridType);
+            }
+          }
+          
+          // Check for pay mechanism
+          if (parsedData.reels?.payMechanism) {
+            const payType = parsedData.reels.payMechanism;
+            const payElement = document.querySelector(`.pay-option[data-pay="${payType}"]`);
+            if (payElement) {
+              selectPayMechanism(payElement, payType);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Error loading saved configuration:', e);
+      }
+    });
+  </script>
+</body>
+</html>

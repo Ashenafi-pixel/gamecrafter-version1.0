@@ -1,0 +1,913 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom animations for game experience */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(30px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-slow {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Nintendo-inspired animations for Game Crafter dashboard */
+@keyframes slide-right {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-left {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+.animate-slide-right {
+  animation: slide-right 15s linear infinite;
+}
+
+.animate-slide-left {
+  animation: slide-left 15s linear infinite;
+}
+
+/* Apple-style circular progress animation */
+@keyframes progress-fill {
+  from {
+    stroke-dashoffset: 0;
+  }
+
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+.animate-progress-fill {
+  animation: progress-fill 2s ease-out forwards;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.5s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 3s infinite;
+}
+
+.no-select {
+  user-select: none;
+}
+
+/* Game patterns for backgrounds */
+.pattern-dots {
+  background-image: radial-gradient(currentColor 1px, transparent 1px);
+  background-size: calc(10 * 1px) calc(10 * 1px);
+}
+
+/* Hide scrollbars but keep scrolling functionality */
+.overflow-x-auto::-webkit-scrollbar,
+.theme-swiper::-webkit-scrollbar,
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.overflow-x-auto,
+.theme-swiper,
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Theme carousel styles */
+.theme-swiper {
+  padding: 15px 5px;
+  margin: 0 auto;
+  /* Center the carousel */
+  overflow: visible !important;
+  /* Allow 3D effect to be visible */
+  width: 100%;
+}
+
+/* Theme card container inside swiper slides */
+.theme-card-container {
+  padding: 10px;
+  width: 100%;
+  height: 100%;
+  background: none;
+}
+
+/* Completely plain card with no effects */
+.plain-card {
+  transform: none !important;
+  transition: none !important;
+  animation: none !important;
+  filter: none !important;
+  opacity: 1 !important;
+}
+
+/* No transform effects on active slide */
+.swiper-slide-active .theme-card-container {
+  transform: none;
+}
+
+/* No effects for slides */
+.swiper-slide {
+  opacity: 1;
+  transition: none;
+}
+
+.swiper-slide-active {
+  opacity: 1;
+  z-index: 10;
+}
+
+/* Custom pagination bullets */
+.swiper-pagination-bullet {
+  width: 10px;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.5);
+  opacity: 0.5;
+  transition: all 0.3s ease;
+}
+
+.swiper-pagination-bullet-active {
+  background: #fff;
+  opacity: 1;
+  transform: scale(1.3);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+}
+
+.theme-card {
+  transition: transform 0.3s ease-in-out, box-shadow 0.3s ease;
+}
+
+.theme-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.swiper-slide-active .theme-card {
+  transform: scale(1.05);
+}
+
+/* Carousel animations */
+@keyframes carousel-spin {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes slide-bounce {
+  0% {
+    transform: translateX(0) translateY(0);
+  }
+
+  25% {
+    transform: translateX(3px) translateY(-1px);
+  }
+
+  50% {
+    transform: translateX(0) translateY(1px);
+  }
+
+  75% {
+    transform: translateX(-2px) translateY(-1px);
+  }
+
+  100% {
+    transform: translateX(0) translateY(0);
+  }
+}
+
+@keyframes theme-card-glow {
+  0% {
+    box-shadow: 0 0 5px rgba(92, 124, 250, 0.4), 0 0 20px rgba(92, 124, 250, 0);
+  }
+
+  50% {
+    box-shadow: 0 5px 25px rgba(92, 124, 250, 0.6), 0 0 30px rgba(92, 124, 250, 0.4);
+  }
+
+  100% {
+    box-shadow: 0 0 5px rgba(92, 124, 250, 0.4), 0 0 20px rgba(92, 124, 250, 0);
+  }
+}
+
+@keyframes theme-card-selected {
+  0% {
+    box-shadow: 0 0 0px rgba(16, 185, 129, 0);
+    transform: scale(1);
+  }
+
+  10% {
+    box-shadow: 0 0 30px rgba(16, 185, 129, 0.8);
+    transform: scale(1.05);
+  }
+
+  20% {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.6);
+    transform: scale(1.03);
+  }
+
+  100% {
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+    transform: scale(1);
+  }
+}
+
+.theme-card-spinning {
+  animation: slide-bounce 0.15s ease-in-out infinite;
+  filter: brightness(0.95);
+  will-change: transform;
+  /* Performance optimization */
+}
+
+.theme-card-selected {
+  animation: theme-card-selected 1s ease-out forwards;
+}
+
+/* Improve swiper with centered slides */
+.swiper-slide {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  opacity: 0.8;
+}
+
+.swiper-slide-active {
+  opacity: 1;
+  transform: scale(1.08);
+  z-index: 10;
+}
+
+/* Extra animations for smoother effect */
+@keyframes spin-blur {
+  0% {
+    filter: blur(0px);
+  }
+
+  50% {
+    filter: blur(1px);
+  }
+
+  100% {
+    filter: blur(0px);
+  }
+}
+
+/* Animation for floating particles and bubbles */
+@keyframes float {
+  0% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+
+  100% {
+    transform: translateY(0);
+  }
+}
+
+/* Animation for pulsing effects */
+@keyframes pulse {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.5;
+  }
+
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+
+  100% {
+    transform: scale(0.95);
+    opacity: 0.5;
+  }
+}
+
+/* Black and White Theme - Improved high contrast */
+.black-white-theme {
+  /* Switch to opposite scheme - white background with black elements */
+  --primary-bg: #FFFFFF;
+  --secondary-bg: #F5F5F5;
+  --tertiary-bg: #EEEEEE;
+  --primary-text: #000000;
+  --secondary-text: #333333;
+  --border-color: #000000;
+  --accent-color: #000000;
+  --hover-bg: #EEEEEE;
+  --button-bg: #000000;
+  --button-text: #FFFFFF;
+  --button-hover: #333333;
+  --shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+
+  /* Override Tailwind classes with !important for theme */
+  color-scheme: light;
+}
+
+/* Text colors */
+.black-white-theme * {
+  color: var(--primary-text) !important;
+}
+
+/* Background colors */
+.black-white-theme {
+  background-color: var(--primary-bg) !important;
+}
+
+/* Header and navigation - BLACK background with WHITE text */
+.black-white-theme nav,
+.black-white-theme header,
+.black-white-theme .bg-gradient-to-r {
+  background: var(--accent-color) !important;
+  background-image: none !important;
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+/* White text on nav bar */
+.black-white-theme nav *,
+.black-white-theme header * {
+  color: var(--button-text) !important;
+}
+
+/* Buttons in navigation */
+.black-white-theme nav button,
+.black-white-theme header button {
+  background-color: var(--accent-color) !important;
+  color: var(--button-text) !important;
+  border: 1px solid var(--button-text) !important;
+}
+
+/* Nav button hover */
+.black-white-theme nav button:hover,
+.black-white-theme header button:hover {
+  background-color: #333333 !important;
+}
+
+/* Regular Buttons - black background with white text */
+.black-white-theme button:not(.tab):not([class*="border-b-2"]),
+.black-white-theme .btn,
+.black-white-theme [type="button"] {
+  background-color: var(--button-bg) !important;
+  color: var(--button-text) !important;
+  border: 1px solid var(--button-bg) !important;
+}
+
+/* Button text color */
+.black-white-theme button:not(.tab):not([class*="border-b-2"]) *,
+.black-white-theme .btn *,
+.black-white-theme [type="button"] * {
+  color: var(--button-text) !important;
+}
+
+/* Tab buttons */
+.black-white-theme .tab {
+  background-color: transparent !important;
+  color: var(--primary-text) !important;
+}
+
+.black-white-theme .tab.active {
+  border-color: var(--accent-color) !important;
+  color: var(--accent-color) !important;
+  font-weight: bold !important;
+}
+
+/* Cards and panels */
+.black-white-theme .bg-white,
+.black-white-theme .card,
+.black-white-theme [class*="rounded-xl"],
+.black-white-theme [class*="shadow"] {
+  background-color: var(--primary-bg) !important;
+  border: 1px solid var(--border-color) !important;
+  box-shadow: var(--shadow) !important;
+}
+
+/* Secondary backgrounds */
+.black-white-theme .bg-blue-50,
+.black-white-theme .bg-green-50,
+.black-white-theme .bg-yellow-50,
+.black-white-theme .bg-red-50,
+.black-white-theme .bg-indigo-50,
+.black-white-theme .bg-purple-50,
+.black-white-theme .bg-gray-50,
+.black-white-theme .bg-gray-100,
+.black-white-theme .bg-blue-100 {
+  background-color: var(--secondary-bg) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+/* Configuration sections */
+.black-white-theme [class*="p-4 md:p-6 rounded-xl bg-"] {
+  background-color: var(--secondary-bg) !important;
+  border: 2px solid var(--border-color) !important;
+}
+
+/* Grid item backgrounds */
+.black-white-theme .grid-cell,
+.black-white-theme [class*="bg-[#0052CC]/10"],
+.black-white-theme [class*="bg-white/20"] {
+  background-color: var(--secondary-bg) !important;
+}
+
+.custom-option-width option {
+  width: 10px !important;
+}
+
+
+/* Selections in the grid layout */
+.black-white-theme [class*="bg-[#0052CC]"] {
+  background-color: var(--accent-color) !important;
+  color: var(--button-text) !important;
+}
+
+/* Border colors */
+.black-white-theme .border,
+.black-white-theme .border-gray-200,
+.black-white-theme [class*="border-"] {
+  border-color: var(--border-color) !important;
+}
+
+/* Images - don't apply filters, keep original colors */
+.black-white-theme img:not(.theme-apply-filter) {
+  filter: none !important;
+}
+
+/* SVG icons - black color */
+.black-white-theme svg:not(.preserve-color) {
+  stroke: var(--primary-text) !important;
+  fill: transparent !important;
+}
+
+/* SVG icons in buttons - white color */
+.black-white-theme button svg,
+.black-white-theme .btn svg {
+  stroke: currentColor !important;
+}
+
+/* Special case for icons in navigation */
+.black-white-theme nav svg,
+.black-white-theme header svg {
+  stroke: var(--button-text) !important;
+}
+
+/* Special case for active elements */
+.black-white-theme .active,
+.black-white-theme [aria-selected="true"],
+.black-white-theme [aria-current="page"] {
+  background-color: var(--accent-color) !important;
+  color: var(--button-text) !important;
+}
+
+/* Special case for active elements with icons */
+.black-white-theme .active svg,
+.black-white-theme [aria-selected="true"] svg,
+.black-white-theme [aria-current="page"] svg {
+  stroke: var(--button-text) !important;
+}
+
+/* Tables */
+.black-white-theme table,
+.black-white-theme th,
+.black-white-theme td {
+  border-color: var(--border-color) !important;
+}
+
+.black-white-theme th {
+  background-color: var(--accent-color) !important;
+  color: var(--button-text) !important;
+}
+
+/* Input fields */
+.black-white-theme input,
+.black-white-theme select,
+.black-white-theme textarea {
+  background-color: var(--primary-bg) !important;
+  border: 2px solid var(--accent-color) !important;
+  color: var(--primary-text) !important;
+}
+
+/* Radio and checkbox inputs */
+.black-white-theme input[type="checkbox"],
+.black-white-theme input[type="radio"] {
+  accent-color: var(--accent-color) !important;
+  border: 2px solid var(--accent-color) !important;
+}
+
+/* Selected items */
+.black-white-theme [data-selected="true"],
+.black-white-theme .selected {
+  background-color: var(--accent-color) !important;
+  color: var(--button-text) !important;
+  border-color: var(--accent-color) !important;
+}
+
+/* Focus outlines */
+.black-white-theme *:focus {
+  outline: 2px solid var(--accent-color) !important;
+  outline-offset: 2px !important;
+}
+
+/* Hover states */
+.black-white-theme button:hover,
+.black-white-theme .btn:hover {
+  background-color: var(--button-hover) !important;
+}
+
+/* Fix for the config modal */
+.black-white-theme .fixed.inset-0.bg-black\/50 {
+  background-color: rgba(0, 0, 0, 0.8) !important;
+}
+
+.black-white-theme .fixed.inset-0.bg-black\/50 .bg-white {
+  background-color: var(--primary-bg) !important;
+  border: 3px solid var(--accent-color) !important;
+}
+
+/* Special handling for range inputs */
+.black-white-theme input[type="range"] {
+  background-color: var(--tertiary-bg) !important;
+}
+
+.black-white-theme input[type="range"]::-webkit-slider-thumb {
+  background-color: var(--accent-color) !important;
+  border: 2px solid var(--primary-bg) !important;
+}
+
+/* Special classes for grid selection */
+.black-white-theme [class*="w-[140px] md:w-48"] {
+  border: 2px solid var(--accent-color) !important;
+}
+
+.black-white-theme [class*="w-[140px] md:w-48"].bg-\[\#0052CC\] {
+  background-color: var(--accent-color) !important;
+}
+
+.black-white-theme [class*="w-[140px] md:w-48"]:not(.bg-\[\#0052CC\]) {
+  background-color: var(--primary-bg) !important;
+}
+
+/* Fix for grid in selection */
+.black-white-theme [class*="w-[140px] md:w-48"] h3 {
+  color: var(--primary-text) !important;
+}
+
+.black-white-theme [class*="w-[140px] md:w-48"].bg-\[\#0052CC\] h3,
+.black-white-theme [class*="w-[140px] md:w-48"].bg-\[\#0052CC\] p {
+  color: var(--button-text) !important;
+}
+
+/* Mechanism selection cards */
+.black-white-theme [class*="p-4 md:p-6 rounded-xl border"] {
+  background-color: var(--primary-bg) !important;
+  border: 2px solid var(--accent-color) !important;
+}
+
+.black-white-theme [class*="p-4 md:p-6 rounded-xl border"].bg-\[\#0052CC\] {
+  background-color: var(--accent-color) !important;
+}
+
+.black-white-theme [class*="p-4 md:p-6 rounded-xl border"]:not(.bg-\[\#0052CC\]) h3,
+.black-white-theme [class*="p-4 md:p-6 rounded-xl border"]:not(.bg-\[\#0052CC\]) p,
+.black-white-theme [class*="p-4 md:p-6 rounded-xl border"]:not(.bg-\[\#0052CC\]) li {
+  color: var(--primary-text) !important;
+}
+
+.black-white-theme [class*="p-4 md:p-6 rounded-xl border"].bg-\[\#0052CC\] h3,
+.black-white-theme [class*="p-4 md:p-6 rounded-xl border"].bg-\[\#0052CC\] p,
+.black-white-theme [class*="p-4 md:p-6 rounded-xl border"].bg-\[\#0052CC\] li {
+  color: var(--button-text) !important;
+}
+
+/* Fix for mechanism icons */
+.black-white-theme [class*="w-10 h-10 md:w-12 md:h-12 rounded-lg"] {
+  background-color: var(--tertiary-bg) !important;
+}
+
+.black-white-theme [class*="w-10 h-10 md:w-12 md:h-12 rounded-lg"] svg {
+  stroke: var(--primary-text) !important;
+}
+
+.black-white-theme [class*="p-4 md:p-6 rounded-xl border"].bg-\[\#0052CC\] [class*="w-10 h-10 md:w-12 md:h-12 rounded-lg"] {
+  background-color: var(--button-text) !important;
+}
+
+.black-white-theme [class*="p-4 md:p-6 rounded-xl border"].bg-\[\#0052CC\] [class*="w-10 h-10 md:w-12 md:h-12 rounded-lg"] svg {
+  stroke: var(--accent-color) !important;
+}
+
+/* Scrollbars */
+.black-white-theme::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.black-white-theme::-webkit-scrollbar-track {
+  background: var(--primary-bg);
+  border: 1px solid var(--accent-color);
+}
+
+.black-white-theme::-webkit-scrollbar-thumb {
+  background-color: var(--accent-color);
+  border-radius: 6px;
+  border: 2px solid var(--primary-bg);
+}
+
+:root {
+  /* Theme Colors */
+  --primary: #ef4444;
+  /* Changed to red for Nintendo-inspired design */
+  --primary-hover: #dc2626;
+  --secondary: #fee2e2;
+  --text-primary: #172B4D;
+  --text-secondary: #5E6C84;
+  --border: #DFE1E6;
+  --background: #FFFFFF;
+}
+
+body {
+  @apply bg-[var(--background)] text-[var(--text-primary)] antialiased;
+}
+
+/* Card styles */
+.card {
+  @apply bg-white rounded-lg border border-[var(--border)] shadow-sm;
+}
+
+/* Button styles */
+.btn-primary {
+  @apply px-4 py-2 bg-[var(--primary)] text-white font-medium rounded-lg transition-all duration-200 hover:bg-[var(--primary-hover)];
+}
+
+.btn-secondary {
+  @apply px-4 py-2 bg-[var(--secondary)] text-[var(--primary)] font-medium rounded-lg transition-colors hover:bg-[color:var(--primary)] hover:text-white;
+}
+
+.btn-outline {
+  @apply px-4 py-2 border border-[var(--border)] text-[var(--text-primary)] rounded-lg transition-colors hover:bg-[var(--secondary)];
+}
+
+/* Navigation */
+.nav-item {
+  @apply flex items-center gap-3 px-4 py-3 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--secondary)] rounded-lg transition-all duration-200;
+}
+
+.nav-item.active {
+  @apply bg-[var(--primary)] text-white;
+}
+
+/* Section headers */
+.section-title {
+  @apply text-xl font-semibold text-[var(--text-primary)] mb-4;
+}
+
+.section-subtitle {
+  @apply text-sm text-[var(--text-secondary)] mt-1;
+}
+
+/* Navigation tabs */
+.tab {
+  @apply flex items-center gap-2 px-6 py-4 border-b-2 transition-colors whitespace-nowrap;
+}
+
+.tab.active {
+  @apply border-[var(--primary)] text-[var(--primary)];
+}
+
+.tab:not(.active) {
+  @apply border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)];
+}
+
+/* Bottom navigation */
+.bottom-nav {
+  @apply fixed bottom-0 inset-x-0 bg-white border-t border-[var(--border)] p-4;
+}
+
+.bottom-nav-button {
+  @apply px-4 py-2 rounded-lg flex items-center gap-2 transition-colors;
+}
+
+.bottom-nav-button.primary {
+  @apply bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)];
+}
+
+.bottom-nav-button.secondary {
+  @apply bg-[var(--secondary)] text-[var(--primary)] hover:bg-[color:var(--primary)] hover:text-white;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.scrollbar-hide::-webkit-scrollbar,
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.scrollbar-hide,
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Mobile-specific utilities */
+@media (max-width: 768px) {
+
+  /* Improved touch targets */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Touch feedback effect */
+  .touch-feedback {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .touch-feedback::after {
+    content: '';
+    display: block;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    background-image: radial-gradient(circle, #fff 10%, transparent 10.01%);
+    background-repeat: no-repeat;
+    background-position: 50%;
+    transform: scale(10, 10);
+    opacity: 0;
+    transition: transform 0.3s, opacity 0.5s;
+  }
+
+  .touch-feedback:active::after {
+    transform: scale(0, 0);
+    opacity: 0.3;
+    transition: 0s;
+  }
+
+  /* Safe area padding for notched devices */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 16px);
+  }
+}
+
+/* Grid Preview Styles */
+.grid-preview {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.grid-cell {
+  position: absolute;
+  transition: all 0.2s ease-in-out;
+}
+
+.grid-cell:hover {
+  transform: scale(1.1);
+  z-index: 10;
+}
+
+/* Honeycomb Grid Styles */
+.honeycomb-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  padding: 4px;
+}
+
+.honeycomb-cell {
+  position: relative;
+  width: 100%;
+  padding-bottom: 86.6%;
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+  transition: all 0.2s ease-in-out;
+}
+
+.honeycomb-cell:hover {
+  transform: scale(1.1);
+  z-index: 10;
+}
+
+/* Grid Previews */
+.grid-honeycomb {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+
+.hexagon {
+  position: relative;
+  width: 100%;
+  padding-bottom: 115%;
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  transition: all 0.2s ease-in-out;
+}
+
+.hexagon:hover {
+  transform: scale(1.05);
+}
+
+/* Grid cell hover effects */
+.grid-preview-cell {
+  transition: all 0.2s ease-in-out;
+}
+
+.grid-preview-cell:hover {
+  transform: scale(1.1);
+  z-index: 10;
+}
+
+/* Pulse border animation for Step 7 */
+@keyframes pulse-border {
+
+  0%,
+  100% {
+    border-color: rgb(239 68 68);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+
+  50% {
+    border-color: rgb(220 38 38);
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+}
+
+.animate-pulse-border {
+  animation: pulse-border 2s ease-in-out infinite;
+}
+
+/* Bonus Popup Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}

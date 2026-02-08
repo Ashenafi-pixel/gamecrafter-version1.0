@@ -1,0 +1,610 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "description": "A RESTful API for managing slot game configurations.",
+    "title": "SlotAI Configuration API",
+    "termsOfService": "http://swagger.io/terms/",
+    "contact": {
+      "name": "API Support",
+      "url": "http://www.slotai.com/support",
+      "email": "support@slotai.com"
+    },
+    "license": {
+      "name": "Apache 2.0",
+      "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+    },
+    "version": "1.0"
+  },
+  "host": "a451-66-81-180-173.ngrok-free.app",
+  "basePath": "/v1",
+  "paths": {
+    "/configurations": {
+      "get": {
+        "description": "Get a list of all game configurations",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "configurations"
+        ],
+        "summary": "List all game configurations",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/GameConfiguration"
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "interface"
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "description": "Create a new game configuration",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "configurations"
+        ],
+        "summary": "Create a new game configuration",
+        "parameters": [
+          {
+            "description": "Configuration data",
+            "name": "config",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/GameConfiguration"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "$ref": "#/definitions/GameConfiguration"
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/configurations/{gameId}": {
+      "get": {
+        "description": "Get a specific game configuration by ID",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "configurations"
+        ],
+        "summary": "Get a specific game configuration",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Game ID",
+            "name": "gameId",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Version ID (optional, defaults to latest)",
+            "name": "version",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "description": "Include metadata (default: true)",
+            "name": "includeMetadata",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/GameConfiguration"
+            }
+          },
+          "404": {
+            "description": "Not found error",
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "interface"
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "interface"
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "description": "Update an entire game configuration",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "configurations"
+        ],
+        "summary": "Update a game configuration",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Game ID",
+            "name": "gameId",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "Configuration data",
+            "name": "config",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/GameConfiguration"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/GameConfiguration"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      },
+      "delete": {
+        "description": "Delete a game configuration",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "configurations"
+        ],
+        "summary": "Delete a game configuration",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Game ID",
+            "name": "gameId",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "boolean",
+            "description": "Soft delete (default: true)",
+            "name": "softDelete",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      },
+      "patch": {
+        "description": "Update specific fields of a configuration",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "configurations"
+        ],
+        "summary": "Partially update a game configuration",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Game ID",
+            "name": "gameId",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "Fields to update",
+            "name": "updates",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/GameConfiguration"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/configurations/{gameId}/clone": {
+      "post": {
+        "description": "Clone a configuration",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "configurations"
+        ],
+        "summary": "Clone a game configuration",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Source Game ID",
+            "name": "gameId",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "Clone options",
+            "name": "options",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "targetGameId"
+              ],
+              "properties": {
+                "targetGameId": {
+                  "type": "string",
+                  "example": "wild-west-frontier-2"
+                },
+                "overrides": {
+                  "type": "object",
+                  "description": "Optional fields to override in the cloned configuration"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "$ref": "#/definitions/GameConfiguration"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "404": {
+            "description": "Source Not Found"
+          },
+          "409": {
+            "description": "Target ID Already Exists"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/configurations/{gameId}/history": {
+      "get": {
+        "description": "Get configuration change history",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "configurations"
+        ],
+        "summary": "Get configuration history",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Game ID",
+            "name": "gameId",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "integer",
+            "description": "Limit results (default: 20)",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "description": "Offset for pagination",
+            "name": "offset",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "gameId": {
+                  "type": "string"
+                },
+                "history": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "updatedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "updatedBy": {
+                        "type": "string"
+                      },
+                      "changes": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "path": {
+                              "type": "string"
+                            },
+                            "oldValue": {
+                              "type": "object"
+                            },
+                            "newValue": {
+                              "type": "object"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "GameConfiguration": {
+      "type": "object",
+      "required": [
+        "gameId",
+        "theme",
+        "bet"
+      ],
+      "properties": {
+        "gameId": {
+          "type": "string",
+          "example": "wild-west-frontier"
+        },
+        "theme": {
+          "type": "object",
+          "properties": {
+            "mainTheme": {
+              "type": "string",
+              "example": "Wild West"
+            },
+            "artStyle": {
+              "type": "string",
+              "example": "realistic"
+            },
+            "colorScheme": {
+              "type": "string",
+              "example": "desert-sunset"
+            },
+            "mood": {
+              "type": "string",
+              "example": "adventurous"
+            },
+            "description": {
+              "type": "string",
+              "example": "A thrilling slot game set in the American Old West with cowboys, outlaws, and gold rush elements"
+            },
+            "includeCardSymbols": {
+              "type": "boolean",
+              "example": true
+            },
+            "includeWild": {
+              "type": "boolean",
+              "example": true
+            },
+            "includeScatter": {
+              "type": "boolean",
+              "example": true
+            },
+            "selectedSymbols": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "example": ["cowboy", "sheriff badge", "revolver", "horseshoe", "gold nugget"]
+            }
+          }
+        },
+        "bet": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "number",
+              "example": 0.25
+            },
+            "max": {
+              "type": "number",
+              "example": 100
+            },
+            "increment": {
+              "type": "number",
+              "example": 0.25
+            },
+            "quickOptions": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "example": [0.25, 1.0, 5.0, 25.0, 50.0, 100.0]
+            },
+            "defaultBet": {
+              "type": "number",
+              "example": 1.0
+            },
+            "maxLines": {
+              "type": "integer",
+              "example": 30
+            }
+          }
+        },
+        "rtp": {
+          "type": "object",
+          "properties": {
+            "baseRTP": {
+              "type": "number",
+              "example": 94.8
+            },
+            "bonusRTP": {
+              "type": "number",
+              "example": 1.8
+            },
+            "featureRTP": {
+              "type": "number",
+              "example": 0.4
+            },
+            "targetRTP": {
+              "type": "number",
+              "example": 96.0
+            },
+            "volatilityScale": {
+              "type": "integer",
+              "example": 6
+            }
+          }
+        },
+        "volatility": {
+          "type": "object",
+          "properties": {
+            "level": {
+              "type": "string",
+              "enum": ["low", "medium", "high"],
+              "example": "medium"
+            },
+            "hitRate": {
+              "type": "number",
+              "example": 24.5
+            },
+            "maxWinPotential": {
+              "type": "integer",
+              "example": 3000
+            }
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "description": "Operations about game configurations",
+      "name": "configurations"
+    }
+  ],
+  "schemes": [
+    "http",
+    "https"
+  ]
+}

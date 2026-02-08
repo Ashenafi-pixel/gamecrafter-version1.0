@@ -1,0 +1,3 @@
+@echo off
+echo Starting SlotAI server on port 3500...
+node server.cjs

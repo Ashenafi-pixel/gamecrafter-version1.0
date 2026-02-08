@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Direct Navigation</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f5f5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    
+    .container {
+      max-width: 500px;
+      width: 100%;
+      background-color: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    h1 {
+      color: #E60012;
+      margin-top: 0;
+    }
+    
+    .step-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 20px 0;
+    }
+    
+    button {
+      background-color: #E60012;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    button:hover {
+      background-color: #C5000F;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(230, 0, 18, 0.2);
+    }
+    
+    button.secondary {
+      background-color: #f5f5f5;
+      color: #333;
+      border: 1px solid #ddd;
+    }
+    
+    button.secondary:hover {
+      background-color: #e0e0e0;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .message {
+      padding: 12px;
+      margin: 20px 0;
+      border-radius: 6px;
+      background-color: #fff8e1;
+      border-left: 4px solid #ffb300;
+    }
+    
+    .status {
+      margin-top: 20px;
+      padding: 10px;
+      background-color: #f0f0f0;
+      border-radius: 4px;
+      font-family: monospace;
+      max-height: 100px;
+      overflow-y: auto;
+    }
+    
+    .logo {
+      margin-bottom: 20px;
+      font-size: 28px;
+      font-weight: bold;
+      color: #E60012;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">SlotAI Navigation Tool</div>
+    
+    <h1>Direct Step Navigation</h1>
+    
+    <div class="message">
+      This tool bypasses React to directly navigate between steps. Use this if the main app navigation buttons aren't working.
+    </div>
+    
+    <div class="step-buttons">
+      <button onclick="navigate(0)">Step 1: Theme Selection</button>
+      <button onclick="navigate(1)">Step 2: Game Type</button>
+      <button onclick="navigate(2)">Step 3: Grid Layout</button>
+      <button onclick="navigate(3)">Step 4: Symbol Generator</button>
+    </div>
+    
+    <button class="secondary" onclick="window.location.href='/'">Return to App</button>
+    
+    <div class="status" id="status">Ready for navigation...</div>
+  </div>
+
+  <script>
+    // Status reporting function
+    function log(message) {
+      const status = document.getElementById('status');
+      status.textContent = message;
+      console.log(message);
+    }
+    
+    // Navigation function
+    function navigate(step) {
+      // 1. Store the target step in localStorage
+      localStorage.setItem('direct_nav_step', step.toString());
+      localStorage.setItem('direct_nav_timestamp', Date.now().toString());
+      
+      // 2. Store emergency fallback data
+      try {
+        localStorage.setItem('slotai_emergency_nav', 'true');
+        localStorage.setItem('slotai_target_step', step.toString());
+        localStorage.setItem('slotai_timestamp', Date.now().toString());
+        
+        log(`Navigation data saved: target step ${step}`);
+      } catch (err) {
+        log(`Error saving localStorage data: ${err.message}`);
+      }
+      
+      // 3. Create special navigation URL with cache-busting timestamp
+      const timestamp = Date.now();
+      const destination = `/?step=${step}&force=true&t=${timestamp}&direct_nav=true`;
+      
+      log(`Navigating to ${destination}...`);
+      
+      // 4. Redirect to the main app with navigation parameters
+      setTimeout(() => {
+        window.location.href = destination;
+      }, 500);
+    }
+    
+    // Check if we're returning from a failed navigation attempt
+    window.onload = function() {
+      const params = new URLSearchParams(window.location.search);
+      const failed = params.get('failed');
+      const step = params.get('step');
+      
+      if (failed && step) {
+        log(`Previous navigation to step ${step} failed. Please try again.`);
+      }
+    };
+  </script>
+</body>
+</html>

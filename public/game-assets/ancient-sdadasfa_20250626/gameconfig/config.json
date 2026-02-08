@@ -1,0 +1,21 @@
+{
+  "gameId": "ancient-sdadasfa_20250626",
+  "createdAt": "2025-06-26T16:10:05.188Z",
+  "updatedAt": "2025-06-26T16:10:05.188Z",
+  "folders": [
+    "symbols",
+    "symbols/wild",
+    "symbols/scatter",
+    "symbols/high",
+    "symbols/medium",
+    "symbols/low",
+    "background",
+    "frame",
+    "titles",
+    "ui",
+    "sound",
+    "sound/effects",
+    "sound/music",
+    "gameconfig"
+  ]
+}

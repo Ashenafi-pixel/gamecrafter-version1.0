@@ -1,0 +1,21 @@
+{
+  "gameId": "wasafrasa2_20250625",
+  "createdAt": "2025-06-25T20:51:16.366Z",
+  "updatedAt": "2025-06-25T20:51:16.366Z",
+  "folders": [
+    "symbols",
+    "symbols/wild",
+    "symbols/scatter",
+    "symbols/high",
+    "symbols/medium",
+    "symbols/low",
+    "background",
+    "frame",
+    "titles",
+    "ui",
+    "sound",
+    "sound/effects",
+    "sound/music",
+    "gameconfig"
+  ]
+}

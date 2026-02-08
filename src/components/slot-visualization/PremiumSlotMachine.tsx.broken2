@@ -1,0 +1,2508 @@
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import * as PIXI from 'pixi.js';
+import { gsap } from 'gsap';
+import { Particle } from '@pixi/particle-emitter';
+
+// Constants for slot machine layout
+const REEL_WIDTH = 110;
+const SYMBOL_SIZE = 100;
+const MAX_REELS = 5;
+const MAX_ROWS = 3;
+const REEL_OFFSET_Y = 20; // Push symbols down slightly for better alignment
+
+// Win line definitions
+const WIN_LINES = [
+  // Horizontal lines
+  [{reel: 0, row: 0}, {reel: 1, row: 0}, {reel: 2, row: 0}, {reel: 3, row: 0}, {reel: 4, row: 0}], // Top row
+  [{reel: 0, row: 1}, {reel: 1, row: 1}, {reel: 2, row: 1}, {reel: 3, row: 1}, {reel: 4, row: 1}], // Middle row
+  [{reel: 0, row: 2}, {reel: 1, row: 2}, {reel: 2, row: 2}, {reel: 3, row: 2}, {reel: 4, row: 2}], // Bottom row
+  
+  // V-shape
+  [{reel: 0, row: 0}, {reel: 1, row: 1}, {reel: 2, row: 2}, {reel: 3, row: 1}, {reel: 4, row: 0}],
+  
+  // Inverted V-shape
+  [{reel: 0, row: 2}, {reel: 1, row: 1}, {reel: 2, row: 0}, {reel: 3, row: 1}, {reel: 4, row: 2}]
+];
+
+// Symbol weights and payouts
+const SYMBOL_CONFIG = {
+  'wild': { weight: 1, payouts: {3: 50, 4: 150, 5: 500}, isWild: true },
+  'scatter': { weight: 1, payouts: {3: 30, 4: 100, 5: 250}, isScatter: true },
+  'high_1': { weight: 2, payouts: {3: 20, 4: 50, 5: 150} },
+  'high_2': { weight: 2, payouts: {3: 15, 4: 40, 5: 120} },
+  'high_3': { weight: 3, payouts: {3: 12, 4: 30, 5: 100} },
+  'mid_1': { weight: 4, payouts: {3: 8, 4: 20, 5: 80} },
+  'mid_2': { weight: 5, payouts: {3: 6, 4: 15, 5: 60} },
+  'low_1': { weight: 6, payouts: {3: 4, 4: 10, 5: 40} },
+  'low_2': { weight: 7, payouts: {3: 3, 4: 8, 5: 30} },
+  'low_3': { weight: 8, payouts: {3: 2, 4: 5, 5: 20} }
+};
+
+// Reel class for handling reel animations
+class Reel {
+  container: PIXI.Container;
+  symbols: PIXI.Sprite[];
+  symbolTypes: string[];
+  position: number;
+  previousPosition: number;
+  speed: number;
+  spinning: boolean;
+  numSymbols: number;
+  finalSymbols: string[] = [];
+  textures: Record<string, PIXI.Texture>;
+
+  constructor(textures: Record<string, PIXI.Texture>, x: number, numSymbols: number) {
+    this.container = new PIXI.Container();
+    this.container.x = x;
+    
+    this.symbols = [];
+    this.symbolTypes = [];
+    this.position = 0;
+    this.previousPosition = 0;
+    this.speed = 0;
+    this.spinning = false;
+    this.numSymbols = numSymbols;
+    this.textures = textures;
+
+    // Create symbols (visible + extras for smooth scrolling)
+    const totalSymbols = numSymbols + 2;
+    
+    for (let i = 0; i < totalSymbols; i++) {
+      const symbolType = this.getRandomSymbolType();
+      this.symbolTypes.push(symbolType);
+      
+      const symbol = new PIXI.Sprite(textures[symbolType]);
+      symbol.y = i * SYMBOL_SIZE;
+      symbol.width = SYMBOL_SIZE;
+      symbol.height = SYMBOL_SIZE;
+      this.container.addChild(symbol);
+      this.symbols.push(symbol);
+    }
+  }
+
+  getRandomSymbolType(): string {
+    const symbolTypes = Object.keys(SYMBOL_CONFIG);
+    const totalWeight = symbolTypes.reduce((sum, type) => sum + SYMBOL_CONFIG[type].weight, 0);
+    
+    let random = Math.random() * totalWeight;
+    for (const type of symbolTypes) {
+      random -= SYMBOL_CONFIG[type].weight;
+      if (random <= 0) return type;
+    }
+    
+    return symbolTypes[0]; // Fallback
+  }
+
+  prepareResults(forcedSymbols?: string[]) {
+    this.finalSymbols = [];
+    
+    if (forcedSymbols && forcedSymbols.length >= this.numSymbols) {
+      this.finalSymbols = forcedSymbols.slice(0, this.numSymbols);
+    } else {
+      for (let i = 0; i < this.numSymbols; i++) {
+        this.finalSymbols.push(this.getRandomSymbolType());
+      }
+    }
+  }
+
+  spin(duration = 2, delay = 0) {
+    // Reset position for smooth animation
+    this.symbols.forEach((symbol, i) => {
+      symbol.y = i * SYMBOL_SIZE;
+    });
+    this.position = 0;
+    this.previousPosition = 0;
+    
+    this.spinning = true;
+    
+    // Play spin sound
+    if (typeof window !== 'undefined' && window.document) {
+      try {
+        const audio = new Audio('/sounds/tick.mp3');
+        audio.volume = 0.3;
+        setTimeout(() => {
+          audio.play().catch(() => console.log('Audio play failed'));
+        }, delay * 1000);
+      } catch (e) {
+        console.log('Audio error:', e);
+      }
+    }
+    
+    // Ultra-smooth animation with continuous flow
+    // Initial quick acceleration
+    gsap.to(this, {
+      speed: 50, // Initial speed burst
+      duration: 0.3,
+      delay,
+      ease: "power1.in",
+      onComplete: () => {
+        // Ramp up to high speed with slight easing
+        gsap.to(this, {
+          speed: 70, // Higher peak speed for excitement
+          duration: 0.3,
+          ease: "sine.inOut",
+          onComplete: () => {
+            // Maintain consistent high speed
+            gsap.to(this, {
+              speed: 65,
+              duration: 0.5,
+              ease: "none",
+              onComplete: () => {
+                // First deceleration phase - smooth initial slowdown
+                gsap.to(this, {
+                  speed: 40,
+                  duration: 0.4,
+                  ease: "sine.inOut",
+                  onComplete: () => {
+                    // Second deceleration phase - more noticeable
+                    gsap.to(this, {
+                      speed: 15,
+                      duration: 0.25,
+                      ease: "sine.in",
+                      onComplete: () => {
+                        // Final deceleration phase - perfectly smooth landing
+                        gsap.to(this, {
+                          speed: 3, // Extremely slow final speed for smooth landing
+                          duration: (duration - 1.75) * 0.8,
+                          ease: "sine.inOut", // Perfect smooth transition
+                          onComplete: () => {
+                            // Imperceptible final slowdown without any jerk
+                            gsap.to(this, {
+                              speed: 0,
+                              duration: (duration - 1.75) * 0.2,
+                              ease: "sine.out", // Completely smooth stop
+                              onComplete: () => {
+                                // Ensure we're properly aligned before calling bounce
+                                const finalPos = Math.round(this.position / SYMBOL_SIZE) * SYMBOL_SIZE;
+                                this.position = finalPos;
+                                this.updateSymbolPositions();
+                                
+                                this.spinning = false;
+                                this.updateFinalSymbols();
+                                
+                                // No bounce call - symbols are already perfectly positioned
+                              }
+                            });
+                          }
+                        });
+                      }
+                    });
+                  }
+                });
+              }
+            });
+          }
+        });
+      }
+    });
+  }
+
+  update() {
+    if (!this.spinning && this.speed === 0) return;
+
+    this.previousPosition = this.position;
+    this.position += this.speed;
+    
+    // Use the dedicated method for updating symbol positions
+    this.updateSymbolPositions();
+  }
+
+  bounce() {
+    // Calculate final position ensuring perfect alignment with grid
+    const finalPosition = Math.round(this.position / SYMBOL_SIZE) * SYMBOL_SIZE;
+    
+    // Ultra smooth landing with absolutely no jumping
+    // Just gently decelerate to final position
+    gsap.to(this, {
+      position: finalPosition,
+      duration: 0.45,
+      ease: "sine.out", // Gentle easing for completely smooth stop
+      onComplete: () => {
+        // Force exact alignment after animation
+        this.position = finalPosition;
+        this.updateSymbolPositions();
+      }
+    });
+  }
+  
+  // Helper method to update symbol positions precisely
+  updateSymbolPositions() {
+    for (let i = 0; i < this.symbols.length; i++) {
+      const symbol = this.symbols[i];
+      symbol.y = ((i * SYMBOL_SIZE) + this.position) % (SYMBOL_SIZE * this.symbols.length);
+      
+      if (symbol.y < 0) {
+        symbol.y += SYMBOL_SIZE * this.symbols.length;
+      }
+    }
+  }
+
+  updateFinalSymbols() {
+    if (!this.finalSymbols.length) return;
+    
+    if (this.spinning) {
+      setTimeout(() => this.updateFinalSymbols(), 100);
+      return;
+    }
+    
+    // Calculate visible indices based on the final reel position
+    const visibleIndices = this.getVisibleSymbolIndices();
+    
+    // Update symbols with final results
+    for (let i = 0; i < this.finalSymbols.length; i++) {
+      const symbolIndex = visibleIndices[i];
+      if (symbolIndex !== undefined) {
+        // Update symbol type
+        this.symbolTypes[symbolIndex] = this.finalSymbols[i];
+        
+        // Update sprite texture
+        if (this.symbols[symbolIndex] && this.textures[this.finalSymbols[i]]) {
+          this.symbols[symbolIndex].texture = this.textures[this.finalSymbols[i]];
+        }
+      }
+    }
+    
+    // Force a final update to ensure proper display
+    this.updateSymbolPositions();
+  }
+
+  getVisibleSymbolIndices(): number[] {
+    const indices = [];
+    const offset = Math.floor(this.position / SYMBOL_SIZE) % this.symbols.length;
+    
+    for (let i = 0; i < this.numSymbols; i++) {
+      const index = (offset + i) % this.symbols.length;
+      indices.push(index);
+    }
+    
+    return indices;
+  }
+
+  getVisibleSymbols(): string[] {
+    const visibleIndices = this.getVisibleSymbolIndices();
+    return visibleIndices.map(index => this.symbolTypes[index]);
+  }
+
+  highlightSymbol(symbolIndex: number, color: string = '#FFCE00') {
+    const visibleIndices = this.getVisibleSymbolIndices();
+    if (symbolIndex < 0 || symbolIndex >= visibleIndices.length) return;
+    
+    const index = visibleIndices[symbolIndex];
+    const symbol = this.symbols[index];
+    
+    // Create a flash effect
+    const originalTint = symbol.tint;
+    
+    gsap.timeline()
+      .to(symbol, {
+        pixi: { tint: parseInt(color.replace('#', '0x')) },
+        duration: 0.2
+      })
+      .to(symbol, {
+        pixi: { tint: originalTint },
+        duration: 0.2,
+        yoyo: true,
+        repeat: 5
+      });
+    
+    // Scale effect
+    gsap.timeline()
+      .to(symbol.scale, {
+        x: 1.1, y: 1.1,
+        duration: 0.2
+      })
+      .to(symbol.scale, {
+        x: 1, y: 1,
+        duration: 0.2,
+        yoyo: true,
+        repeat: 5
+      });
+  }
+
+  getReelContainer() {
+    return this.container;
+  }
+}
+
+// Props interface
+interface PremiumSlotMachineProps {
+  themeCategory?: string;
+  initialBalance?: number;
+  onWin?: (amount: number, winType: string) => void;
+  forceWinType?: '' | 'small' | 'big' | 'mega';
+}
+
+const PremiumSlotMachine: React.FC<PremiumSlotMachineProps> = ({
+  themeCategory = 'wild-west',
+  initialBalance = 5000,
+  onWin,
+  forceWinType = ''
+}) => {
+  const pixiContainerRef = useRef<HTMLDivElement>(null);
+  const appRef = useRef<PIXI.Application | null>(null);
+  const reelsRef = useRef<Reel[]>([]);
+  const winLinesRef = useRef<PIXI.Graphics[]>([]);
+  const animationFrameRef = useRef<number | null>(null);
+  const bgContainerRef = useRef<PIXI.Container | null>(null);
+  const frameContainerRef = useRef<PIXI.Container | null>(null);
+  const winAnimationContainerRef = useRef<PIXI.Container | null>(null);
+  
+  const [isSpinning, setIsSpinning] = useState(false);
+  const [balance, setBalance] = useState(initialBalance);
+  const [betAmount, setBetAmount] = useState(10);
+  const [totalBet, setTotalBet] = useState(50);
+  const [winAmount, setWinAmount] = useState(0);
+  const [lastWinType, setLastWinType] = useState<string>('');
+  const [activeLines, setActiveLines] = useState(5);
+  const [autoSpins, setAutoSpins] = useState(0);
+  const [winLineIndex, setWinLineIndex] = useState<number | null>(null);
+  const texturesRef = useRef<Record<string, PIXI.Texture>>({});
+  
+  // Constants for game dimensions
+  const numReels = 5;
+  const numRows = 3;
+  const bgWidth = 850;
+  const bgHeight = 520;
+  
+  // Reset win between spins
+  useEffect(() => {
+    if (isSpinning) {
+      setWinAmount(0);
+    }
+  }, [isSpinning]);
+  
+  // Auto-spin functionality
+  useEffect(() => {
+    if (autoSpins > 0 && !isSpinning && balance >= totalBet) {
+      const timerId = setTimeout(() => {
+        handleSpin();
+        setAutoSpins(prev => prev - 1);
+      }, 800);
+      
+      return () => clearTimeout(timerId);
+    }
+  }, [autoSpins, isSpinning, balance, totalBet]);
+  
+  // Update total bet when bet amount or lines change
+  useEffect(() => {
+    setTotalBet(betAmount * activeLines);
+  }, [betAmount, activeLines]);
+  
+  // Setup PIXI application and reels
+  useEffect(() => {
+    // Clean up previous application
+    if (appRef.current) {
+      appRef.current.destroy(true, true);
+      appRef.current = null;
+    }
+    
+    if (pixiContainerRef.current) {
+      pixiContainerRef.current.innerHTML = '';
+    }
+    
+    // Create PIXI application
+    if (!pixiContainerRef.current) return;
+    
+    // Create app with dimensions for the Western theme
+    const app = new PIXI.Application({
+      width: bgWidth,
+      height: bgHeight,
+      backgroundColor: 0x000000,
+      resolution: window.devicePixelRatio || 1,
+      antialias: true,
+    });
+    
+    pixiContainerRef.current.appendChild(app.view as unknown as Node);
+    appRef.current = app;
+    
+    // Create containers for layering
+    // 1. Background
+    const bgContainer = new PIXI.Container();
+    app.stage.addChild(bgContainer);
+    bgContainerRef.current = bgContainer;
+    
+    // 2. Frame
+    const frameContainer = new PIXI.Container();
+    app.stage.addChild(frameContainer);
+    frameContainerRef.current = frameContainer;
+    
+    // 3. Reels container (where symbols show)
+    const reelsMainContainer = new PIXI.Container();
+    reelsMainContainer.x = (bgWidth - (REEL_WIDTH * numReels)) / 2;
+    reelsMainContainer.y = (bgHeight - (SYMBOL_SIZE * numRows)) / 2 - 20 + REEL_OFFSET_Y; // Adjusted for better positioning
+    app.stage.addChild(reelsMainContainer);
+    
+    // 4. Win lines container (for showing win patterns)
+    const winLinesContainer = new PIXI.Container();
+    winLinesContainer.x = reelsMainContainer.x;
+    winLinesContainer.y = reelsMainContainer.y;
+    app.stage.addChild(winLinesContainer);
+    
+    // 5. Win animations container (particles, text, etc.)
+    const winAnimationContainer = new PIXI.Container();
+    app.stage.addChild(winAnimationContainer);
+    winAnimationContainerRef.current = winAnimationContainer;
+    
+    // Load textures for background, frame, and symbols
+    const symbolTextures: Record<string, PIXI.Texture> = {};
+    const fallbackTextures: Record<string, PIXI.Texture> = {};
+    
+    // Symbol image paths for Western theme
+    const symbolImages = {
+      'wild': '/assets/mockups/western/symbols/wild.png',
+      'scatter': '/assets/mockups/western/symbols/scatter.png',
+      'high_1': '/assets/mockups/western/symbols/high_1.png',
+      'high_2': '/assets/mockups/western/symbols/high_2.png',
+      'high_3': '/assets/mockups/western/symbols/high_3.png',
+      'mid_1': '/assets/mockups/western/symbols/mid_1.png',
+      'mid_2': '/assets/mockups/western/symbols/mid_2.png',
+      'low_1': '/assets/mockups/western/symbols/low_1.png',
+      'low_2': '/assets/mockups/western/symbols/low_2.png',
+      'low_3': '/assets/mockups/western/symbols/low_3.png'
+    };
+    
+    // Background and frame paths
+    const bgImagePath = '/assets/mockups/western/backgrounds/background.png';
+    const frameImagePath = '/assets/mockups/western/frames/frame.png';
+    
+    // Create fallback textures with colored rectangles and labels
+    Object.keys(SYMBOL_CONFIG).forEach(symbolType => {
+      const fallbackGraphic = new PIXI.Graphics();
+      const color = (() => {
+        if (symbolType === 'wild') return 0xFFD700;
+        if (symbolType === 'scatter') return 0x9C27B0;
+        if (symbolType.startsWith('high')) return 0xF44336;
+        if (symbolType.startsWith('mid')) return 0x2196F3;
+        return 0x4CAF50; // Low symbols
+      })();
+      
+      fallbackGraphic.beginFill(color);
+      fallbackGraphic.drawRoundedRect(0, 0, SYMBOL_SIZE, SYMBOL_SIZE, 15);
+      fallbackGraphic.endFill();
+      
+      const label = new PIXI.Text(symbolType.toUpperCase(), {
+        fontFamily: 'Arial',
+        fontSize: 24,
+        fill: 0xFFFFFF,
+        align: 'center',
+      });
+      label.anchor.set(0.5);
+      label.x = SYMBOL_SIZE / 2;
+      label.y = SYMBOL_SIZE / 2;
+      fallbackGraphic.addChild(label);
+      
+      const texture = app.renderer.generateTexture(fallbackGraphic);
+      fallbackTextures[symbolType] = texture;
+      symbolTextures[symbolType] = texture; // Use fallback initially
+    });
+    
+    // Store textures in ref for later use
+    texturesRef.current = symbolTextures;
+    
+    // Load actual assets
+    const loadAssets = async () => {
+      try {
+        // Create reels mask
+        const reelsMask = new PIXI.Graphics();
+        reelsMask.beginFill(0xffffff);
+        reelsMask.drawRect(
+          reelsMainContainer.x, 
+          reelsMainContainer.y, 
+          REEL_WIDTH * numReels, 
+          SYMBOL_SIZE * numRows
+        );
+        reelsMask.endFill();
+        app.stage.addChild(reelsMask);
+        
+        // Load background
+        try {
+          const bgTexture = await PIXI.Assets.load(bgImagePath);
+          const bgSprite = new PIXI.Sprite(bgTexture);
+          bgSprite.width = bgWidth;
+          bgSprite.height = bgHeight;
+          bgContainer.addChild(bgSprite);
+        } catch (error) {
+          console.error("Failed to load background:", error);
+          // Create fallback background
+          const fallbackBg = new PIXI.Graphics();
+          fallbackBg.beginFill(0x2C3E50);
+          fallbackBg.drawRect(0, 0, bgWidth, bgHeight);
+          fallbackBg.endFill();
+          bgContainer.addChild(fallbackBg);
+        }
+        
+        // Load frame
+        try {
+          const frameTexture = await PIXI.Assets.load(frameImagePath);
+          const frameSprite = new PIXI.Sprite(frameTexture);
+          frameSprite.width = bgWidth;
+          frameSprite.height = bgHeight;
+          frameContainer.addChild(frameSprite);
+        } catch (error) {
+          console.error("Failed to load frame:", error);
+          // We don't need a fallback frame as it's optional
+        }
+        
+        // Create a reels container with individual reels
+        const reelsContainer = new PIXI.Container();
+        reelsMainContainer.addChild(reelsContainer);
+        
+        // Apply mask to reels container
+        reelsContainer.mask = reelsMask;
+        
+        // Load symbol textures
+        for (const [symbolType, imagePath] of Object.entries(symbolImages)) {
+          try {
+            const texture = await PIXI.Assets.load(imagePath);
+            symbolTextures[symbolType] = texture;
+          } catch (err) {
+            console.log(`Failed to load ${imagePath}, using fallback`);
+            // Keep using the fallback texture already created
+          }
+        }
+        
+        // Update textures ref with loaded textures
+        texturesRef.current = symbolTextures;
+        
+        // Create reels with loaded textures
+        reelsRef.current = [];
+        for (let i = 0; i < numReels; i++) {
+          const reel = new Reel(symbolTextures, i * REEL_WIDTH, numRows);
+          reelsRef.current.push(reel);
+          reelsContainer.addChild(reel.getReelContainer());
+        }
+        
+        // Create win lines
+        createWinLines(winLinesContainer);
+        
+      } catch (error) {
+        console.error("Error loading assets:", error);
+      }
+    };
+    
+    loadAssets();
+    
+    // Animation loop
+    const animate = () => {
+      // Update all reels
+      reelsRef.current.forEach(reel => reel.update());
+      
+      // Request next frame
+      animationFrameRef.current = requestAnimationFrame(animate);
+    };
+    
+    // Start animation loop
+    animationFrameRef.current = requestAnimationFrame(animate);
+    
+    // Cleanup
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      if (appRef.current) {
+        appRef.current.destroy(true, true);
+        appRef.current = null;
+      }
+    };
+  }, [numReels, numRows, themeCategory, bgWidth, bgHeight]);
+  
+  // Create win lines visualization
+  const createWinLines = (container: PIXI.Container) => {
+    // Clear previous win lines
+    winLinesRef.current.forEach(line => {
+      container.removeChild(line);
+    });
+    winLinesRef.current = [];
+    
+    // Define colors for win lines
+    const winLineColors = [
+      0xff0000, 0x00ff00, 0x0000ff, 
+      0xffff00, 0xff00ff
+    ];
+    
+    // Create a line for each win pattern
+    WIN_LINES.forEach((line, index) => {
+      const graphics = new PIXI.Graphics();
+      const color = winLineColors[index % winLineColors.length];
+      
+      graphics.lineStyle(4, color, 0.8);
+      
+      // Draw the line connecting symbols
+      if (line.length > 0) {
+        const startX = line[0].reel * REEL_WIDTH + REEL_WIDTH / 2;
+        const startY = line[0].row * SYMBOL_SIZE + SYMBOL_SIZE / 2;
+        
+        graphics.moveTo(startX, startY);
+        
+        for (let i = 1; i < line.length; i++) {
+          const x = line[i].reel * REEL_WIDTH + REEL_WIDTH / 2;
+          const y = line[i].row * SYMBOL_SIZE + SYMBOL_SIZE / 2;
+          graphics.lineTo(x, y);
+        }
+      }
+      
+      // Hide initially
+      graphics.alpha = 0;
+      
+      container.addChild(graphics);
+      winLinesRef.current.push(graphics);
+    });
+  };
+  
+  // Start the slot machine spin
+  const handleSpin = () => {
+    if (isSpinning) return;
+    
+    // Deduct bet amount from balance
+    if (balance < totalBet) return; // Not enough balance
+    setBalance(prevBalance => prevBalance - totalBet);
+    
+    setIsSpinning(true);
+    setWinAmount(0);
+    setLastWinType('');
+    
+    // Hide any active win lines
+    hideWinLines();
+    
+    // Clear any previous win animations
+    if (winAnimationContainerRef.current) {
+      winAnimationContainerRef.current.removeChildren();
+    }
+    
+    // Generate results based on force win type if specified
+    let forcedSymbols: string[][] | undefined;
+    
+    if (forceWinType) {
+      forcedSymbols = generateForcedWin(forceWinType);
+    }
+    
+    // Prepare result symbols for each reel
+    reelsRef.current.forEach((reel, index) => {
+      const reelSymbols = forcedSymbols ? forcedSymbols[index] : undefined;
+      reel.prepareResults(reelSymbols);
+    });
+    
+    // Play spin sound
+    try {
+      const audio = new Audio('/sounds/select.mp3');
+      audio.volume = 0.5;
+      audio.play().catch(() => console.log('Audio play failed'));
+    } catch (e) {
+      console.log('Audio error:', e);
+    }
+    
+    // Spin each reel with a slight delay
+    reelsRef.current.forEach((reel, i) => {
+      reel.spin(1.8, i * 0.15);
+    });
+    
+    // Check for wins after all reels have stopped
+    const spinDuration = 1.8 + (reelsRef.current.length - 1) * 0.15 + 0.5; // Additional time for safety
+    
+    setTimeout(() => {
+      checkWins();
+      setIsSpinning(false);
+    }, spinDuration * 1000);
+  };
+  
+  // Generate a forced win combination
+  const generateForcedWin = (winType: string): string[][] => {
+    const result: string[][] = [];
+    const lineIndex = 1; // Use the middle row for simplicity
+    const line = WIN_LINES[lineIndex];
+    
+    // Determine symbol type and count based on win type
+    let symbolType: string;
+    let winAmount: number;
+    
+    switch (winType) {
+      case 'mega':
+        symbolType = 'wild';
+        winAmount = SYMBOL_CONFIG[symbolType].payouts[5] * betAmount;
+        break;
+      case 'big':
+        symbolType = 'high_1';
+        winAmount = SYMBOL_CONFIG[symbolType].payouts[5] * betAmount;
+        break;
+      case 'small':
+      default:
+        symbolType = 'low_1';
+        winAmount = SYMBOL_CONFIG[symbolType].payouts[3] * betAmount;
+        break;
+    }
+    
+    // Create 2D array of symbols for each reel position
+    for (let reel = 0; reel < numReels; reel++) {
+      result[reel] = [];
+      
+      for (let row = 0; row < numRows; row++) {
+        // Check if this position is part of the winning line
+        const isWinPosition = line.some(pos => pos.reel === reel && pos.row === row);
+        
+        if (isWinPosition) {
+          // For small wins, only make positions 0-2 match
+          if (winType === 'small' && reel > 2) {
+            result[reel][row] = getRandomNonWinningSymbol(symbolType);
+          } else {
+            result[reel][row] = symbolType;
+          }
+        } else {
+          // Random non-matching symbols for non-win positions
+          result[reel][row] = getRandomNonWinningSymbol(symbolType);
+        }
+      }
+    }
+    
+    return result;
+  };
+  
+  // Get a random symbol that won't create a win
+  const getRandomNonWinningSymbol = (winningSymbol: string): string => {
+    const symbols = Object.keys(SYMBOL_CONFIG).filter(sym => 
+      sym !== winningSymbol && sym !== 'wild'
+    );
+    return symbols[Math.floor(Math.random() * symbols.length)];
+  };
+  
+  // Check for winning combinations
+  const checkWins = () => {
+    let totalWin = 0;
+    let winningLineIndex = -1;
+    let highestWinAmount = 0;
+    let winType = '';
+    
+    // Convert reel results to a 2D grid for easier win checking
+    const grid: string[][] = [];
+    for (let row = 0; row < numRows; row++) {
+      grid[row] = [];
+      for (let reel = 0; reel < reelsRef.current.length; reel++) {
+        const symbols = reelsRef.current[reel].getVisibleSymbols();
+        grid[row][reel] = symbols[row];
+      }
+    }
+    
+    // Check each active win line
+    WIN_LINES.slice(0, activeLines).forEach((line, lineIndex) => {
+      const lineSymbols: string[] = [];
+      line.forEach(position => {
+        const { reel, row } = position;
+        if (grid[row] && grid[row][reel]) {
+          lineSymbols.push(grid[row][reel]);
+        }
+      });
+      
+      // Evaluate win
+      const winAmount = evaluateWin(lineSymbols);
+      if (winAmount > 0) {
+        const linePayout = winAmount * betAmount;
+        totalWin += linePayout;
+        
+        // Track the highest paying win line for highlighting
+        if (linePayout > highestWinAmount) {
+          highestWinAmount = linePayout;
+          winningLineIndex = lineIndex;
+        }
+      }
+    });
+    
+    // Check for scatter wins (anywhere on screen)
+    const allSymbols = grid.flat();
+    const scatterCount = allSymbols.filter(s => s === 'scatter').length;
+    
+    if (scatterCount >= 3 && SYMBOL_CONFIG['scatter'].payouts[scatterCount]) {
+      const scatterWin = SYMBOL_CONFIG['scatter'].payouts[scatterCount] * betAmount;
+      totalWin += scatterWin;
+    }
+    
+    // Update balance and win amount
+    if (totalWin > 0) {
+      // Short delay before showing win to let reels finish bouncing
+      setTimeout(() => {
+        setBalance(prevBalance => prevBalance + totalWin);
+        setWinAmount(totalWin);
+        
+        // Determine win type based on multiplier
+        const multiplier = totalWin / totalBet;
+        if (multiplier >= 30) {
+          winType = 'mega';
+        } else if (multiplier >= 10) {
+          winType = 'big';
+        } else {
+          winType = 'small';
+        }
+        
+        setLastWinType(winType);
+        
+        // Notify parent component if callback provided
+        if (onWin) {
+          onWin(totalWin, winType);
+        }
+        
+        // Highlight the winning line if there is one
+        if (winningLineIndex >= 0) {
+          // Store the winning line index for the win animation to use
+          setWinLineIndex(winningLineIndex);
+          
+          // Show the win line
+          showWinLine(winningLineIndex);
+          
+          // Highlight winning symbols
+          const winLine = WIN_LINES[winningLineIndex];
+          winLine.forEach(position => {
+            const { reel, row } = position;
+            if (reelsRef.current[reel]) {
+              reelsRef.current[reel].highlightSymbol(row);
+            }
+          });
+        }
+        
+        // Play win animation effect after a short delay
+        // This ensures the win line is set before animation starts
+        setTimeout(() => {
+          playWinAnimation(totalWin, winType);
+        }, 100);
+      }, 600); // Delay win animation to let bounce finish
+    }
+  };
+  
+  // Evaluate a specific symbol combination for wins
+  const evaluateWin = (symbols: string[]): number => {
+    if (symbols.length < 3) return 0;
+    
+    // Count sequence of matching symbols from left to right
+    const firstSymbol = symbols[0];
+    let count = 1;
+    
+    for (let i = 1; i < symbols.length; i++) {
+      const currentSymbol = symbols[i];
+      
+      // Check if current symbol matches or is a wild
+      const isMatch = currentSymbol === firstSymbol || 
+                      SYMBOL_CONFIG[currentSymbol]?.isWild || 
+                      SYMBOL_CONFIG[firstSymbol]?.isWild;
+      
+      if (isMatch) {
+        count++;
+      } else {
+        break; // No more matches
+      }
+    }
+    
+    // Only count wins of 3 or more
+    if (count < 3) return 0;
+    
+    // Get win amount from paytable
+    const symbolType = SYMBOL_CONFIG[firstSymbol]?.isWild ? 'wild' : firstSymbol;
+    
+    return SYMBOL_CONFIG[symbolType]?.payouts[count] || 0;
+  };
+  
+  // Show a specific win line
+  const showWinLine = (lineIndex: number) => {
+    if (lineIndex < 0 || lineIndex >= winLinesRef.current.length) return;
+    
+    // Hide all win lines first
+    hideWinLines();
+    
+    // Show and animate the selected win line
+    const line = winLinesRef.current[lineIndex];
+    gsap.to(line, { alpha: 1, duration: 0.3 });
+    
+    // Pulse animation
+    gsap.to(line, {
+      alpha: 0.4,
+      duration: 0.5,
+      yoyo: true,
+      repeat: 5,
+      onComplete: () => {
+        gsap.to(line, { alpha: 0, duration: 0.3 });
+      }
+    });
+    
+    setWinLineIndex(lineIndex);
+  };
+  
+  // Hide all win lines
+  const hideWinLines = () => {
+    winLinesRef.current.forEach(line => {
+      gsap.to(line, { alpha: 0, duration: 0.3 });
+    });
+    setWinLineIndex(null);
+  };
+  
+  // Play win animation based on win amount
+  const playWinAnimation = (amount: number, winType: string) => {
+    if (!appRef.current || !winAnimationContainerRef.current) return;
+    
+    // Temporarily hide standard win display to prevent duplication
+    // This ensures we don't see both the animated win and the standard win text
+    const currentWinAmount = winAmount;
+    setWinAmount(0);
+    
+    // Get the winning symbol from the first position of the highest win line
+    let winningSymbolType = '';
+    if (winLineIndex !== null && winLineIndex >= 0) {
+      const winLine = WIN_LINES[winLineIndex];
+      if (winLine && winLine.length > 0) {
+        const { reel, row } = winLine[0];
+        if (reelsRef.current[reel]) {
+          const symbols = reelsRef.current[reel].getVisibleSymbols();
+          winningSymbolType = symbols[row];
+        }
+      }
+    }
+    
+    // Different animation based on win size
+    switch (winType) {
+      case 'mega':
+        playMegaWinAnimation(amount, winningSymbolType);
+        break;
+      case 'big':
+        playBigWinAnimation(amount, winningSymbolType);
+        break;
+      default:
+        playSmallWinAnimation(amount, winningSymbolType);
+        break;
+    }
+    
+    // Restore win amount after animation is complete
+    setTimeout(() => {
+      setWinAmount(currentWinAmount);
+    }, 5000); // After all animations have completed
+  };
+  
+  // Mega win animation with explosion and flying coins
+  const playMegaWinAnimation = (amount: number, winningSymbolType: string = '') => {
+    if (!appRef.current || !winAnimationContainerRef.current) return;
+    
+    // Clear previous animations
+    winAnimationContainerRef.current.removeChildren();
+    
+    // Create big win background overlay
+    const overlay = new PIXI.Graphics();
+    overlay.beginFill(0x000000, 0.7); // Slightly darker for better contrast
+    overlay.drawRect(0, 0, bgWidth, bgHeight);
+    overlay.endFill();
+    overlay.alpha = 0;
+    
+    winAnimationContainerRef.current.addChild(overlay);
+    
+    // Fade in overlay
+    gsap.to(overlay, {
+      alpha: 1,
+      duration: 0.5
+    });
+    
+    // Add large winning symbol in background if available
+    let winningSymbol: PIXI.Sprite | null = null;
+    if (winningSymbolType && texturesRef.current[winningSymbolType]) {
+      // Create large background winning symbol
+      winningSymbol = new PIXI.Sprite(texturesRef.current[winningSymbolType]);
+      
+      // Scale up the symbol but not too much
+      const symbolScale = 3.0; // Reduced from 4.5 to prevent it from being too large
+      winningSymbol.width = SYMBOL_SIZE * symbolScale;
+      winningSymbol.height = SYMBOL_SIZE * symbolScale;
+      
+      // Ensure proper anchoring at center point
+      winningSymbol.anchor.set(0.5, 0.5);
+      
+      // Position exactly in the center of the screen
+      winningSymbol.x = bgWidth / 2;
+      winningSymbol.y = bgHeight / 2;
+      winningSymbol.alpha = 0;
+      winningSymbol.tint = 0xFFD700; // Golden tint
+      
+      // Add a glowing filter to the symbol
+      const glowFilter = new PIXI.ColorMatrixFilter();
+      glowFilter.brightness(1.2, false);
+      winningSymbol.filters = [glowFilter];
+      
+      // Add to container at the beginning so it stays in the background
+      winAnimationContainerRef.current.addChild(winningSymbol);
+      
+      // Animate the symbol
+      gsap.to(winningSymbol, {
+        alpha: 0.4, // Semi-transparent
+        rotation: 0.1,
+        duration: 1.2,
+        ease: 'power2.out'
+      });
+      
+      // Add pulsing animation to the symbol
+      gsap.to(winningSymbol.scale, {
+        x: 1.1, y: 1.1,
+        duration: 1.5,
+        ease: 'sine.inOut',
+        repeat: -1,
+        yoyo: true
+      });
+    }
+    
+    // Add a glow effect behind the text
+    const glow = new PIXI.Graphics();
+    glow.beginFill(0xFFD700, 0.3);
+    glow.drawCircle(bgWidth / 2, bgHeight / 2 - 30, 180);
+    glow.endFill();
+    glow.alpha = 0;
+    winAnimationContainerRef.current.addChild(glow);
+    
+    // Create mega win text with western style
+    const megaWinText = new PIXI.Text('MEGA WIN!', {
+      fontFamily: 'Western, Blackletter, Impact, Arial Black, sans-serif',
+      fontSize: 60, // Better size for western theme
+      fontWeight: 'bold',
+      fill: ['#FFD700', '#FFA500'], // Gold gradient
+      strokeThickness: 6,
+      stroke: '#8B4513', // Dark gold stroke for better visibility
+      dropShadow: true,
+      dropShadowColor: '#000000',
+      dropShadowBlur: 6,
+      dropShadowDistance: 3,
+      align: 'center'
+    });
+    
+    megaWinText.anchor.set(0.5);
+    megaWinText.x = bgWidth / 2;
+    megaWinText.y = bgHeight / 2 - 20;
+    megaWinText.scale.set(0.1);
+    
+    winAnimationContainerRef.current.addChild(megaWinText);
+    
+    // Create win amount text with western style
+    const winAmountText = new PIXI.Text(`$${amount.toFixed(2)}`, {
+      fontFamily: 'Western, Impact, Arial Black, sans-serif',
+      fontSize: 40, // Appropriate size
+      fontWeight: 'bold',
+      fill: ['#FFFFFF', '#EEEEEE'], // Brighter for better visibility
+      strokeThickness: 5,
+      stroke: '#000000',
+      dropShadow: true,
+      dropShadowColor: '#000000',
+      dropShadowBlur: 5,
+      dropShadowDistance: 2,
+      align: 'center'
+    });
+    
+    winAmountText.anchor.set(0.5);
+    winAmountText.x = bgWidth / 2;
+    winAmountText.y = bgHeight / 2 + 30;
+    winAmountText.alpha = 0;
+    
+    winAnimationContainerRef.current.addChild(winAmountText);
+    
+    // Animate glow effect
+    gsap.to(glow, {
+      alpha: 0.8,
+      duration: 0.8,
+      ease: 'power2.in'
+    });
+    
+    // Animate mega win text with western bouncy feel
+    gsap.to(megaWinText.scale, {
+      x: 0.8, y: 0.8,
+      duration: 0.8,
+      ease: 'elastic.out(1.2, 0.4)', // More bouncy for western feel
+      onComplete: () => {
+        // Start pulsing animation
+        gsap.to(megaWinText.scale, {
+          x: 0.75, y: 0.75,
+          duration: 0.5,
+          yoyo: true,
+          repeat: 4,
+          ease: 'sine.inOut'
+        });
+        
+        // Glow pulsing
+        gsap.to(glow, {
+          alpha: 0.4,
+          duration: 0.6,
+          yoyo: true,
+          repeat: 5,
+          ease: 'sine.inOut'
+        });
+        
+        // Rotate animation (more pronounced for western style)
+        gsap.to(megaWinText, {
+          rotation: 0.05,
+          duration: 0.3,
+          yoyo: true,
+          repeat: 8,
+          ease: 'sine.inOut'
+        });
+        
+        // Show win amount with counter animation
+        gsap.to(winAmountText, {
+          alpha: 1,
+          duration: 0.5
+        });
+      }
+    });
+    
+    // Add many coin particles
+    for (let i = 0; i < 60; i++) {
+      setTimeout(() => {
+        createCoinParticle('gold');
+      }, i * 70); // Slightly faster for more action
+    }
+    
+    // Play money collection sound
+    try {
+      const audio = new Audio('/sounds/select.mp3');
+      audio.volume = 0.7;
+      audio.play().catch(() => console.log('Audio play failed'));
+    } catch (e) {
+      console.log('Audio error:', e);
+    }
+    
+    // Clean up animation after a delay
+    setTimeout(() => {
+      const elementsToFade = [overlay, glow, megaWinText, winAmountText];
+      if (winningSymbol) elementsToFade.push(winningSymbol);
+      
+      gsap.to(elementsToFade, {
+        alpha: 0,
+        duration: 0.8,
+        onComplete: () => {
+          if (winAnimationContainerRef.current) {
+            winAnimationContainerRef.current.removeChildren();
+          }
+        }
+      });
+    }, 6000);
+  };
+  
+  // Enhanced Big Win animation with dynamic effects based on the new implementation
+  const playBigWinAnimation = (amount: number, winningSymbolType: string = '') => {
+    if (!appRef.current || !winAnimationContainerRef.current) return;
+    
+    // Clear previous animations
+    winAnimationContainerRef.current.removeChildren();
+    
+    // Create background overlay
+    const overlay = new PIXI.Graphics();
+    overlay.beginFill(0x000000, 0.5); // Semi-transparent black as per the new design
+    overlay.drawRect(0, 0, bgWidth, bgHeight);
+    overlay.endFill();
+    overlay.alpha = 0;
+    winAnimationContainerRef.current.addChild(overlay);
+    
+    // Fade in overlay
+    gsap.to(overlay, {
+      alpha: 1,
+      duration: 0.5,
+      ease: 'power2.inOut'
+    });
+    
+    // Create BIG WIN text with impact font and gold gradient
+    const bigWinText = new PIXI.Text("BIG WIN!", {
+      fontFamily: "Impact, Charcoal, sans-serif",
+      fontSize: 80,
+      fill: ["#FFD700", "#FFA500"], // Gradient gold-orange
+      stroke: "#000",
+      strokeThickness: 6,
+      dropShadow: true,
+      dropShadowColor: "#000000",
+      dropShadowBlur: 4,
+      align: "center"
+    });
+    
+    bigWinText.anchor.set(0.5);
+    bigWinText.position.set(bgWidth / 2, bgHeight / 2 - 50);
+    bigWinText.alpha = 0;
+    bigWinText.scale.set(0.1); // Start small for the animation
+    winAnimationContainerRef.current.addChild(bigWinText);
+    
+    // Create win amount text
+    const winAmountText = new PIXI.Text(`$${amount.toFixed(2)}`, {
+      fontFamily: "Arial Black, Gadget, sans-serif",
+      fontSize: 60,
+      fill: "#FFFFFF",
+      stroke: "#000",
+      strokeThickness: 5,
+      align: "center"
+    });
+    
+    winAmountText.anchor.set(0.5);
+    winAmountText.position.set(bgWidth / 2, bgHeight / 2 + 40);
+    winAmountText.alpha = 0;
+    winAnimationContainerRef.current.addChild(winAmountText);
+    
+    // Animate texts with GSAP (similar to the provided example)
+    gsap.timeline()
+      .to(bigWinText, {
+        alpha: 1,
+        duration: 0.2
+      })
+      .to(bigWinText.scale, {
+        x: 1, y: 1,
+        duration: 0.6,
+        ease: "bounce.out"
+      }, "<")
+      .to(winAmountText, {
+        alpha: 1,
+        duration: 0.5
+      }, "-=0.3")
+      .to(bigWinText, {
+        y: bigWinText.y - 10,
+        yoyo: true,
+        repeat: -1,
+        duration: 0.5,
+        ease: "sine.inOut"
+      }, "<")
+      .to(winAmountText, {
+        y: winAmountText.y + 10,
+        yoyo: true,
+        repeat: -1,
+        duration: 0.5,
+        ease: "sine.inOut"
+      }, "<");
+    
+    // Add gold and silver coins
+    // First prepare textures for gold and silver coins
+    const goldCoinTexture = createCoinTexture('gold');
+    const silverCoinTexture = createCoinTexture('silver');
+    
+    // Create coins
+    const coins = [];
+    for (let i = 0; i < 20; i++) {
+      // Alternate between gold and silver
+      const texture = i % 2 === 0 ? goldCoinTexture : silverCoinTexture;
+      const coin = new PIXI.Sprite(texture);
+      
+      coin.anchor.set(0.5);
+      coin.scale.set(0.5);
+      coin.x = bgWidth / 2;
+      coin.y = bgHeight / 2;
+      coin.alpha = 0;
+      
+      winAnimationContainerRef.current.addChild(coin);
+      coins.push(coin);
+      
+      // Animate each coin
+      gsap.to(coin, {
+        alpha: 1,
+        duration: 0.3,
+        delay: i * 0.05
+      });
+      
+      gsap.to(coin, {
+        duration: 1 + Math.random(),
+        x: bgWidth / 2 + (Math.random() * 2 - 1) * (bgWidth / 2 * 0.8),
+        y: bgHeight / 2 + (Math.random() * 2 - 1) * (bgHeight / 2 * 0.8),
+        rotation: Math.random() * Math.PI * 2,
+        ease: "power2.out",
+        delay: i * 0.05
+      });
+      
+      gsap.to(coin, {
+        alpha: 0,
+        duration: 1,
+        delay: 1.5 + i * 0.05
+      });
+    }
+    
+    // Play win sound
+    try {
+      const audio = new Audio('/sounds/select.mp3');
+      audio.volume = 0.7;
+      audio.play().catch(() => console.log('Audio play failed'));
+    } catch (e) {
+      console.log('Audio error:', e);
+    }
+    
+    // Fade out the whole scene after a few seconds
+    setTimeout(() => {
+      gsap.to([overlay, bigWinText, winAmountText, ...coins], {
+        alpha: 0,
+        duration: 1,
+        stagger: 0.05,
+        onComplete: () => {
+          if (winAnimationContainerRef.current) {
+            winAnimationContainerRef.current.removeChildren();
+          }
+        }
+      });
+    }, 5000);
+  };
+  
+  // Helper function to create coin textures
+  const createCoinTexture = (type: 'gold' | 'silver') => {
+    if (!appRef.current) return PIXI.Texture.EMPTY;
+    
+    const coinGraphics = new PIXI.Graphics();
+    const fillColor = type === 'gold' ? 0xFFD700 : 0xE0E0E0;
+    const rimColor = type === 'gold' ? 0xB7950B : 0xA0A0A0;
+    
+    // Main coin body
+    coinGraphics.beginFill(fillColor);
+    coinGraphics.drawCircle(0, 0, 30);
+    coinGraphics.endFill();
+    
+    // Coin rim
+    coinGraphics.lineStyle(3, rimColor, 0.8);
+    coinGraphics.drawCircle(0, 0, 28);
+    
+    // Add detail in the middle - $ symbol
+    coinGraphics.lineStyle(5, rimColor, 0.9);
+    
+    // Draw a $ symbol
+    if (type === 'gold') {
+      // Draw S shape
+      coinGraphics.moveTo(0, -15);
+      coinGraphics.lineTo(-8, -15);
+      coinGraphics.arcTo(-15, -15, -15, -8, 7);
+      coinGraphics.arcTo(-15, 0, -8, 0, 7);
+      coinGraphics.lineTo(8, 0);
+      coinGraphics.arcTo(15, 0, 15, 8, 7);
+      coinGraphics.arcTo(15, 15, 8, 15, 7);
+      coinGraphics.lineTo(-8, 15);
+      
+      // Draw vertical line
+      coinGraphics.moveTo(0, -20);
+      coinGraphics.lineTo(0, 20);
+    } else {
+      // Simpler design for silver
+      coinGraphics.drawCircle(0, 0, 15);
+    }
+    
+    // Add shine effect
+    coinGraphics.beginFill(type === 'gold' ? 0xFFF9C4 : 0xFFFFFF, 0.4);
+    coinGraphics.drawEllipse(-10, -10, 10, 10);
+    coinGraphics.endFill();
+    
+    // Generate texture
+    return appRef.current.renderer.generateTexture(coinGraphics);
+  };
+  
+  // Create an enhanced dynamic coin for better animations
+  interface DynamicCoinOptions {
+    x: number;
+    y: number;
+    type: 'gold' | 'silver';
+    scale: number;
+    velocity: number;
+    angle?: number;
+    spin?: number;
+  }
+  
+  const createDynamicCoin = (options: DynamicCoinOptions) => {
+    if (!winAnimationContainerRef.current) return;
+    
+    const {
+      x,
+      y,
+      type = 'gold',
+      scale = 1,
+      velocity = 10,
+      angle = Math.random() * Math.PI * 2,
+      spin = (Math.random() - 0.5) * 0.2
+    } = options;
+    
+    // Create detailed coin with western motif
+    const coin = new PIXI.Container();
+    coin.x = x;
+    coin.y = y;
+    coin.scale.set(scale);
+    
+    // Base coin circle
+    const coinBody = new PIXI.Graphics();
+    const fillColor = type === 'gold' ? 0xFFD700 : 0xE0E0E0;
+    const rimColor = type === 'gold' ? 0xB7950B : 0xA0A0A0;
+    
+    coinBody.beginFill(fillColor);
+    coinBody.drawCircle(0, 0, 12);
+    coinBody.endFill();
+    
+    // Add rim
+    coinBody.lineStyle(2, rimColor);
+    coinBody.drawCircle(0, 0, 11);
+    
+    // Add western detail
+    if (type === 'gold' && Math.random() > 0.5) {
+      // Star shape in the middle
+      const detailColor = 0xB7950B;
+      coinBody.beginFill(detailColor, 0.8);
+      
+      for (let i = 0; i < 5; i++) {
+        const angle = (i / 5) * Math.PI * 2;
+        const innerRadius = 3;
+        const outerRadius = 6;
+        
+        const startX = Math.cos(angle) * innerRadius;
+        const startY = Math.sin(angle) * innerRadius;
+        
+        const midAngle = angle + (Math.PI / 5);
+        const midX = Math.cos(midAngle) * outerRadius;
+        const midY = Math.sin(midAngle) * outerRadius;
+        
+        if (i === 0) {
+          coinBody.moveTo(startX, startY);
+        } else {
+          coinBody.lineTo(startX, startY);
+        }
+        
+        coinBody.lineTo(midX, midY);
+      }
+      
+      coinBody.endFill();
+    }
+    
+    // Add shine effect
+    const shine = new PIXI.Graphics();
+    shine.beginFill(0xFFFFFF, 0.6);
+    shine.drawEllipse(-4, -4, 6, 6);
+    shine.endFill();
+    
+    coin.addChild(coinBody);
+    coin.addChild(shine);
+    
+    // Add 3D effect with shadow
+    const shadow = new PIXI.Graphics();
+    shadow.beginFill(0x000000, 0.2);
+    shadow.drawEllipse(2, 3, 10, 7);
+    shadow.endFill();
+    shadow.zIndex = -1;
+    
+    coin.addChild(shadow);
+    winAnimationContainerRef.current.addChild(coin);
+    
+    // Calculate velocity components
+    const vx = Math.cos(angle) * velocity;
+    const vy = Math.sin(angle) * velocity;
+    
+    // Create physics simulation
+    const gravity = 0.25;
+    const friction = 0.98;
+    const bounceFactor = 0.6;
+    
+    let rotationSpeed = spin;
+    let currentVx = vx;
+    let currentVy = vy;
+    let spinVariation = 0;
+    
+    // Create animation
+    const animate = () => {
+      // Update position
+      coin.x += currentVx;
+      coin.y += currentVy;
+      
+      // Apply gravity
+      currentVy += gravity;
+      
+      // Apply drag
+      currentVx *= friction;
+      currentVy *= friction;
+      
+      // Rotate coin (3D spinning effect)
+      coin.rotation += rotationSpeed;
+      
+      // Add spinning variation (3D coin flip effect)
+      spinVariation += 0.1;
+      const scaleX = Math.abs(Math.cos(spinVariation)) * 0.3 + 0.7;
+      coin.scale.x = scale * scaleX;
+      
+      // Simple bounce against edges
+      if (coin.x < 0 || coin.x > bgWidth) {
+        currentVx *= -bounceFactor;
+        if (coin.x < 0) coin.x = 0;
+        if (coin.x > bgWidth) coin.x = bgWidth;
+      }
+      
+      // Bounce on floor with damping
+      if (coin.y > bgHeight - 20) {
+        if (Math.abs(currentVy) > 1) {
+          currentVy *= -bounceFactor;
+          rotationSpeed *= -0.9; // Reverse spin slightly on bounce
+          coin.y = bgHeight - 20;
+        } else {
+          // Come to rest
+          currentVy = 0;
+          rotationSpeed *= 0.9;
+          
+          // Fade out gradually when settled
+          gsap.to(coin, {
+            alpha: 0,
+            delay: 0.5 + Math.random() * 1.5,
+            duration: 0.8,
+            onComplete: () => {
+              if (winAnimationContainerRef.current) {
+                winAnimationContainerRef.current.removeChild(coin);
+              }
+            }
+          });
+          
+          return; // Stop animation for this coin
+        }
+      }
+      
+      // Continue animation
+      requestAnimationFrame(animate);
+    };
+    
+    // Start animation
+    animate();
+  };
+  
+  // Small win animation
+  const playSmallWinAnimation = (amount: number, winningSymbolType: string = '') => {
+    if (!appRef.current || !winAnimationContainerRef.current) return;
+    
+    // Clear previous animations
+    winAnimationContainerRef.current.removeChildren();
+    
+    // Add subtle background highlight
+    const highlight = new PIXI.Graphics();
+    highlight.beginFill(0xFFEB3B, 0.1); // Very subtle yellow tint
+    highlight.drawRoundedRect(bgWidth/2 - 100, bgHeight/2 - 60, 200, 120, 15);
+    highlight.endFill();
+    highlight.alpha = 0;
+    winAnimationContainerRef.current.addChild(highlight);
+    
+    // Add smaller winning symbol if available
+    let winningSymbol: PIXI.Sprite | null = null;
+    if (winningSymbolType && texturesRef.current[winningSymbolType]) {
+      // Create a smaller symbol for small win
+      winningSymbol = new PIXI.Sprite(texturesRef.current[winningSymbolType]);
+      
+      // Scale up the symbol, but keep it small for small wins
+      const symbolScale = 1.8; // Keep it smaller than big/mega wins
+      winningSymbol.width = SYMBOL_SIZE * symbolScale;
+      winningSymbol.height = SYMBOL_SIZE * symbolScale;
+      
+      // Ensure perfect centering
+      winningSymbol.anchor.set(0.5, 0.5);
+      winningSymbol.x = bgWidth / 2;
+      winningSymbol.y = bgHeight / 2;
+      winningSymbol.alpha = 0;
+      
+      // Add subtle tint
+      winningSymbol.tint = 0xFFF59D; // Light yellow tint
+      
+      // Add to container first so it stays in background
+      winAnimationContainerRef.current.addChild(winningSymbol);
+      
+      // Animate the symbol - very subtle for small win
+      gsap.to(winningSymbol, {
+        alpha: 0.15, // Very subtle transparency
+        duration: 0.5,
+        ease: 'power1.out'
+      });
+      
+      // Small pulse
+      gsap.to(winningSymbol.scale, {
+        x: 1.03, y: 1.03,
+        duration: 0.8,
+        ease: 'sine.inOut',
+        repeat: 2,
+        yoyo: true
+      });
+    }
+    
+    // Create win text with western styling - smaller size
+    const winText = new PIXI.Text('WIN!', {
+      fontFamily: 'Western, Arial Black, sans-serif',
+      fontSize: 40, // Smaller font size
+      fontWeight: 'bold',
+      fill: ['#FFEB3B', '#FFC107'], // Yellow gradient
+      strokeThickness: 3, // Thinner stroke for smaller text
+      stroke: '#7F6000', // Darker yellow stroke for better contrast
+      dropShadow: true,
+      dropShadowColor: '#000000',
+      dropShadowBlur: 3,
+      dropShadowDistance: 1,
+      align: 'center'
+    });
+    
+    winText.anchor.set(0.5);
+    winText.x = bgWidth / 2;
+    winText.y = bgHeight / 2 - 10;
+    winText.alpha = 0;
+    
+    winAnimationContainerRef.current.addChild(winText);
+    
+    // Add win amount with western-inspired styling
+    const winAmountText = new PIXI.Text(`$${amount.toFixed(2)}`, {
+      fontFamily: 'Western, Arial, sans-serif',
+      fontSize: 36, // Slightly smaller
+      fontWeight: 'bold',
+      fill: '#FFFFFF',
+      strokeThickness: 3,
+      stroke: '#5D4C02',
+      align: 'center',
+      dropShadow: true,
+      dropShadowColor: '#000000',
+      dropShadowBlur: 2,
+      dropShadowDistance: 1
+    });
+    
+    winAmountText.anchor.set(0.5);
+    winAmountText.x = bgWidth / 2;
+    winAmountText.y = bgHeight / 2 + 40;
+    winAmountText.alpha = 0;
+    
+    winAnimationContainerRef.current.addChild(winAmountText);
+    
+    // Fade in background
+    gsap.to(highlight, {
+      alpha: 1,
+      duration: 0.3
+    });
+    
+    // Animate text with western-style bounce
+    gsap.to(winText, {
+      alpha: 1,
+      duration: 0.3,
+      ease: 'power1.out',
+      onComplete: () => {
+        // Subtle scale animation
+        gsap.to(winText.scale, {
+          x: 1.05, y: 1.05,
+          duration: 0.3,
+          yoyo: true,
+          repeat: 1,
+          ease: 'sine.inOut'
+        });
+        
+        // Add slight rotation
+        gsap.to(winText, {
+          rotation: 0.02,
+          duration: 0.4,
+          yoyo: true,
+          repeat: 2,
+          ease: 'sine.inOut'
+        });
+        
+        // Show amount with slight bounce
+        gsap.to(winAmountText, {
+          alpha: 1,
+          duration: 0.3,
+          delay: 0.1,
+          y: bgHeight / 2 + 38, // Slight upward bounce
+          ease: 'back.out(1.2)'
+        });
+      }
+    });
+    
+    // Add a few coin particles - more than before but still subtle
+    for (let i = 0; i < 8; i++) {
+      setTimeout(() => {
+        createCoinParticle('silver');
+      }, i * 120 + Math.random() * 100);
+    }
+    
+    // Clean up after a delay
+    setTimeout(() => {
+      const elementsToFade = [highlight, winText, winAmountText];
+      if (winningSymbol) elementsToFade.push(winningSymbol);
+      
+      gsap.to(elementsToFade, {
+        alpha: 0,
+        duration: 0.5,
+        onComplete: () => {
+          if (winAnimationContainerRef.current) {
+            winAnimationContainerRef.current.removeChildren();
+          }
+        }
+      });
+    }, 2500); // Shorter duration for small wins
+  };
+  
+  // Create a more realistic coin particle effect
+  const createCoinParticle = (coinType: 'gold' | 'silver' | 'mixed' = 'mixed') => {
+    if (!appRef.current || !winAnimationContainerRef.current) return;
+    
+    // Determine coin color and size based on type
+    let fillColor: number;
+    let rimColor: number;
+    let size: number;
+    
+    switch (coinType) {
+      case 'gold':
+        fillColor = 0xFFD700;
+        rimColor = 0xE6B800; // Darker gold for rim
+        size = 12 + Math.random() * 6; // Larger gold coins
+        break;
+      case 'silver':
+        fillColor = 0xD9D9D9; // Brighter silver
+        rimColor = 0xA0A0A0; // Darker silver for rim
+        size = 9 + Math.random() * 4; // Smaller silver coins
+        break;
+      case 'mixed':
+      default:
+        const isGold = Math.random() > 0.4; // Slightly favor gold for mixed
+        fillColor = isGold ? 0xFFD700 : 0xD9D9D9;
+        rimColor = isGold ? 0xE6B800 : 0xA0A0A0;
+        size = isGold ? (12 + Math.random() * 6) : (9 + Math.random() * 4);
+    }
+    
+    // Create a more detailed coin sprite
+    const coin = new PIXI.Graphics();
+    
+    // Main coin body
+    coin.beginFill(fillColor);
+    coin.drawCircle(0, 0, size);
+    coin.endFill();
+    
+    // Coin rim
+    coin.lineStyle(1.5, rimColor, 0.8);
+    coin.drawCircle(0, 0, size * 0.95);
+    
+    // Inner details ($ symbol or pattern)
+    if (Math.random() > 0.3) { // Sometimes add inner detail
+      if (size > 10) { // Only add detail to larger coins
+        // Add shine effect (highlight)
+        coin.beginFill(fillColor === 0xFFD700 ? 0xFFF6CC : 0xF0F0F0, 0.5);
+        coin.drawEllipse(-size/3, -size/3, size/2, size/2);
+        coin.endFill();
+      }
+    }
+    
+    // Random position in a distributed pattern
+    const centerX = bgWidth / 2;
+    const centerY = bgHeight / 2;
+    
+    // Calculate position with variance based on win type
+    const spreadFactor = coinType === 'gold' ? 300 : 
+                         coinType === 'mixed' ? 250 : 200;
+                         
+    coin.x = centerX + (Math.random() - 0.5) * spreadFactor;
+    coin.y = centerY + (Math.random() - 0.5) * (spreadFactor * 0.8);
+    
+    // Add a slight 3D effect with shadow
+    const shadow = new PIXI.Graphics();
+    shadow.beginFill(0x000000, 0.2);
+    shadow.drawEllipse(2, 2, size * 0.9, size * 0.6);
+    shadow.endFill();
+    
+    coin.addChild(shadow);
+    coin.shadow = shadow;
+    
+    winAnimationContainerRef.current.addChild(coin);
+    
+    // Random velocity with more realistic physics
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 4 + Math.random() * 7;
+    const vx = Math.cos(angle) * speed;
+    const vy = Math.sin(angle) * speed - 3; // Stronger upward bias for more "pop"
+    
+    // Add random initial rotation and spin
+    coin.rotation = Math.random() * Math.PI;
+    const spinSpeed = (Math.random() + 0.5) * (Math.random() > 0.5 ? 1 : -1);
+    
+    // Timeline for coin animation
+    const timeline = gsap.timeline();
+    
+    // Initial burst and arc
+    timeline.to(coin, {
+      x: coin.x + vx * 30,
+      y: coin.y + vy * 20, // Initial pop up
+      rotation: coin.rotation + spinSpeed * 2,
+      duration: 0.5 + Math.random() * 0.3,
+      ease: 'power1.out'
+    });
+    
+    // Fall with gravity and slow spin
+    timeline.to(coin, {
+      x: coin.x + vx * 50,
+      y: coin.y + vy * 40 + 120, // Stronger gravity drop
+      rotation: coin.rotation + spinSpeed * 6,
+      alpha: 0,
+      scale: 0.8, // Slight scale down as it fades
+      duration: 1.2 + Math.random() * 0.5,
+      ease: 'power2.in', // Accelerating fall
+      onComplete: () => {
+        if (winAnimationContainerRef.current) {
+          winAnimationContainerRef.current.removeChild(coin);
+        }
+      }
+    });
+    
+    // Adjust shadow during animation to match perspective
+    timeline.to(shadow, {
+      alpha: 0.1,
+      duration: 1.7 + Math.random() * 0.5,
+      ease: 'power1.in'
+    }, 0);
+  };
+  
+  // Handle bet amount changes
+  const adjustBet = (amount: number) => {
+    const newBet = Math.max(1, Math.min(100, betAmount + amount));
+    setBetAmount(newBet);
+  };
+  
+  // Toggle active pay lines
+  const adjustLines = () => {
+    // Cycle through 1, 3, 5 paylines
+    let newLines = activeLines === 1 ? 3 : 
+                  activeLines === 3 ? 5 : 1;
+    setActiveLines(newLines);
+  };
+  
+  // Max bet function
+  const maxBet = () => {
+    setBetAmount(20);
+    setActiveLines(5);
+  };
+  
+  // Set auto spins
+  const startAutoSpin = (spins: number) => {
+    if (!isSpinning) {
+      setAutoSpins(spins);
+    }
+  };
+  
+  // Stop auto spins
+  const stopAutoSpin = () => {
+    setAutoSpins(0);
+  };
+  
+  // Format large numbers with commas
+  const formatNumber = (num: number): string => {
+    return num.toFixed(2).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  };
+  
+  // State to track fullscreen mode
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // Original dimensions to restore when exiting fullscreen
+  const [originalDimensions, setOriginalDimensions] = useState({ width: bgWidth, height: bgHeight });
+  
+  // Basic fullscreen toggle function
+  const toggleFullScreen = () => {
+    if (!document.fullscreenElement) {
+      const gameContainer = document.getElementById('slot-game-container');
+      if (gameContainer && gameContainer.requestFullscreen) {
+        setOriginalDimensions({ width: bgWidth, height: bgHeight });
+        gameContainer.requestFullscreen().catch(err => {
+          console.error(`Error entering fullscreen: ${err.message}`);
+        });
+      }
+    } else {
+      document.exitFullscreen().catch(err => {
+        console.error(`Error exiting fullscreen: ${err.message}`);
+      });
+    }
+  };
+  
+  // Handle window resize in fullscreen mode
+  const handleResize = useCallback(() => {
+    if (isFullscreen && appRef.current) {
+      const screenWidth = window.innerWidth;
+      const screenHeight = window.innerHeight;
+      
+      // Resize PIXI application
+      appRef.current.renderer.resize(screenWidth, screenHeight);
+      
+      // Update container styles
+      if (pixiContainerRef.current) {
+        pixiContainerRef.current.style.width = `${screenWidth}px`;
+        pixiContainerRef.current.style.height = `${screenHeight}px`;
+      }
+      
+      // Resize background and frame
+      if (bgContainerRef.current?.children[0]) {
+        bgContainerRef.current.children[0].width = screenWidth;
+        bgContainerRef.current.children[0].height = screenHeight;
+      }
+      
+      if (frameContainerRef.current?.children[0]) {
+        frameContainerRef.current.children[0].width = screenWidth;
+        frameContainerRef.current.children[0].height = screenHeight;
+      }
+      
+      // Scale reels
+      if (appRef.current.stage.children.length > 2) {
+        const reelsContainer = appRef.current.stage.children[2];
+        if (reelsContainer) {
+          // Calculate scale
+          const scale = Math.min(
+            screenWidth / (REEL_WIDTH * numReels * 1.2),
+            screenHeight / (SYMBOL_SIZE * numRows * 1.5)
+          );
+          
+          // Center position
+          const centeredX = (screenWidth - (REEL_WIDTH * numReels * scale)) / 2;
+          const centeredY = (screenHeight - (SYMBOL_SIZE * numRows * scale)) / 2;
+          
+          // Apply position and scale
+          reelsContainer.scale.set(scale);
+          reelsContainer.x = centeredX;
+          reelsContainer.y = centeredY;
+          
+          // Update win lines container
+          if (appRef.current.stage.children.length > 3) {
+            const winLinesContainer = appRef.current.stage.children[3];
+            if (winLinesContainer) {
+              winLinesContainer.scale.set(scale);
+              winLinesContainer.x = centeredX;
+              winLinesContainer.y = centeredY;
+            }
+          }
+          
+          // Update win animation container
+          if (winAnimationContainerRef.current) {
+            winAnimationContainerRef.current.scale.set(scale);
+            winAnimationContainerRef.current.x = centeredX;
+            winAnimationContainerRef.current.y = centeredY;
+          }
+        }
+      }
+      
+      // Force render
+      appRef.current.renderer.render(appRef.current.stage);
+    }
+  }, [isFullscreen, numReels]);
+  
+  // Add fullscreen event listeners
+  useEffect(() => {
+    window.addEventListener('resize', handleResize);
+    
+    // Handle fullscreen change events
+    const handleFullscreenChange = () => {
+      if (document.fullscreenElement) {
+        // Entered fullscreen
+        setIsFullscreen(true);
+        handleResize();
+      } else {
+        // Exited fullscreen
+        setIsFullscreen(false);
+        
+        // Reset to original size
+        if (appRef.current) {
+          // Reset size
+          appRef.current.renderer.resize(originalDimensions.width, originalDimensions.height);
+          
+          if (pixiContainerRef.current) {
+            pixiContainerRef.current.style.width = `${originalDimensions.width}px`;
+            pixiContainerRef.current.style.height = `${originalDimensions.height}px`;
+          }
+          
+          // Reset background and frame
+          if (bgContainerRef.current?.children[0]) {
+            bgContainerRef.current.children[0].width = originalDimensions.width;
+            bgContainerRef.current.children[0].height = originalDimensions.height;
+          }
+          
+          if (frameContainerRef.current?.children[0]) {
+            frameContainerRef.current.children[0].width = originalDimensions.width;
+            frameContainerRef.current.children[0].height = originalDimensions.height;
+          }
+          
+          // Reset reels
+          if (appRef.current.stage.children.length > 2) {
+            const reelsContainer = appRef.current.stage.children[2];
+            if (reelsContainer) {
+              reelsContainer.scale.set(1);
+              reelsContainer.x = (originalDimensions.width - (REEL_WIDTH * numReels)) / 2;
+              reelsContainer.y = (originalDimensions.height - (SYMBOL_SIZE * numRows)) / 2 - 20 + REEL_OFFSET_Y;
+              
+              // Reset win lines
+              if (appRef.current.stage.children.length > 3) {
+                const winLinesContainer = appRef.current.stage.children[3];
+                if (winLinesContainer) {
+                  winLinesContainer.scale.set(1);
+                  winLinesContainer.x = reelsContainer.x;
+                  winLinesContainer.y = reelsContainer.y;
+                }
+              }
+            }
+          }
+          
+          // Reset win animation container
+          if (winAnimationContainerRef.current) {
+            winAnimationContainerRef.current.scale.set(1);
+            winAnimationContainerRef.current.x = 0;
+            winAnimationContainerRef.current.y = 0;
+          }
+          
+          // Force render
+          appRef.current.renderer.render(appRef.current.stage);
+        }
+      }
+    };
+    
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, [handleResize, isFullscreen, originalDimensions, numReels]);
+  
+  // Helper function to create a placeholder texture
+  const createPlaceholderTexture = (app: PIXI.Application, width: number, height: number, color: number) => {
+    const graphics = new PIXI.Graphics();
+    graphics.beginFill(color);
+    graphics.drawRect(0, 0, width, height);
+    graphics.endFill();
+    return app.renderer.generateTexture(graphics);
+  };
+    } else if (document.exitFullscreen) {
+      // Exit fullscreen
+      document.exitFullscreen()
+        .then(() => {
+          setIsFullscreen(false);
+          
+          // Apply changes after a short delay to ensure proper rendering
+          setTimeout(() => {
+            if (!appRef.current) return;
+            
+            console.log(`Exiting fullscreen, restoring to: ${originalDimensions.width}x${originalDimensions.height}`);
+            
+            // Resize back to original dimensions
+            appRef.current.renderer.resize(originalDimensions.width, originalDimensions.height);
+            
+            if (pixiContainerRef.current) {
+              pixiContainerRef.current.style.width = `${originalDimensions.width}px`;
+              pixiContainerRef.current.style.height = `${originalDimensions.height}px`;
+            }
+            
+            // Restore background and frame
+            if (bgContainerRef.current?.children[0]) {
+              bgContainerRef.current.children[0].width = originalDimensions.width;
+              bgContainerRef.current.children[0].height = originalDimensions.height;
+            }
+            
+            if (frameContainerRef.current?.children[0]) {
+              frameContainerRef.current.children[0].width = originalDimensions.width;
+              frameContainerRef.current.children[0].height = originalDimensions.height;
+            }
+            
+            // Reset reel container scale and position
+            if (appRef.current.stage.children.length > 2) {
+              const reelsContainer = appRef.current.stage.children[2];
+              if (reelsContainer) {
+                reelsContainer.scale.set(1);
+                reelsContainer.x = (originalDimensions.width - (REEL_WIDTH * numReels)) / 2;
+                reelsContainer.y = (originalDimensions.height - (SYMBOL_SIZE * numRows)) / 2 - 20 + REEL_OFFSET_Y;
+                
+                // Force update of all reel positions and restore original positions
+                reelsRef.current.forEach((reel, i) => {
+                  // Restore reel container x position
+                  if (reel.container) {
+                    reel.container.x = i * REEL_WIDTH;
+                  }
+                  
+                  // Force update symbol positions
+                  if (reel.updateSymbolPositions) {
+                    reel.updateSymbolPositions();
+                  }
+                });
+                
+                // Reset win lines
+                if (appRef.current.stage.children.length > 3) {
+                  const winLinesContainer = appRef.current.stage.children[3];
+                  if (winLinesContainer) {
+                    winLinesContainer.scale.set(1);
+                    winLinesContainer.x = reelsContainer.x;
+                    winLinesContainer.y = reelsContainer.y;
+                  }
+                }
+              }
+            }
+            
+            // Reset win animation container
+            if (winAnimationContainerRef.current) {
+              winAnimationContainerRef.current.scale.set(1);
+              winAnimationContainerRef.current.x = 0;
+              winAnimationContainerRef.current.y = 0;
+            }
+            
+            // Force a re-render
+            if (appRef.current.ticker) {
+              appRef.current.renderer.render(appRef.current.stage);
+            }
+          }, 100);
+        })
+        .catch(err => {
+          console.error(`Error exiting fullscreen: ${err.message}`);
+        });
+    }
+  };
+  
+  // Simple handleResize function just for updating dimensions
+  const handleResize = useCallback(() => {
+    if (isFullscreen && appRef.current) {
+      console.log("Window resized in fullscreen mode");
+      
+      const screenWidth = window.innerWidth;
+      const screenHeight = window.innerHeight;
+      
+      // Resize PIXI app to fill the screen
+      appRef.current.renderer.resize(screenWidth, screenHeight);
+      
+      // Update canvas container styles
+      if (pixiContainerRef.current) {
+        pixiContainerRef.current.style.width = `${screenWidth}px`;
+        pixiContainerRef.current.style.height = `${screenHeight}px`;
+      }
+      
+      // Resize background and frame to fill screen
+      if (bgContainerRef.current?.children[0]) {
+        bgContainerRef.current.children[0].width = screenWidth;
+        bgContainerRef.current.children[0].height = screenHeight;
+      }
+      
+      if (frameContainerRef.current?.children[0]) {
+        frameContainerRef.current.children[0].width = screenWidth;
+        frameContainerRef.current.children[0].height = screenHeight;
+      }
+      
+      // Recalculate reels scaling if needed
+      if (appRef.current.stage.children.length > 2) {
+        const reelsContainer = appRef.current.stage.children[2];
+        if (reelsContainer) {
+          // Calculate proper scaling for the reels
+          const reelAreaWidth = REEL_WIDTH * numReels;
+          const reelAreaHeight = SYMBOL_SIZE * numRows;
+          
+          // Use the simpler approach - scale to fit 80% of screen height
+          const scale = (screenHeight * 0.8) / reelAreaHeight;
+          const centeredX = (screenWidth - (reelAreaWidth * scale)) / 2;
+          const centeredY = (screenHeight - (reelAreaHeight * scale)) / 2;
+          
+          // Apply changes
+          reelsContainer.scale.set(scale);
+          reelsContainer.x = centeredX;
+          reelsContainer.y = centeredY;
+          
+          // Update win lines if present
+          if (appRef.current.stage.children.length > 3) {
+            const winLinesContainer = appRef.current.stage.children[3];
+            if (winLinesContainer) {
+              winLinesContainer.scale.set(scale);
+              winLinesContainer.x = centeredX;
+              winLinesContainer.y = centeredY;
+            }
+          }
+          
+          // Update animation container if present
+          if (winAnimationContainerRef.current) {
+            winAnimationContainerRef.current.scale.set(scale);
+            winAnimationContainerRef.current.x = centeredX;
+            winAnimationContainerRef.current.y = centeredY;
+          }
+        }
+      }
+      
+      // Force a render
+      if (appRef.current.renderer) {
+        appRef.current.renderer.render(appRef.current.stage);
+      }
+    }
+  }, [isFullscreen, numReels]);
+  
+  // Add window resize listener for fullscreen mode
+  useEffect(() => {
+    window.addEventListener('resize', handleResize);
+    
+    // Handle fullscreen change event (catches browser controls and ESC)
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement && isFullscreen) {
+        console.log("Fullscreen exit detected");
+        setIsFullscreen(false);
+        
+        // We'll actually rebuild the application on exit, so no need to do anything here
+        // The toggleFullScreen function will handle exiting properly
+      } else if (document.fullscreenElement && !isFullscreen) {
+        // Handle case where fullscreen was triggered externally
+        console.log("Fullscreen entered externally");
+        setIsFullscreen(true);
+        
+        // Rebuild the application in fullscreen mode
+        // Get current symbol state
+        const currentReelSymbols = reelsRef.current.map(reel => {
+          if (reel.getVisibleSymbols) {
+            return reel.getVisibleSymbols();
+          }
+          return [];
+        });
+        
+        // Force rebuild on next animation frame
+        requestAnimationFrame(() => {
+          const screenWidth = window.innerWidth;
+          const screenHeight = window.innerHeight;
+          
+          // Rebuild application similar to toggleFullScreen
+          if (appRef.current) {
+            // Clean up old app
+            appRef.current.destroy(true);
+            appRef.current = null;
+          }
+          
+          if (pixiContainerRef.current) {
+            pixiContainerRef.current.innerHTML = '';
+            
+            // Create a new application
+            const app = new PIXI.Application({
+              width: screenWidth,
+              height: screenHeight,
+              backgroundColor: 0x000000,
+              resolution: window.devicePixelRatio || 1,
+              antialias: true,
+            });
+            
+            pixiContainerRef.current.appendChild(app.view as unknown as Node);
+            pixiContainerRef.current.style.width = `${screenWidth}px`;
+            pixiContainerRef.current.style.height = `${screenHeight}px`;
+            
+            appRef.current = app;
+            
+            // Setup containers and rebuild reels
+            // This is abbreviated - actual rebuild would mirror toggleFullScreen function
+            console.log("External fullscreen trigger - rebuilding application");
+          }
+        });
+      }
+    };
+    
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, [handleResize, isFullscreen, originalDimensions, numReels]);
+  
+  // Add keyboard listener for ESC key to exit fullscreen
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // We don't actually need to implement ESC functionality here since the 
+      // browser's fullscreen API already handles ESC key to exit fullscreen,
+      // and we have the fullscreenchange event listener that will restore everything
+      
+      // This is kept in case we want to add more keyboard shortcuts in the future
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+  
+  // Force a specific win demonstration
+  const forceWin = (type: 'small' | 'big' | 'mega') => {
+    // Cancel any auto spins
+    stopAutoSpin();
+    
+    // If already spinning, wait for completion
+    if (isSpinning) return;
+    
+    // Use fixed results for this spin
+    const forcedResult = generateForcedWin(type);
+    
+    // Reset reels with prepared results
+    reelsRef.current.forEach((reel, i) => {
+      reel.prepareResults(forcedResult[i]);
+    });
+    
+    // Trigger spin
+    handleSpin();
+  };
+  
+  return (
+    <div className="flex flex-col items-center bg-gray-900">
+      {/* Main slot container with overlaid controls */}
+      <div id="slot-game-container" className="relative mb-4 overflow-hidden">
+        {/* PIXI canvas */}
+        <div 
+          ref={pixiContainerRef} 
+          className="border-2 border-gray-700 rounded-xl overflow-hidden shadow-2xl" 
+          style={{
+            boxShadow: '0 0 30px rgba(0, 0, 0, 0.6), inset 0 0 10px rgba(0, 0, 0, 0.5)',
+            width: `${bgWidth}px`,
+            height: `${bgHeight}px`
+          }}
+        ></div>
+        
+        {/* Win amount overlay */}
+        {winAmount > 0 && (
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20">
+            <div className={`text-white font-bold text-3xl animate-pulse ${
+              lastWinType === 'mega' ? 'text-yellow-400' :
+              lastWinType === 'big' ? 'text-blue-400' : 'text-green-400'
+            }`}>
+              {lastWinType === 'mega' ? 'MEGA WIN!' :
+               lastWinType === 'big' ? 'BIG WIN!' : 'WIN!'}
+            </div>
+          </div>
+        )}
+
+        {/* Twin Spin Megaways style UI Overlay */}
+        <div className="absolute bottom-0 left-0 right-0 h-16 bg-black bg-opacity-30 backdrop-blur-sm z-30 flex items-center justify-between px-4">
+          {/* Left side controls */}
+          <div className="flex items-center space-x-4">
+            {/* Hamburger menu */}
+            <button className="w-8 h-8 flex items-center justify-center text-white hover:bg-white hover:bg-opacity-10">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            
+            {/* Info button */}
+            <button className="w-8 h-8 rounded-full border border-white flex items-center justify-center text-white hover:bg-white hover:bg-opacity-10">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
+            
+            {/* Bet amount with label above */}
+            <div className="flex flex-col items-center mx-1">
+              <div className="text-white text-xs font-sans tracking-wide uppercase">BET ($)</div>
+              <div className="text-white font-bold font-sans">{betAmount.toFixed(2)}</div>
+            </div>
+            
+            {/* Bet controls - stacked coin icon button */}
+            <button 
+              onClick={() => adjustBet(1)}
+              disabled={isSpinning || betAmount >= 100}
+              className="w-9 h-9 rounded-full border border-white flex flex-col items-center justify-center text-white hover:bg-white hover:bg-opacity-10 disabled:opacity-50"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 -mb-1" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+          
+          {/* Center - Spin button */}
+          <div className="absolute left-1/2 transform -translate-x-1/2 top-0 -translate-y-1/2">
+            <button
+              onClick={handleSpin}
+              disabled={isSpinning || balance < totalBet}
+              className={`w-16 h-16 rounded-full flex items-center justify-center border-2 ${
+                isSpinning || balance < totalBet
+                  ? 'bg-gray-800 border-gray-600 cursor-not-allowed' 
+                  : 'bg-white border-white hover:bg-gray-200'
+              }`}
+              style={{
+                boxShadow: '0 0 15px rgba(255, 255, 255, 0.4)'
+              }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-8 w-8 ${isSpinning || balance < totalBet ? 'text-gray-400' : 'text-gray-900'}`} viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+          
+          {/* Auto spin button */}
+          <button
+            onClick={() => startAutoSpin(10)}
+            disabled={isSpinning || autoSpins > 0 || balance < totalBet}
+            className={`absolute left-1/2 transform translate-x-12 top-0 -translate-y-1/2 w-8 h-8 rounded-full border flex items-center justify-center ${
+              isSpinning || autoSpins > 0 || balance < totalBet
+                ? 'border-gray-500 text-gray-500 cursor-not-allowed' 
+                : 'border-white text-white hover:bg-white hover:bg-opacity-10'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+          
+          {/* Right side controls */}
+          <div className="flex items-center space-x-5">
+            {/* Win amount */}
+            <div className="flex flex-col items-center">
+              <div className="text-white text-xs font-sans tracking-wide uppercase">WIN ($)</div>
+              <div className={`font-bold font-sans ${winAmount > 0 ? 'text-yellow-300' : 'text-white'}`}>
+                {formatNumber(winAmount)}
+              </div>
+            </div>
+            
+            {/* Balance */}
+            <div className="flex flex-col items-center">
+              <div className="text-white text-xs font-sans tracking-wide uppercase">BALANCE ($)</div>
+              <div className="text-white font-bold font-sans">{formatNumber(balance)}</div>
+            </div>
+            
+            {/* Sound toggle */}
+            <button className="w-8 h-8 rounded-full border border-white flex items-center justify-center text-white hover:bg-white hover:bg-opacity-10">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+              </svg>
+            </button>
+            
+            {/* Full screen toggle */}
+            <button 
+              onClick={toggleFullScreen}
+              className="w-8 h-8 rounded-full border border-white flex items-center justify-center text-white hover:bg-white hover:bg-opacity-10"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        
+        {/* Game info badge */}
+        <div className="absolute top-4 left-4 bg-black bg-opacity-40 px-3 py-2 rounded-lg text-xs z-10">
+          <div className="text-white font-medium tracking-wide">WILD WEST GOLD</div>
+          <div className="text-gray-200 text-xs">5 REELS • {activeLines} LINES</div>
+        </div>
+      </div>
+      
+      {/* Demo win buttons and win lines guide in a more compact layout */}
+      <div className="w-full max-w-[850px] bg-gray-800 rounded-xl p-4 mb-6">
+        <div className="flex flex-col md:flex-row gap-6">
+          {/* Win demonstrations */}
+          <div className="flex-1">
+            <h3 className="text-white font-bold text-lg mb-3">Demo Wins</h3>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => forceWin('small')}
+                disabled={isSpinning}
+                className="px-4 py-2 rounded-lg bg-green-700 text-white font-bold hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Small Win
+              </button>
+              <button
+                onClick={() => forceWin('big')}
+                disabled={isSpinning}
+                className="px-4 py-2 rounded-lg bg-blue-700 text-white font-bold hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Big Win
+              </button>
+              <button
+                onClick={() => forceWin('mega')}
+                disabled={isSpinning}
+                className="px-4 py-2 rounded-lg bg-yellow-600 text-white font-bold hover:bg-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Mega Win
+              </button>
+            </div>
+          </div>
+          
+          {/* Pay lines */}
+          <div className="flex-1">
+            <h3 className="text-white font-bold text-lg mb-3">Pay Lines</h3>
+            <div className="grid grid-cols-3 gap-2">
+              {WIN_LINES.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => !isSpinning && showWinLine(index)}
+                  className={`px-2 py-1 text-sm rounded-md 
+                    ${winLineIndex === index 
+                      ? 'bg-yellow-600 text-white' 
+                      : index < activeLines 
+                        ? 'bg-gray-700 text-white hover:bg-gray-600' 
+                        : 'bg-gray-900 text-gray-500'
+                    }`}
+                  disabled={isSpinning}
+                >
+                  Line {index + 1}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default PremiumSlotMachine;

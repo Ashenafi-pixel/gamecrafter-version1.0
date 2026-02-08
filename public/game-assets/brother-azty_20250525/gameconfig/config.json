@@ -1,0 +1,20 @@
+{
+  "gameId": "brother-azty_20250525",
+  "createdAt": "2025-05-25T19:42:43.860Z",
+  "updatedAt": "2025-05-25T19:42:43.860Z",
+  "folders": [
+    "symbols",
+    "symbols/wild",
+    "symbols/scatter",
+    "symbols/high",
+    "symbols/medium",
+    "symbols/low",
+    "background",
+    "frame",
+    "ui",
+    "sound",
+    "sound/effects",
+    "sound/music",
+    "gameconfig"
+  ]
+}

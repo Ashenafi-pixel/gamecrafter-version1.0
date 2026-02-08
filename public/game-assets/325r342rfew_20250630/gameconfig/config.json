@@ -1,0 +1,21 @@
+{
+  "gameId": "325r342rfew_20250630",
+  "createdAt": "2025-06-30T11:27:59.609Z",
+  "updatedAt": "2025-06-30T11:27:59.609Z",
+  "folders": [
+    "symbols",
+    "symbols/wild",
+    "symbols/scatter",
+    "symbols/high",
+    "symbols/medium",
+    "symbols/low",
+    "background",
+    "frame",
+    "titles",
+    "ui",
+    "sound",
+    "sound/effects",
+    "sound/music",
+    "gameconfig"
+  ]
+}

@@ -1,0 +1,12 @@
+{"timestamp":"2026-01-15T06:56:28.589Z","type":"AUDIT","action":"GAME_PUBLISH","user":"SYSTEM","details":{"gameId":"rgs_test_1768460188526","ticketId":"CERT-0001","deckSize":20}}
+{"timestamp":"2026-01-15T07:52:43.812Z","type":"AUDIT","action":"GAME_PUBLISH","user":"SYSTEM","details":{"gameId":"rgs_test_1768463563741","ticketId":"CERT-0001","deckSize":20}}
+{"timestamp":"2026-01-15T07:55:07.259Z","type":"AUDIT","action":"GAME_PUBLISH","user":"SYSTEM","details":{"gameId":"rgs_test_1768463707185","ticketId":"CERT-0001","deckSize":20}}
+{"timestamp":"2026-01-15T07:55:25.279Z","type":"AUDIT","action":"GAME_PUBLISH","user":"SYSTEM","details":{"gameId":"rgs_test_1768463725248","ticketId":"CERT-0001","deckSize":20}}
+{"timestamp":"2026-01-15T07:55:54.430Z","type":"AUDIT","action":"GAME_PUBLISH","user":"SYSTEM","details":{"gameId":"rgs_test_1768463754404","ticketId":"CERT-0001","deckSize":20}}
+{"timestamp":"2026-01-15T07:56:26.547Z","type":"AUDIT","action":"GAME_PUBLISH","user":"SYSTEM","details":{"gameId":"rgs_test_1768463786518","ticketId":"CERT-0001","deckSize":20}}
+{"timestamp":"2026-01-15T07:59:55.225Z","type":"AUDIT","action":"GAME_PUBLISH","user":"SYSTEM","details":{"gameId":"rgs_test_1768463995190","ticketId":"CERT-0001","deckSize":20}}
+{"timestamp":"2026-01-15T08:00:34.451Z","type":"AUDIT","action":"GAME_PUBLISH","user":"SYSTEM","details":{"gameId":"rgs_test_1768464034423","ticketId":"CERT-0001","deckSize":20}}
+{"timestamp":"2026-01-15T08:01:29.803Z","type":"AUDIT","action":"GAME_PUBLISH","user":"SYSTEM","details":{"gameId":"rgs_test_1768464089766","ticketId":"CERT-0001","deckSize":20}}
+{"timestamp":"2026-01-15T08:01:58.125Z","type":"AUDIT","action":"GAME_PUBLISH","user":"SYSTEM","details":{"gameId":"rgs_test_1768464118051","ticketId":"CERT-0001","deckSize":20}}
+{"timestamp":"2026-01-15T08:02:35.362Z","type":"AUDIT","action":"GAME_PUBLISH","user":"SYSTEM","details":{"gameId":"rgs_test_1768464155324","ticketId":"CERT-0001","deckSize":20}}
+{"timestamp":"2026-01-15T08:08:16.174Z","type":"AUDIT","action":"GAME_PUBLISH","user":"SYSTEM","details":{"gameId":"rgs_test_1768464496139","ticketId":"CERT-0001","deckSize":20}}

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Debugging Console</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .test-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0;
+        }
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+        }
+        .image-test {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+        .image-test:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .image-header {
+            padding: 10px;
+            background: #f9f9f9;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+            word-break: break-all;
+        }
+        .image-container {
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #fff;
+            position: relative;
+        }
+        .image-container img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        .status {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 5px 10px;
+            font-size: 12px;
+            text-align: center;
+        }
+        .status.loading {
+            background-color: rgba(255, 200, 0, 0.7);
+            color: #333;
+        }
+        .status.success {
+            background-color: rgba(0, 128, 0, 0.7);
+            color: white;
+        }
+        .status.error {
+            background-color: rgba(255, 0, 0, 0.7);
+            color: white;
+        }
+        .console {
+            background: #222;
+            color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+        }
+        .console-entry {
+            margin-bottom: 5px;
+            line-height: 1.4;
+        }
+        .run-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .run-button:hover {
+            background: #0069d9;
+        }
+        .success-text {
+            color: #28a745;
+        }
+        .error-text {
+            color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <h1>Image Loading Debugger</h1>
+    <p>This tool tests image loading from various sources and helps diagnose issues.</p>
+    
+    <div class="test-container">
+        <div class="test-header">
+            <h2 class="test-title">Static Image Test</h2>
+            <button id="run-static-test" class="run-button">Run Test</button>
+        </div>
+        <div class="test-grid" id="static-test-grid">
+            <!-- Will be populated by JavaScript -->
+        </div>
+    </div>
+    
+    <div class="test-container">
+        <div class="test-header">
+            <h2 class="test-title">Dynamic Image Test (with timestamp)</h2>
+            <button id="run-dynamic-test" class="run-button">Run Test</button>
+        </div>
+        <div class="test-grid" id="dynamic-test-grid">
+            <!-- Will be populated by JavaScript -->
+        </div>
+    </div>
+    
+    <div class="test-container">
+        <div class="test-header">
+            <h2 class="test-title">Content Security Policy Test</h2>
+            <button id="run-csp-test" class="run-button">Run Test</button>
+        </div>
+        <div id="csp-test-results">
+            <p>Click Run Test to check for Content Security Policy restrictions</p>
+        </div>
+    </div>
+    
+    <div class="console" id="debug-console">
+        <div class="console-entry">Debug console initialized. Run tests to see results.</div>
+    </div>
+    
+    <script>
+        // Logging function
+        function logToConsole(message, type = 'info') {
+            const console = document.getElementById('debug-console');
+            const entry = document.createElement('div');
+            entry.className = 'console-entry';
+            
+            if (type === 'error') {
+                entry.innerHTML = `<span class="error-text">ERROR:</span> ${message}`;
+            } else if (type === 'success') {
+                entry.innerHTML = `<span class="success-text">SUCCESS:</span> ${message}`;
+            } else {
+                entry.textContent = message;
+            }
+            
+            console.appendChild(entry);
+            console.scrollTop = console.scrollHeight;
+        }
+        
+        // Image paths to test
+        const imagePaths = [
+            // Local images from public directory
+            '/assets/frames/styles/cartoon.png',
+            '/assets/frames/styles/dark.png',
+            '/assets/frames/decorations/minimal.png',
+            '/assets/frames/decorations/decorated.png',
+            '/assets/symbols/high_1.png',
+            
+            // External image as control
+            'https://placehold.co/200'
+        ];
+        
+        // Function to create an image test element
+        function createImageTest(container, path, withTimestamp = false) {
+            const testDiv = document.createElement('div');
+            testDiv.className = 'image-test';
+            
+            const header = document.createElement('div');
+            header.className = 'image-header';
+            header.textContent = path;
+            testDiv.appendChild(header);
+            
+            const imageContainer = document.createElement('div');
+            imageContainer.className = 'image-container';
+            
+            const status = document.createElement('div');
+            status.className = 'status loading';
+            status.textContent = 'Loading...';
+            imageContainer.appendChild(status);
+            
+            const img = document.createElement('img');
+            img.alt = 'Test image';
+            
+            // Add timestamp if requested
+            const finalPath = withTimestamp ? `${path}?t=${Date.now()}` : path;
+            img.src = finalPath;
+            
+            // Log loading start
+            logToConsole(`Loading ${finalPath}...`);
+            
+            // Handle load success
+            img.onload = () => {
+                status.className = 'status success';
+                status.textContent = `Loaded: ${img.naturalWidth}x${img.naturalHeight}`;
+                logToConsole(`Loaded: ${finalPath} (${img.naturalWidth}x${img.naturalHeight})`, 'success');
+            };
+            
+            // Handle load error
+            img.onerror = (error) => {
+                status.className = 'status error';
+                status.textContent = 'Failed to load';
+                logToConsole(`Failed to load: ${finalPath}`, 'error');
+                
+                // Make a fetch request as a backup test
+                fetch(finalPath, { method: 'HEAD' })
+                    .then(response => {
+                        if (response.ok) {
+                            logToConsole(`Fetch successful but image display failed: ${finalPath} (${response.status} ${response.statusText})`, 'error');
+                        } else {
+                            logToConsole(`Fetch confirmed image not found: ${finalPath} (${response.status} ${response.statusText})`, 'error');
+                        }
+                    })
+                    .catch(fetchError => {
+                        logToConsole(`Fetch also failed: ${finalPath} (${fetchError.message})`, 'error');
+                    });
+            };
+            
+            imageContainer.appendChild(img);
+            testDiv.appendChild(imageContainer);
+            container.appendChild(testDiv);
+        }
+        
+        // Run static image test
+        document.getElementById('run-static-test').addEventListener('click', () => {
+            const container = document.getElementById('static-test-grid');
+            container.innerHTML = ''; // Clear previous tests
+            
+            logToConsole('Running static image tests (no timestamp)...');
+            
+            for (const path of imagePaths) {
+                createImageTest(container, path, false);
+            }
+        });
+        
+        // Run dynamic image test with timestamp
+        document.getElementById('run-dynamic-test').addEventListener('click', () => {
+            const container = document.getElementById('dynamic-test-grid');
+            container.innerHTML = ''; // Clear previous tests
+            
+            logToConsole('Running dynamic image tests (with timestamp)...');
+            
+            for (const path of imagePaths) {
+                createImageTest(container, path, true);
+            }
+        });
+        
+        // Run CSP test
+        document.getElementById('run-csp-test').addEventListener('click', () => {
+            const container = document.getElementById('csp-test-results');
+            container.innerHTML = '';
+            
+            logToConsole('Checking for Content Security Policy restrictions...');
+            
+            // Test creating an image from a data URL
+            const dataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+P+/HgAFDQIAYxQxhgAAAABJRU5ErkJggg==';
+            
+            const testImg = document.createElement('img');
+            testImg.src = dataUrl;
+            testImg.alt = 'CSP Test';
+            testImg.style.width = '100px';
+            testImg.style.height = '100px';
+            testImg.style.border = '1px solid #ccc';
+            
+            testImg.onload = () => {
+                container.innerHTML = `
+                    <p class="success-text">✅ Data URL loaded successfully - no restrictive CSP detected</p>
+                    <p>The test image was loaded from a data URL, which indicates there are no Content Security Policy restrictions preventing image loading.</p>
+                `;
+                logToConsole('CSP test passed: Data URL loaded successfully', 'success');
+            };
+            
+            testImg.onerror = () => {
+                container.innerHTML = `
+                    <p class="error-text">❌ Data URL failed to load - possible CSP restrictions</p>
+                    <p>The test image from a data URL failed to load, which could indicate Content Security Policy restrictions are in place.</p>
+                    <p>Check the browser console for CSP violation messages.</p>
+                `;
+                logToConsole('CSP test failed: Data URL failed to load', 'error');
+            };
+            
+            container.appendChild(testImg);
+            
+            // Create a simple script element to test script execution
+            try {
+                const script = document.createElement('script');
+                script.textContent = "window.cspScriptTest = true;";
+                document.head.appendChild(script);
+                
+                if (window.cspScriptTest) {
+                    logToConsole('Inline script execution allowed', 'success');
+                } else {
+                    logToConsole('Inline script variable not set - possible CSP restrictions', 'error');
+                }
+            } catch (e) {
+                logToConsole(`Script test error: ${e.message}`, 'error');
+            }
+        });
+        
+        // Auto-run tests on page load
+        window.addEventListener('load', () => {
+            document.getElementById('run-static-test').click();
+        });
+    </script>
+</body>
+</html>

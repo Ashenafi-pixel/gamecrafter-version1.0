@@ -1,0 +1,21 @@
+{
+  "gameId": "wasssuusus_20250627",
+  "createdAt": "2025-06-27T12:41:16.396Z",
+  "updatedAt": "2025-06-27T12:41:16.396Z",
+  "folders": [
+    "symbols",
+    "symbols/wild",
+    "symbols/scatter",
+    "symbols/high",
+    "symbols/medium",
+    "symbols/low",
+    "background",
+    "frame",
+    "titles",
+    "ui",
+    "sound",
+    "sound/effects",
+    "sound/music",
+    "gameconfig"
+  ]
+}

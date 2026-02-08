@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Direct Step 2 Access</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f5f5f5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+      padding: 30px;
+      max-width: 600px;
+      width: 100%;
+      text-align: center;
+    }
+    
+    h1 {
+      color: #E60012;
+      margin-top: 0;
+      font-size: 24px;
+    }
+    
+    p {
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+    
+    .buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      margin-top: 30px;
+    }
+    
+    .button {
+      display: block;
+      padding: 12px 20px;
+      background-color: #E60012;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-weight: bold;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    
+    .button:hover {
+      background-color: #cc0010;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(230, 0, 18, 0.2);
+    }
+    
+    .button.secondary {
+      background-color: #0052cc;
+    }
+    
+    .button.secondary:hover {
+      background-color: #0046ad;
+      box-shadow: 0 4px 8px rgba(0, 82, 204, 0.2);
+    }
+    
+    .button.tertiary {
+      background-color: #333;
+    }
+    
+    .button.tertiary:hover {
+      background-color: #222;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    
+    .alert {
+      background-color: #fff8e1;
+      border-left: 4px solid #ffc107;
+      padding: 15px;
+      margin-top: 20px;
+      text-align: left;
+      border-radius: 4px;
+    }
+    
+    .alert h3 {
+      margin-top: 0;
+      color: #e65100;
+    }
+    
+    code {
+      background-color: #f0f0f0;
+      padding: 3px 5px;
+      border-radius: 3px;
+      font-family: Monaco, Consolas, monospace;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>SlotAI Navigation Helper</h1>
+    
+    <p>This page provides direct access to Step 2 (Game Type Selection) for your SlotAI application.</p>
+    
+    <div class="alert">
+      <h3>Why This Page Exists</h3>
+      <p>
+        If you're experiencing navigation issues between Step 1 and Step 2, this page offers several reliable methods to continue your workflow without losing progress.
+      </p>
+    </div>
+    
+    <div class="buttons">
+      <a href="/standalone-step2.html" class="button">
+        Go to Standalone Step 2
+      </a>
+      
+      <a href="/?step=1&preserve_ui=true" class="button secondary">
+        Try UI-Preserving Navigation
+      </a>
+      
+      <button onclick="executeDirectFix()" class="button tertiary">
+        Execute Direct Fix in Main App
+      </button>
+    </div>
+    
+    <div class="alert" style="margin-top: 30px;">
+      <h3>Advanced: Developer Console Fix</h3>
+      <p>
+        If the buttons above don't work, open your browser's developer console (F12) and paste this code:
+      </p>
+      <code>
+        fetch('/direct-navigation-fix.js').then(r => r.text()).then(code => eval(code))
+      </code>
+    </div>
+  </div>
+
+  <script>
+    function executeDirectFix() {
+      try {
+        // Create a form to post data back to main page
+        const form = document.createElement('form');
+        form.method = 'GET';
+        form.action = '/';
+        
+        // Add appropriate fields
+        const fields = {
+          'fix': 'true',
+          'target': 'step2',
+          't': Date.now()
+        };
+        
+        for (const [key, value] of Object.entries(fields)) {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = key;
+          input.value = value;
+          form.appendChild(input);
+        }
+        
+        // Add form to document and submit
+        document.body.appendChild(form);
+        form.submit();
+      } catch (e) {
+        console.error("Error executing direct fix:", e);
+        alert("Error executing fix. Please try another option.");
+      }
+    }
+  </script>
+</body>
+</html>

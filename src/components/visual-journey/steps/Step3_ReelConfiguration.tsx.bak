@@ -1,0 +1,1442 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useGameStore } from '../../../store';
+import { 
+  PlusSquare, 
+  MinusSquare, 
+  Tag, 
+  CheckCircle,
+  HelpCircle,
+  Smartphone,
+  Monitor,
+  RotateCcw,
+  X
+} from 'lucide-react';
+
+// Add script to fix layout when component mounts
+const fixLayoutScript = `
+  // Function to fix the layout
+  function fixStep3Layout() {
+    // Target the main workspace that contains our panels
+    const workspace = document.querySelector('.flex-1.flex.overflow-hidden');
+    if (workspace) {
+      workspace.style.display = 'flex';
+      workspace.style.flexDirection = 'row';
+      workspace.style.width = '100%';
+      
+      // Get the left and right panels (main content and canvas)
+      const panels = workspace.querySelectorAll(':scope > div');
+      if (panels.length === 2) {
+        // Force 50/50 split
+        panels[0].style.width = '50%';
+        panels[0].style.flex = '0 0 50%';
+        panels[1].style.width = '50%';
+        panels[1].style.flex = '0 0 50%';
+        console.log('Layout fixed by script!');
+      }
+    }
+  }
+  
+  // Run immediately and also on resize
+  fixStep3Layout();
+  window.addEventListener('resize', fixStep3Layout);
+`;
+// Import the unified grid preview component
+import { UnifiedGridPreview } from '../grid-preview';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// Grid presets with recommended layouts based on game mechanics
+const GRID_PRESETS = {
+  'betlines': [
+    { reels: 3, rows: 3, name: '3×3', description: 'Classic fruit machine layout' },
+    { reels: 5, rows: 3, name: '5×3', description: 'Standard video slot layout' },
+    { reels: 5, rows: 4, name: '5×4', description: 'Extended reel layout' },
+    { reels: 6, rows: 3, name: '6×3', description: 'Wide layout for more symbols' },
+    { reels: 6, rows: 4, name: '6×4', description: 'Extended wide layout' }
+  ],
+  'ways': [
+    { reels: 3, rows: 3, name: '3×3', description: '27 ways' },
+    { reels: 5, rows: 3, name: '5×3', description: '243 ways' },
+    { reels: 5, rows: 4, name: '5×4', description: '1024 ways' },
+    { reels: 6, rows: 3, name: '6×3', description: '729 ways' },
+    { reels: 6, rows: 4, name: '6×4', description: '4096 ways' }
+  ],
+  'cluster': [
+    { reels: 5, rows: 5, name: '5×5', description: 'Standard cluster grid' },
+    { reels: 6, rows: 6, name: '6×6', description: 'Large cluster grid' },
+    { reels: 7, rows: 7, name: '7×7', description: 'Extra large cluster grid' },
+    { reels: 8, rows: 8, name: '8×8', description: 'Massive cluster grid' },
+    { reels: 9, rows: 5, name: '9×5', description: 'Wide cluster grid' }
+  ]
+};
+
+// Grid recommendations based on AI analysis
+const AI_RECOMMENDATIONS = {
+  'betlines': 'For betline games, the industry standard 5×3 layout provides a familiar player experience while the 5×4 offers more winning potential.',
+  'ways': 'For ways-to-win games, the 5×3 (243 ways) grid offers balanced volatility, while 5×4 (1024 ways) or 6×4 (4096 ways) provide higher win potential.',
+  'cluster': 'For cluster pays, square grids like 5×5 or 6×6 allow symbols to connect in all directions, creating more opportunities for clusters to form.'
+};
+
+// Helper function to calculate estimated ways to win based on grid dimensions
+const calculateWaysToWin = (reels: number, rows: number): string => {
+  const ways = Math.pow(rows, reels);
+  if (ways > 1000000) {
+    return `${(ways / 1000000).toFixed(2)}M ways`;
+  } else if (ways > 1000) {
+    return `${(ways / 1000).toFixed(0)}K ways`;
+  } else {
+    return `${ways} ways`;
+  }
+};
+
+/**
+ * Step 3: Grid Layout Configuration Component
+ * Allows users to set up the grid dimensions for their slot game
+ * 
+ * This component renders in a split-view where:
+ * - Left side shows grid presets and configuration controls
+ * - Right side shows an interactive preview of the grid
+ */
+const Step3_ReelConfiguration: React.FC = () => {
+  const { config, updateConfig, theme } = useGameStore();
+  
+  // Professional layout fixed directly in React
+  useEffect(() => {
+    console.log("🔧 Applying professional 50/50 layout fix");
+    
+    // Clean fix function that properly sets the layout
+    const fixLayout = () => {
+      // 1. Fix the root container
+      const appRoot = document.getElementById('root');
+      if (appRoot) {
+        appRoot.style.width = '100%';
+        appRoot.style.height = '100vh';
+        appRoot.style.overflow = 'hidden';
+      }
+      
+      // 2. Find the main layout container and split it 50/50
+      const step3Container = document.querySelector('[data-testid="step3-marker"]');
+      if (step3Container instanceof HTMLElement) {
+        step3Container.style.display = 'flex';
+        step3Container.style.flexDirection = 'row';
+        step3Container.style.width = '100%';
+        step3Container.style.height = '100%';
+        step3Container.style.overflow = 'hidden';
+        
+        // 3. Find the config and preview panels
+        const configPanel = document.querySelector('[data-testid="config-panel"]');
+        const previewPanel = document.querySelector('[data-testid="preview-panel"]');
+        
+        if (configPanel instanceof HTMLElement) {
+          configPanel.style.width = '50%';
+          configPanel.style.flexShrink = '0';
+          configPanel.style.overflowY = 'auto';
+        }
+        
+        if (previewPanel instanceof HTMLElement) {
+          previewPanel.style.width = '50%';
+          previewPanel.style.flexShrink = '0';
+          previewPanel.style.overflow = 'hidden';
+          previewPanel.style.backgroundColor = '#0f172a'; // Dark background
+        }
+      }
+    };
+    
+    // Run immediately and on resize
+    fixLayout();
+    window.addEventListener('resize', fixLayout);
+    
+    return () => {
+      window.removeEventListener('resize', fixLayout);
+    };
+  }, []);
+  
+  // Get the selected pay mechanism from previous step
+  const payMechanism = config.reels?.payMechanism || 'betlines';
+  
+  // Local state for grid configuration
+  const [gridConfig, setGridConfig] = useState({
+    reels: config.reels?.layout?.reels || 5,
+    rows: config.reels?.layout?.rows || 3
+  });
+  
+  // UI state
+  const [showTooltip, setShowTooltip] = useState<string | null>(null);
+  const [animateGrid, setAnimateGrid] = useState(false);
+  const [orientation, setOrientation] = useState<'landscape' | 'portrait'>(() => {
+    // Try to retrieve stored preference from localStorage
+    try {
+      const savedOrientation = localStorage.getItem('gameCrafter_gridOrientation');
+      return savedOrientation === 'portrait' ? 'portrait' : 'landscape';
+    } catch (e) {
+      return 'landscape'; // Default to landscape if localStorage fails
+    }
+  });
+  
+  // Initialize component with grid animation after a short delay
+  useEffect(() => {
+    // Start grid animation after component is mounted
+    const animationDelay = setTimeout(() => {
+      setAnimateGrid(true);
+    }, 200);
+    
+    console.log("🚀 Step3 component mounted, initializing gridConfig:", {
+      reels: config.reels?.layout?.reels || 5,
+      rows: config.reels?.layout?.rows || 3,
+      orientation
+    });
+    
+    return () => clearTimeout(animationDelay);
+  }, []);
+  
+  // Initialize component from config - only on first mount or mechanism change
+  useEffect(() => {
+    // Initialize state from config
+    setGridConfig({
+      reels: config.reels?.layout?.reels || 5,
+      rows: config.reels?.layout?.rows || 3
+    });
+    
+    // Show animation when component mounts
+    setTimeout(() => {
+      setAnimateGrid(true);
+    }, 500);
+  }, [payMechanism]);
+  
+  // Add effect to track grid config changes and ensure preview updates
+  useEffect(() => {
+    console.log("♻️ Grid config updated:", gridConfig);
+    
+    // Reset animation to show the change
+    setAnimateGrid(false);
+    console.log("⏸ Animation reset in gridConfig effect");
+    
+    setTimeout(() => {
+      setAnimateGrid(true);
+      console.log("▶️ Animation restored in gridConfig effect");
+    }, 50);
+    
+    // Update the store with the new configuration
+    updateStoreConfig();
+    console.log("💾 Store config updated with grid dimensions", gridConfig);
+    
+    // Add data attributes to help with debugging
+    document.documentElement.setAttribute('data-grid-reels', gridConfig.reels.toString());
+    document.documentElement.setAttribute('data-grid-rows', gridConfig.rows.toString());
+    console.log("🏷️ Added data attributes to document:", {
+      'data-grid-reels': gridConfig.reels,
+      'data-grid-rows': gridConfig.rows
+    });
+    
+    // Count grid cells that should be rendered
+    const expectedCells = gridConfig.reels * gridConfig.rows;
+    console.log(`🔢 Expected grid cells: ${expectedCells} (${gridConfig.reels}×${gridConfig.rows})`);
+    
+    // Force any grid preview to redraw by dispatching an event
+    window.dispatchEvent(new CustomEvent('gridConfigUpdated', { 
+      detail: { ...gridConfig, orientation } 
+    }));
+    console.log("📣 Dispatched gridConfigUpdated event");
+  }, [gridConfig.reels, gridConfig.rows, orientation]);
+  
+  // Add a dedicated effect to monitor for global config changes and sync local state
+  useEffect(() => {
+    // If the store config changes from elsewhere, update our local state
+    if (config.reels?.layout?.reels !== gridConfig.reels || 
+        config.reels?.layout?.rows !== gridConfig.rows) {
+      console.log("🔄 Syncing local grid config with store:", {
+        storeReels: config.reels?.layout?.reels,
+        storeRows: config.reels?.layout?.rows,
+        localReels: gridConfig.reels,
+        localRows: gridConfig.rows
+      });
+      
+      // Only update if there's a real change needed
+      if (config.reels?.layout?.reels && config.reels?.layout?.rows) {
+        setGridConfig({
+          reels: config.reels.layout.reels,
+          rows: config.reels.layout.rows
+        });
+        
+        // Trigger animation reset for visual feedback
+        setAnimateGrid(false);
+        setTimeout(() => setAnimateGrid(true), 100);
+      }
+    }
+  }, [config.reels?.layout?.reels, config.reels?.layout?.rows]);
+  
+  // Update the store with grid configuration
+  const updateStoreConfig = () => {
+    updateConfig({
+      reels: {
+        ...config.reels,
+        layout: {
+          reels: gridConfig.reels,
+          rows: gridConfig.rows,
+          shape: 'rectangle',
+          orientation: orientation
+        }
+      }
+    });
+  };
+  
+  // Set orientation to specific value (instead of toggling)
+  const setOrientationTo = (newOrientation: 'landscape' | 'portrait') => {
+    console.log("🔄 Changing orientation from", orientation, "to", newOrientation);
+    
+    if (orientation === newOrientation) {
+      console.log("⏭️ Orientation is already", newOrientation, "- no change needed");
+      return;
+    }
+    
+    // First set the new orientation
+    setOrientation(newOrientation);
+    
+    // Store preference in localStorage
+    try {
+      localStorage.setItem('gameCrafter_gridOrientation', newOrientation);
+      console.log("💾 Saved orientation preference to localStorage:", newOrientation);
+    } catch (e) {
+      console.error("❌ Failed to save orientation to localStorage:", e);
+      // Silent fail for localStorage errors
+    }
+    
+    // Also update configuration storage
+    updateConfig({
+      reels: {
+        ...config.reels,
+        layout: {
+          ...config.reels?.layout,
+          orientation: newOrientation
+        }
+      }
+    });
+    console.log("🔄 Updated global config with new orientation:", newOrientation);
+    
+    // Reset animation to trigger effect and make change visually obvious
+    setAnimateGrid(false);
+    console.log("⏸ Animation paused for orientation change");
+    
+    // Update the dynamic grid
+    const dynamicGrid = document.getElementById('dynamic-grid');
+    if (dynamicGrid) {
+      dynamicGrid.style.aspectRatio = newOrientation === 'landscape' ? '16/9' : '9/16';
+      
+      // Update orientation display text
+      const headerText = document.querySelector('.grid-preview-container p.text-sm.text-gray-400');
+      if (headerText) {
+        headerText.textContent = `${gridConfig.reels}×${gridConfig.rows} grid - ${newOrientation} mode`;
+      }
+      
+      // Update button styling
+      const landscapeButton = document.getElementById('landscape-button');
+      const portraitButton = document.getElementById('portrait-button');
+      
+      if (landscapeButton && portraitButton) {
+        if (newOrientation === 'landscape') {
+          landscapeButton.className = 'px-3 py-1 bg-blue-600 text-white text-sm rounded';
+          portraitButton.className = 'px-3 py-1 bg-gray-500 text-white text-sm rounded';
+        } else {
+          landscapeButton.className = 'px-3 py-1 bg-gray-500 text-white text-sm rounded';
+          portraitButton.className = 'px-3 py-1 bg-blue-600 text-white text-sm rounded';
+        }
+      }
+    }
+    
+    // Apply the orientation change with a slight delay for visual transition
+    setTimeout(() => {
+      setAnimateGrid(true);
+      console.log("▶️ Animation resumed after orientation change to", newOrientation);
+      
+      // Dispatch a custom event for any external components that might need to react
+      const orientationChangeEvent = new CustomEvent('gridOrientationChanged', {
+        detail: { orientation: newOrientation }
+      });
+      document.dispatchEvent(orientationChangeEvent);
+      console.log("📣 Dispatched gridOrientationChanged event");
+    }, 100);
+  };
+  
+  // Toggle between landscape and portrait orientation (for backward compatibility)
+  const toggleOrientation = () => {
+    const newOrientation = orientation === 'landscape' ? 'portrait' : 'landscape';
+    setOrientationTo(newOrientation);
+  };
+  
+  // Add explicit effect to respond to orientation changes
+  useEffect(() => {
+    console.log("🎮 Orientation effect triggered:", orientation);
+    
+    // Update document attribute to help with debugging
+    document.documentElement.setAttribute('data-grid-orientation', orientation);
+    console.log("🏷️ Added data-grid-orientation attribute to document:", orientation);
+    
+    // Ensure animation reset to make change visible
+    setAnimateGrid(false);
+    console.log("⏸ Animation paused in orientation effect");
+    
+    setTimeout(() => {
+      setAnimateGrid(true);
+      console.log("▶️ Animation resumed in orientation effect");
+    }, 100);
+  }, [orientation, gridConfig.reels, gridConfig.rows]);
+  
+  // Handle preset selection
+  const selectPreset = (preset: { reels: number, rows: number }) => {
+    console.log("🎲 Selecting preset:", preset);
+    
+    // Immediately update everything for fastest visual feedback
+    const updatedConfig = {
+      reels: preset.reels,
+      rows: preset.rows
+    };
+    
+    // Step 1: Update local state for immediate UI changes
+    setGridConfig(updatedConfig);
+    console.log("👉 Local grid config updated to", updatedConfig);
+    
+    // Step 2: Directly update the global config for persistence 
+    updateConfig({
+      reels: {
+        ...config.reels,
+        layout: {
+          ...config.reels?.layout,
+          reels: preset.reels,
+          rows: preset.rows,
+          orientation: orientation // ensure orientation is preserved
+        }
+      }
+    });
+    console.log("💾 Global store updated with new grid dimensions");
+    
+    // Step 3: Reset animation to make the change visually obvious
+    setAnimateGrid(false);
+    console.log("⏸ Animation paused for grid dimension change");
+    
+    // Step 4: Directly update the dynamic grid in PremiumLayout
+    const dynamicGrid = document.getElementById('dynamic-grid');
+    if (dynamicGrid) {
+      // Update grid template
+      dynamicGrid.style.gridTemplateColumns = `repeat(${preset.reels}, 1fr)`;
+      dynamicGrid.style.gridTemplateRows = `repeat(${preset.rows}, 1fr)`;
+      
+      // Clear existing cells
+      dynamicGrid.innerHTML = '';
+      
+      // Symbol types for a realistic slot machine
+      const symbolTypes = [
+        '/public/assets/mockups/ancient-egypt/symbols/wild.png',
+        '/public/assets/mockups/ancient-egypt/symbols/scatter.png',
+        '/public/assets/mockups/ancient-egypt/symbols/high_1.png',
+        '/public/assets/mockups/ancient-egypt/symbols/high_2.png',
+        '/public/assets/mockups/ancient-egypt/symbols/high_3.png',
+        '/public/assets/mockups/ancient-egypt/symbols/mid_1.png',
+        '/public/assets/mockups/ancient-egypt/symbols/mid_2.png',
+        '/public/assets/mockups/ancient-egypt/symbols/low_2.png',
+        '/public/assets/mockups/ancient-egypt/symbols/low_3.png'
+      ];
+      
+      // Create new cells
+      const totalCells = preset.reels * preset.rows;
+      for (let i = 0; i < totalCells; i++) {
+        const row = Math.floor(i / preset.reels);
+        const col = i % preset.reels;
+        
+        // Create main cell container
+        const cell = document.createElement('div');
+        cell.className = 'relative grid-cell flex items-center justify-center p-1 overflow-hidden transition-all duration-200';
+        cell.dataset.row = row.toString();
+        cell.dataset.col = col.toString();
+        
+        // Add hover and shadow effects
+        cell.style.background = 'linear-gradient(to bottom, rgba(40,40,40,0.7), rgba(20,20,20,0.9))';
+        cell.style.borderRadius = '4px';
+        cell.style.boxShadow = 'inset 0 0 5px rgba(255,255,255,0.1)';
+        
+        // Add light glow effect at the top
+        const glow = document.createElement('div');
+        glow.className = 'absolute top-0 left-0 right-0 h-[15%]';
+        glow.style.background = 'linear-gradient(to bottom, rgba(255,255,255,0.15), transparent)';
+        glow.style.borderTopLeftRadius = '4px';
+        glow.style.borderTopRightRadius = '4px';
+        cell.appendChild(glow);
+        
+        // Add an image container for better control
+        const imageContainer = document.createElement('div');
+        imageContainer.className = 'relative w-[85%] h-[85%] flex items-center justify-center overflow-hidden';
+        
+        // Determine which symbol to show - semi-randomly but with patterns
+        // Create a somewhat realistic reel pattern with wild and scatter in specific positions
+        let symbolIndex;
+        
+        // Special positions for key symbols
+        if (row === 1 && col === 2) {
+          // Wild in middle position
+          symbolIndex = 0; // Wild
+        } else if (row === 0 && col === preset.reels - 1) {
+          // Scatter in top right
+          symbolIndex = 1; // Scatter
+        } else {
+          // Other symbols distributed with some logic
+          // Higher paying symbols less frequent, lower paying symbols more frequent
+          if ((row + col) % 5 === 0) {
+            // High paying symbols
+            symbolIndex = 2 + (col % 3); // High symbols (2-4 index)
+          } else if ((row + col) % 3 === 0) {
+            // Mid paying symbols
+            symbolIndex = 5 + (row % 2); // Mid symbols (5-6 index)
+          } else {
+            // Low paying symbols
+            symbolIndex = 7 + ((row + col) % 2); // Low symbols (7-8 index)
+          }
+        }
+        
+        // Create the image element
+        const img = document.createElement('img');
+        img.src = symbolTypes[symbolIndex];
+        img.className = 'w-full h-full object-contain';
+        img.style.filter = 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))';
+        
+        // Add a subtle animation to the image
+        img.style.transition = 'all 0.3s ease';
+        cell.addEventListener('mouseenter', () => {
+          img.style.transform = 'scale(1.1)';
+          img.style.filter = 'drop-shadow(0 4px 6px rgba(0,0,0,0.4)) brightness(1.1)';
+          cell.style.boxShadow = 'inset 0 0 10px rgba(255,215,0,0.3)';
+          cell.style.background = 'linear-gradient(to bottom, rgba(60,60,60,0.8), rgba(30,30,30,0.9))';
+        });
+        
+        cell.addEventListener('mouseleave', () => {
+          img.style.transform = 'scale(1)';
+          img.style.filter = 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))';
+          cell.style.boxShadow = 'inset 0 0 5px rgba(255,255,255,0.1)';
+          cell.style.background = 'linear-gradient(to bottom, rgba(40,40,40,0.7), rgba(20,20,20,0.9))';
+        });
+        
+        // Add subtle animation for landing effect
+        setTimeout(() => {
+          img.style.animation = `fadeInScale 0.3s ${i * 0.05}s backwards`;
+        }, 10);
+        
+        imageContainer.appendChild(img);
+        cell.appendChild(imageContainer);
+        
+        // Add small corner position indicator for debugging
+        const posLabel = document.createElement('div');
+        posLabel.className = 'absolute top-0 left-0 bg-black/40 text-white/70 text-[8px] px-1 rounded-br';
+        posLabel.textContent = `${col},${row}`;
+        posLabel.style.fontSize = '8px';
+        cell.appendChild(posLabel);
+        
+        // Add to grid
+        dynamicGrid.appendChild(cell);
+      }
+      
+      // Update orientation display
+      const headerText = document.getElementById('grid-preview-header');
+      if (headerText) {
+        headerText.textContent = `${preset.reels}×${preset.rows} grid - ${orientation} mode`;
+      }
+      
+      console.log(`✅ Updated premium dynamic grid with ${totalCells} cells (${preset.reels}×${preset.rows})`);
+    }
+    
+    // Step 5: After a brief delay, restore animation for a smooth transition
+    setTimeout(() => {
+      setAnimateGrid(true);
+      console.log("▶️ Animation resumed for grid preview after selecting", `${preset.reels}×${preset.rows} layout`);
+      
+      // Update orientation buttons
+      const landscapeButton = document.getElementById('landscape-button');
+      const portraitButton = document.getElementById('portrait-button');
+      
+      if (landscapeButton && portraitButton) {
+        if (orientation === 'landscape') {
+          landscapeButton.className = 'px-3 py-1 bg-blue-600 text-white text-sm rounded';
+          portraitButton.className = 'px-3 py-1 bg-gray-500 text-white text-sm rounded';
+        } else {
+          landscapeButton.className = 'px-3 py-1 bg-gray-500 text-white text-sm rounded';
+          portraitButton.className = 'px-3 py-1 bg-blue-600 text-white text-sm rounded';
+        }
+      }
+    }, 100);
+    
+    // Step 6: Dispatch a custom event to notify any listening components 
+    const gridChangeEvent = new CustomEvent('gridConfigChanged', {
+      detail: {
+        reels: preset.reels,
+        rows: preset.rows,
+        orientation,
+        source: 'preset'
+      }
+    });
+    document.dispatchEvent(gridChangeEvent);
+    console.log("📣 Dispatched gridConfigChanged event with", `${preset.reels}×${preset.rows}`);
+  };
+  
+  // Update reels or rows via stepper controls
+  const updateDimension = (type: 'reels' | 'rows', value: number) => {
+    console.log(`⚙️ Updating ${type} to ${value}`);
+    
+    // Enforce limits based on pay mechanism
+    const limits = {
+      'betlines': { reels: { min: 3, max: 7 }, rows: { min: 3, max: 5 } },
+      'ways': { reels: { min: 3, max: 6 }, rows: { min: 3, max: 5 } },
+      'cluster': { reels: { min: 4, max: 9 }, rows: { min: 4, max: 9 } }
+    };
+    
+    const mechanismLimits = limits[payMechanism as keyof typeof limits];
+    
+    // Apply limits
+    if (value < mechanismLimits[type].min || value > mechanismLimits[type].max) {
+      console.log(`⚠️ Value ${value} outside allowed range (${mechanismLimits[type].min}-${mechanismLimits[type].max})`);
+      return;
+    }
+    
+    // Log previous state for debugging
+    console.log(`🔍 Previous grid config:`, gridConfig);
+    
+    // Update local state immediately for UI responsiveness
+    const updatedGridConfig = {
+      ...gridConfig,
+      [type]: value
+    };
+    
+    // Step 1: Update local state
+    setGridConfig(updatedGridConfig);
+    console.log(`👉 Updated local grid config:`, updatedGridConfig);
+    
+    // Step 2: Directly update global config for persistence
+    updateConfig({
+      reels: {
+        ...config.reels,
+        layout: {
+          ...config.reels?.layout,
+          reels: type === 'reels' ? value : gridConfig.reels,
+          rows: type === 'rows' ? value : gridConfig.rows,
+          orientation: orientation
+        }
+      }
+    });
+    console.log(`💾 Updated global store with new ${type} value:`, value);
+    
+    // Step 3: Reset animation to make change visually obvious
+    setAnimateGrid(false);
+    console.log(`⏸ Animation paused for ${type} change`);
+    
+    // Step 4: Directly update the dynamic grid
+    const dynamicGrid = document.getElementById('dynamic-grid');
+    if (dynamicGrid) {
+      // Update grid template columns or rows based on which dimension changed
+      if (type === 'reels') {
+        dynamicGrid.style.gridTemplateColumns = `repeat(${value}, 1fr)`;
+      } else {
+        dynamicGrid.style.gridTemplateRows = `repeat(${value}, 1fr)`;
+      }
+      
+      // Get the new reels and rows values
+      const newReels = type === 'reels' ? value : gridConfig.reels;
+      const newRows = type === 'rows' ? value : gridConfig.rows;
+      const totalCells = newReels * newRows;
+      
+      // Clear existing cells
+      dynamicGrid.innerHTML = '';
+      
+      // Symbol types for a realistic slot machine
+      const symbolTypes = [
+        '/public/assets/mockups/ancient-egypt/symbols/wild.png',
+        '/public/assets/mockups/ancient-egypt/symbols/scatter.png',
+        '/public/assets/mockups/ancient-egypt/symbols/high_1.png',
+        '/public/assets/mockups/ancient-egypt/symbols/high_2.png',
+        '/public/assets/mockups/ancient-egypt/symbols/high_3.png',
+        '/public/assets/mockups/ancient-egypt/symbols/mid_1.png',
+        '/public/assets/mockups/ancient-egypt/symbols/mid_2.png',
+        '/public/assets/mockups/ancient-egypt/symbols/low_2.png',
+        '/public/assets/mockups/ancient-egypt/symbols/low_3.png'
+      ];
+      
+      // Create new cells
+      for (let i = 0; i < totalCells; i++) {
+        const row = Math.floor(i / newReels);
+        const col = i % newReels;
+        
+        // Create main cell container
+        const cell = document.createElement('div');
+        cell.className = 'relative grid-cell flex items-center justify-center p-1 overflow-hidden transition-all duration-200';
+        cell.dataset.row = row.toString();
+        cell.dataset.col = col.toString();
+        
+        // Add hover and shadow effects
+        cell.style.background = 'linear-gradient(to bottom, rgba(40,40,40,0.7), rgba(20,20,20,0.9))';
+        cell.style.borderRadius = '4px';
+        cell.style.boxShadow = 'inset 0 0 5px rgba(255,255,255,0.1)';
+        
+        // Add light glow effect at the top
+        const glow = document.createElement('div');
+        glow.className = 'absolute top-0 left-0 right-0 h-[15%]';
+        glow.style.background = 'linear-gradient(to bottom, rgba(255,255,255,0.15), transparent)';
+        glow.style.borderTopLeftRadius = '4px';
+        glow.style.borderTopRightRadius = '4px';
+        cell.appendChild(glow);
+        
+        // Add an image container for better control
+        const imageContainer = document.createElement('div');
+        imageContainer.className = 'relative w-[85%] h-[85%] flex items-center justify-center overflow-hidden';
+        
+        // Determine which symbol to show - semi-randomly but with patterns
+        let symbolIndex;
+        
+        // Special positions for key symbols
+        if (row === 1 && col === 2) {
+          symbolIndex = 0; // Wild
+        } else if (row === 0 && col === newReels - 1) {
+          symbolIndex = 1; // Scatter
+        } else {
+          // Distribute symbols with some logic
+          if ((row + col) % 5 === 0) {
+            symbolIndex = 2 + (col % 3); // High symbols
+          } else if ((row + col) % 3 === 0) {
+            symbolIndex = 5 + (row % 2); // Mid symbols
+          } else {
+            symbolIndex = 7 + ((row + col) % 2); // Low symbols
+          }
+        }
+        
+        // Create the image element
+        const img = document.createElement('img');
+        img.src = symbolTypes[symbolIndex];
+        img.className = 'w-full h-full object-contain';
+        img.style.filter = 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))';
+        
+        // Add a subtle animation to the image
+        img.style.transition = 'all 0.3s ease';
+        cell.addEventListener('mouseenter', () => {
+          img.style.transform = 'scale(1.1)';
+          img.style.filter = 'drop-shadow(0 4px 6px rgba(0,0,0,0.4)) brightness(1.1)';
+          cell.style.boxShadow = 'inset 0 0 10px rgba(255,215,0,0.3)';
+          cell.style.background = 'linear-gradient(to bottom, rgba(60,60,60,0.8), rgba(30,30,30,0.9))';
+        });
+        
+        cell.addEventListener('mouseleave', () => {
+          img.style.transform = 'scale(1)';
+          img.style.filter = 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))';
+          cell.style.boxShadow = 'inset 0 0 5px rgba(255,255,255,0.1)';
+          cell.style.background = 'linear-gradient(to bottom, rgba(40,40,40,0.7), rgba(20,20,20,0.9))';
+        });
+        
+        // Add subtle animation for landing effect
+        setTimeout(() => {
+          img.style.animation = `fadeInScale 0.3s ${i * 0.05}s backwards`;
+        }, 10);
+        
+        imageContainer.appendChild(img);
+        cell.appendChild(imageContainer);
+        
+        // Small position indicator in corner
+        const posLabel = document.createElement('div');
+        posLabel.className = 'absolute top-0 left-0 bg-black/40 text-white/70 text-[8px] px-1 rounded-br';
+        posLabel.textContent = `${col},${row}`;
+        posLabel.style.fontSize = '8px';
+        cell.appendChild(posLabel);
+        
+        // Add to grid
+        dynamicGrid.appendChild(cell);
+      }
+      
+      // Update header text
+      const headerText = document.querySelector('.grid-preview-container p.text-sm.text-gray-400');
+      if (headerText) {
+        headerText.textContent = `${newReels}×${newRows} grid - ${orientation} mode`;
+      }
+      
+      console.log(`✅ Updated dynamic grid with ${totalCells} cells (${newReels}×${newRows})`);
+    }
+    
+    // Step 5: After a brief delay, restore animation
+    setTimeout(() => {
+      setAnimateGrid(true);
+      console.log(`▶️ Animation resumed after ${type} change to ${value}`);
+    }, 100);
+    
+    // Step 6: Dispatch an event for any listening components
+    document.dispatchEvent(new CustomEvent('gridDimensionChanged', {
+      detail: { 
+        dimension: type, 
+        value, 
+        gridConfig: updatedGridConfig,
+        orientation
+      }
+    }));
+    console.log(`📣 Dispatched gridDimensionChanged event for ${type}=${value}`);
+  };
+  
+  // Find the relevant presets for current pay mechanism
+  const relevantPresets = GRID_PRESETS[payMechanism as keyof typeof GRID_PRESETS] || GRID_PRESETS.betlines;
+  
+  // Calculate the ways/payouts based on grid dimensions
+  const getMechanismStats = () => {
+    const { reels, rows } = gridConfig;
+    
+    switch(payMechanism) {
+      case 'ways':
+        return {
+          label: 'Ways to Win',
+          value: calculateWaysToWin(reels, rows)
+        };
+      case 'cluster':
+        return {
+          label: 'Cluster Size',
+          value: `${Math.min(reels, rows)}+ symbols`
+        };
+      case 'betlines':
+      default:
+        const maxPaylines = Math.min(40, Math.pow(rows, reels));
+        return {
+          label: 'Max Paylines',
+          value: `${maxPaylines} lines`
+        };
+    }
+  };
+  
+  // Calculate ideal RTP and volatility based on grid dimensions
+  const getGridMathStats = () => {
+    const { reels, rows } = gridConfig;
+    const gridSize = reels * rows;
+    
+    // Base volatility calculation - larger grids tend to have higher volatility
+    let baseVolatility = 4 + (gridSize - 15) / 10; 
+    
+    // Adjust for mechanism specific factors
+    if (payMechanism === 'ways') {
+      baseVolatility += 1; // Ways games tend to be higher volatility
+    } else if (payMechanism === 'cluster') {
+      baseVolatility += 2; // Cluster pays tend to be highest volatility
+    }
+    
+    // Clamp to valid range
+    const volatility = Math.max(1, Math.min(10, baseVolatility));
+    
+    // Calculate hit frequency - inverse relationship with volatility
+    const hitFrequency = Math.max(10, 35 - (volatility * 2));
+    
+    // Textual representation
+    let volatilityText = 'Medium';
+    if (volatility <= 3) volatilityText = 'Low';
+    else if (volatility >= 7) volatilityText = 'High';
+    
+    return {
+      volatility,
+      volatilityText,
+      hitFrequency
+    };
+  };
+  
+  // Calculate best suggestions based on pay mechanism
+  const getAISuggestion = () => {
+    return AI_RECOMMENDATIONS[payMechanism as keyof typeof AI_RECOMMENDATIONS] || 
+           AI_RECOMMENDATIONS.betlines;
+  };
+  
+  // No longer need the renderGridCells method - this is now handled by UnifiedGridPreview
+  
+  const mechanismStats = getMechanismStats();
+  const gridMathStats = getGridMathStats();
+  
+  // This component renders a split view:
+  // Left panel: Grid configuration settings
+  // Right panel: Interactive grid preview
+  console.log("🔥 RENDERING STEP 3 GRID CONFIGURATION 🔥");
+  
+  // Create a ref for checking if game canvas exists after the component is mounted
+  const gameCanvasCheckRef = useRef<HTMLElement | null>(null);
+  const gridPreviewRef = useRef<HTMLDivElement>(null);
+  
+  
+  // Log a message confirming we're using the direct React rendering approach
+  useEffect(() => {
+    console.log("🔄 Step3 is using direct rendering through React component tree");
+    console.log("🎨 Grid is rendered directly inside Step3_ReelConfiguration component");
+    console.log("🧩 PremiumLayout provides the container via grid-layout-container");
+    
+    // Log the current configuration for debugging
+    console.log("📊 Current grid configuration:", {
+      reels: gridConfig.reels,
+      rows: gridConfig.rows,
+      orientation,
+      payMechanism
+    });
+  }, []);
+  
+  // Create useEffect to track component mounting
+  useEffect(() => {
+    console.log("⚡ Step3_ReelConfiguration component mounted");
+    
+    // Add debug logging for the grid preview container
+    console.log("🔍 Current orientation:", orientation);
+    console.log("🔍 Current grid dimensions:", gridConfig);
+    
+    // When component unmounts
+    return () => {
+      console.log("⚡ Step3_ReelConfiguration component unmounting");
+    };
+  }, []);
+  
+  // Add event listeners for orientation toggle and animation reset
+  const handleOrientationChange = (event: CustomEvent) => {
+    // Extract the orientation from the event detail if available
+    const newOrientation = event.detail as 'landscape' | 'portrait';
+    
+    // Always use landscape in this version - orientation switching disabled
+    setOrientationTo('landscape');
+  };
+
+  const handleResetAnimation = () => {
+    setAnimateGrid(false);
+    setTimeout(() => setAnimateGrid(true), 50);
+  };
+  
+  // Add an additional layout effect to ensure the preview panel is correctly styled
+  useEffect(() => {
+    // Function to clean up the preview area for a professional look
+    const cleanPreviewPanel = () => {
+      const previewPanel = document.querySelector('[data-testid="preview-panel"]');
+      if (previewPanel instanceof HTMLElement) {
+        // Make sure the preview panel has the correct styles
+        previewPanel.style.width = '50%';
+        previewPanel.style.height = '100%';
+        previewPanel.style.padding = '0';
+        previewPanel.style.backgroundColor = '#0f172a';
+        previewPanel.style.overflow = 'hidden';
+        
+        // Force landscape mode on any grid within
+        const gridElements = previewPanel.querySelectorAll('[data-testid="grid-preview"]');
+        gridElements.forEach(grid => {
+          if (grid instanceof HTMLElement) {
+            grid.setAttribute('data-orientation', 'landscape');
+          }
+        });
+        
+        // Hide any orientation toggles
+        const orientationToggles = document.querySelectorAll('[data-testid="landscape-button"], [data-testid="portrait-button"]');
+        orientationToggles.forEach(button => {
+          if (button instanceof HTMLElement) {
+            button.style.display = 'none';
+          }
+        });
+      }
+    };
+    
+    // Run the cleanup function after a short delay to ensure components are mounted
+    const timeoutId = setTimeout(cleanPreviewPanel, 100);
+    
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, []);
+  
+  // Debug check
+  console.log("UnifiedGridPreview loaded: ", !!UnifiedGridPreview);
+
+  useEffect(() => {
+    document.addEventListener('changeGridOrientation', handleOrientationChange as EventListener);
+    document.addEventListener('resetGridAnimation', handleResetAnimation);
+    
+    // Initialize buttons styling
+    setTimeout(() => {
+      const landscapeButton = document.getElementById('landscape-button');
+      const portraitButton = document.getElementById('portrait-button');
+      
+      if (landscapeButton && portraitButton) {
+        if (orientation === 'landscape') {
+          landscapeButton.className = 'px-3 py-1 bg-blue-600 text-white text-sm rounded';
+          portraitButton.className = 'px-3 py-1 bg-gray-500 text-white text-sm rounded';
+        } else {
+          landscapeButton.className = 'px-3 py-1 bg-gray-500 text-white text-sm rounded';
+          portraitButton.className = 'px-3 py-1 bg-blue-600 text-white text-sm rounded';
+        }
+      }
+      
+      // Also update the header text
+      const headerText = document.querySelector('.grid-preview-container p.text-sm.text-gray-400');
+      if (headerText) {
+        headerText.textContent = `${gridConfig.reels}×${gridConfig.rows} grid - ${orientation} mode`;
+      }
+    }, 100);
+    
+    return () => {
+      document.removeEventListener('changeGridOrientation', handleOrientationChange as EventListener);
+      document.removeEventListener('resetGridAnimation', handleResetAnimation);
+    };
+  }, []);
+
+  // Add a useEffect to enforce UnifiedGridPreview is in landscape mode
+  useEffect(() => {
+    console.log("🎰 Ensuring grid preview is in landscape mode");
+    
+    // Wait a short moment to ensure our layout fix has been applied
+    const initializationTimeout = setTimeout(() => {
+      // Get the preview panel first
+      const previewPanel = document.querySelector('[data-testid="preview-panel"]');
+      if (!previewPanel) {
+        console.warn("⚠️ Cannot find preview panel for grid initialization");
+        return;
+      }
+      
+      // Check if we have the UnifiedGridPreview
+      const existingGridPreview = previewPanel.querySelector('[data-preview-type="grid"]');
+      if (existingGridPreview) {
+        console.log("✅ UnifiedGridPreview found, applying landscape mode");
+        if (existingGridPreview instanceof HTMLElement) {
+          existingGridPreview.setAttribute('data-orientation', 'landscape');
+        }
+      }
+    }, 300);
+    
+    return () => {
+      clearTimeout(initializationTimeout);
+    };
+  }, [gridConfig.reels, gridConfig.rows]);
+
+  // Comprehensive layout-fixing effect that ensures proper 50/50 split and handles all UI modifications
+  useEffect(() => {
+    console.log("🔧 Applying comprehensive Step3 layout fix");
+    
+    // Store a reference to content container for cleanup
+    let sidebarContentContainerRef: HTMLElement | null = null;
+    
+    // Function to fix the entire layout hierarchy and ensure proper 50/50 split
+    const fixLayout = () => {
+      console.log("🔄 Running comprehensive layout fix");
+      
+      // 1. First fix the application-level containers to ensure full width is available
+      // Get the root app container
+      const appRoot = document.getElementById('root');
+      if (appRoot) {
+        appRoot.style.width = '100%';
+        appRoot.style.height = '100vh';
+        appRoot.style.overflow = 'hidden';
+      }
+      
+      // 2. Fix the main content area (parent of our component)
+      // Find the sidebar+content container 
+      const mainLayoutContainer = document.querySelector('.flex.h-screen.overflow-hidden');
+      if (mainLayoutContainer instanceof HTMLElement) {
+        mainLayoutContainer.style.width = '100%';
+        mainLayoutContainer.style.height = '100vh';
+        mainLayoutContainer.style.overflow = 'hidden';
+        console.log("✅ Fixed main layout container");
+      }
+      
+      // 3. Find the content area next to the sidebar
+      const contentContainer = document.querySelector('[data-testid="sidebar-content-container"]');
+      if (contentContainer instanceof HTMLElement) {
+        // Store reference for cleanup
+        sidebarContentContainerRef = contentContainer;
+        
+        // Override any constraints on the content container
+        contentContainer.style.flex = '1 1 auto !important';
+        contentContainer.style.width = 'calc(100% - var(--sidebar-width, 250px)) !important';
+        contentContainer.style.height = '100% !important';
+        contentContainer.style.overflow = 'hidden !important';
+        console.log("✅ Fixed sidebar content container");
+        
+        // 4. Fix the workspace container which is the direct parent of our component
+        const workspaceContainer = contentContainer.querySelector('.flex-1.flex.overflow-hidden');
+        if (workspaceContainer instanceof HTMLElement) {
+          workspaceContainer.style.flex = '1 1 auto !important';
+          workspaceContainer.style.width = '100% !important';
+          workspaceContainer.style.height = '100% !important';
+          workspaceContainer.style.overflow = 'hidden !important';
+          console.log("✅ Fixed workspace container");
+        }
+      }
+
+      // 5. Now find our Step3 component container
+      const step3Marker = document.querySelector('[data-testid="step3-marker"]');
+      if (step3Marker instanceof HTMLElement) {
+        // Force full width and height, with flex row layout
+        step3Marker.style.display = 'flex !important';
+        step3Marker.style.flexDirection = 'row !important';
+        step3Marker.style.width = '100% !important';
+        step3Marker.style.height = '100% !important';
+        step3Marker.style.overflow = 'hidden !important';
+        
+        // Add a data attribute to help with debugging
+        step3Marker.setAttribute('data-layout-fixed', 'true');
+        console.log("✅ Fixed Step3 main container");
+        
+        // 6. Find or create the config and preview panels
+        // First try to find existing panels by their data-testid
+        let configPanel = step3Marker.querySelector('[data-testid="config-panel"]');
+        let previewPanel = step3Marker.querySelector('[data-testid="preview-panel"]');
+        
+        // If the panels don't exist with data-testid, try to identify them by position/order
+        if (!configPanel && step3Marker.children.length >= 2) {
+          const firstChild = step3Marker.children[0];
+          const secondChild = step3Marker.children[1];
+          
+          // Add testids to help with future selections
+          if (firstChild instanceof HTMLElement) {
+            firstChild.setAttribute('data-testid', 'config-panel');
+            configPanel = firstChild;
+          }
+          
+          if (secondChild instanceof HTMLElement) {
+            secondChild.setAttribute('data-testid', 'preview-panel');
+            previewPanel = secondChild;
+          }
+        }
+        
+        // Now style the panels for 50/50 split
+        if (configPanel instanceof HTMLElement) {
+          configPanel.style.cssText = `
+            width: 50% !important;
+            min-width: 50% !important;
+            max-width: 50% !important;
+            flex: 0 0 50% !important;
+            height: 100% !important;
+            overflow-y: auto !important;
+            padding: 1.5rem !important;
+            border-right: 1px solid #e5e7eb !important;
+            box-sizing: border-box !important;
+          `;
+          console.log("✅ Fixed config panel - 50% width");
+        }
+        
+        if (previewPanel instanceof HTMLElement) {
+          previewPanel.style.cssText = `
+            width: 50% !important;
+            min-width: 50% !important;
+            max-width: 50% !important;
+            flex: 0 0 50% !important;
+            height: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 0 !important;
+            background-color: #0f172a !important;
+            box-sizing: border-box !important;
+          `;
+          console.log("✅ Fixed preview panel - 50% width");
+        }
+      } else {
+        console.warn("⚠️ Could not find Step3 marker container");
+      }
+      
+      // 7. Fix any grid layout container that might be within the preview panel
+      const gridLayoutContainer = document.getElementById('grid-layout-container');
+      if (gridLayoutContainer) {
+        gridLayoutContainer.style.width = '100%';
+        gridLayoutContainer.style.height = '100%';
+        gridLayoutContainer.style.display = 'flex';
+        gridLayoutContainer.style.flexDirection = 'column';
+        gridLayoutContainer.style.alignItems = 'center';
+        gridLayoutContainer.style.justifyContent = 'center';
+        console.log("✅ Fixed grid layout container");
+      }
+      
+      // 8. Make sure the grid preview takes appropriate space
+      const gridPreview = document.querySelector('[data-testid="grid-preview"]');
+      if (gridPreview instanceof HTMLElement) {
+        gridPreview.style.width = '100%';
+        gridPreview.style.maxHeight = 'calc(100% - 2rem)';
+        console.log("✅ Fixed grid preview size");
+      }
+      
+      // 9. Fix the spin button to be circular
+      const spinButtonSelectors = [
+        '[data-testid="spin-button"]',
+        '.absolute.bottom-0 button',
+        'button.bg-white.text-black',
+        'button.rounded-full',
+        '.grid-preview-container button:not([id="landscape-button"]):not([id="portrait-button"])'
+      ];
+      
+      // Try each selector until we find a match
+      for (const selector of spinButtonSelectors) {
+        const spinButtons = document.querySelectorAll(selector);
+        if (spinButtons.length > 0) {
+          spinButtons.forEach(button => {
+            if (button instanceof HTMLElement) {
+              // Apply circular styling
+              button.style.cssText = `
+                width: 60px !important;
+                height: 60px !important;
+                border-radius: 50% !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                font-size: 24px !important;
+                box-shadow: 0 4px 10px rgba(0,0,0,0.3) !important;
+                background-color: #4f46e5 !important;
+                color: white !important;
+                position: relative !important;
+                z-index: 50 !important;
+              `;
+              
+              // Tag it for easier selection later
+              button.setAttribute('data-fixed-spin-button', 'true');
+            }
+          });
+          console.log("✅ Fixed spin button to be circular");
+          break; // Stop after fixing the first matched buttons
+        }
+      }
+      
+      // 10. Hide orientation toggle buttons (portrait/landscape)
+      const orientationButtonSelectors = [
+        '[data-testid="landscape-button"]',
+        '[data-testid="portrait-button"]',
+        '#landscape-button',
+        '#portrait-button',
+        'button[aria-label*="landscape"]',
+        'button[aria-label*="portrait"]',
+        'button:contains("Landscape")',
+        'button:contains("Portrait")'
+      ];
+      
+      orientationButtonSelectors.forEach(selector => {
+        try {
+          const buttons = document.querySelectorAll(selector);
+          buttons.forEach(button => {
+            if (button instanceof HTMLElement) {
+              button.style.display = 'none';
+              button.setAttribute('data-hidden-orientation-toggle', 'true');
+            }
+          });
+        } catch (e) {
+          // Ignore errors from invalid selectors (like :contains)
+        }
+      });
+      
+      // Special case for orientation controls container
+      const orientationContainer = document.querySelector('.flex.items-center.justify-between.gap-3');
+      if (orientationContainer instanceof HTMLElement) {
+        orientationContainer.style.display = 'none';
+        console.log("✅ Hidden orientation toggle buttons");
+      }
+      
+      // 11. Force landscape aspect ratio for the grid
+      const dynamicGrid = document.getElementById('dynamic-grid');
+      if (dynamicGrid) {
+        dynamicGrid.style.gridTemplateColumns = `repeat(${gridConfig.reels}, 1fr)`;
+        dynamicGrid.style.gridTemplateRows = `repeat(${gridConfig.rows}, 1fr)`;
+        dynamicGrid.style.aspectRatio = '16/9'; // Force landscape aspect ratio
+        console.log(`✅ Updated grid dimensions to ${gridConfig.reels}×${gridConfig.rows} with 16:9 aspect ratio`);
+      }
+      
+      // 12. Fix any UnifiedGridPreview component if present
+      const unifiedGridPreview = document.querySelector('[data-preview-type="grid"]');
+      if (unifiedGridPreview instanceof HTMLElement) {
+        // Force landscape mode
+        unifiedGridPreview.setAttribute('data-orientation', 'landscape');
+        console.log("✅ Fixed UnifiedGridPreview to landscape mode");
+      }
+    };
+    
+    // Run the layout fix immediately and after a delay to ensure all elements are rendered
+    fixLayout();
+    const initialFixTimeout = setTimeout(fixLayout, 300);
+    
+    // Add event listeners for window events that might affect layout
+    window.addEventListener('resize', fixLayout);
+    window.addEventListener('load', fixLayout);
+    
+    // Add event listeners for grid configuration changes
+    const handleGridChange = () => fixLayout();
+    document.addEventListener('gridConfigChanged', handleGridChange);
+    document.addEventListener('gridDimensionChanged', handleGridChange);
+    
+    // Clean up function
+    return () => {
+      clearTimeout(initialFixTimeout);
+      window.removeEventListener('resize', fixLayout);
+      window.removeEventListener('load', fixLayout);
+      document.removeEventListener('gridConfigChanged', handleGridChange);
+      document.removeEventListener('gridDimensionChanged', handleGridChange);
+      
+      // Clean up any element styles we might have set, using our stored reference
+      if (sidebarContentContainerRef) {
+        const workspace = sidebarContentContainerRef.querySelector('.flex-1.flex.overflow-hidden');
+        if (workspace instanceof HTMLElement) {
+          workspace.style.flex = '';
+          workspace.style.width = '';
+          workspace.style.height = '';
+          workspace.style.overflow = '';
+        }
+      }
+      
+      // Clean up grid-related elements
+      const gridLayoutContainer = document.getElementById('grid-layout-container');
+      if (gridLayoutContainer) {
+        gridLayoutContainer.style.width = '';
+        gridLayoutContainer.style.height = '';
+        gridLayoutContainer.style.display = '';
+        gridLayoutContainer.style.flexDirection = '';
+      }
+      
+      // Remove any style elements we created
+      const styleEl = document.getElementById('grid-animations-style');
+      if (styleEl) {
+        styleEl.remove();
+      }
+    };
+  }, [gridConfig]);
+
+    return (
+    <div 
+      data-testid="step3-marker" 
+      className="h-full w-full flex flex-row overflow-hidden" 
+    >
+      {/* Configuration Panel - LEFT SIDE (50%) */}
+      <div data-testid="config-panel" className="w-1/2 h-full p-6 overflow-y-auto border-r border-gray-200">
+        <div className="mb-4">
+          <h2 className="text-2xl font-bold text-gray-800">Grid Layout Configuration</h2>
+        </div>
+      
+      {/* Pay Mechanism Badge */}
+      <div className="mb-4">
+        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+          <Tag className="w-4 h-4 mr-1" />
+          {payMechanism === 'betlines' ? 'Classic Reels' : 
+           payMechanism === 'ways' ? 'Ways to Win' : 
+           'Cluster Pays'}
+        </span>
+      </div>
+      
+      {/* Grid Presets */}
+      <div className="bg-white rounded-lg shadow border border-gray-200 mb-4">
+        <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+          <h3 className="font-semibold text-gray-800">Grid Presets</h3>
+        </div>
+        <div className="p-4">
+          <div className="grid grid-cols-2 gap-3">
+            {relevantPresets.map((preset, index) => (
+              <button
+                key={`preset-${index}`}
+                onClick={() => selectPreset(preset)}
+                className={`p-3 flex justify-center items-center rounded border-2 ${
+                  gridConfig.reels === preset.reels && gridConfig.rows === preset.rows
+                    ? 'border-blue-500 bg-blue-50 font-medium' 
+                    : 'border-gray-200 hover:border-blue-300'
+                }`}
+              >
+                {preset.name}
+              </button>
+            ))}
+          </div>
+          
+          <div className="mt-4 pt-3 border-t border-gray-200">
+            <h4 className="font-medium mb-3">Custom Grid Size</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm text-gray-700 block mb-1">Reels (Width)</label>
+                <div className="flex items-center">
+                  <button 
+                    onClick={() => updateDimension('reels', gridConfig.reels - 1)}
+                    className="p-1 rounded bg-gray-200"
+                  >
+                    <MinusSquare className="w-5 h-5" />
+                  </button>
+                  <div className="mx-2 w-10 text-center font-bold">{gridConfig.reels}</div>
+                  <button 
+                    onClick={() => updateDimension('reels', gridConfig.reels + 1)}
+                    className="p-1 rounded bg-gray-200"
+                  >
+                    <PlusSquare className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              
+              <div>
+                <label className="text-sm text-gray-700 block mb-1">Rows (Height)</label>
+                <div className="flex items-center">
+                  <button 
+                    onClick={() => updateDimension('rows', gridConfig.rows - 1)}
+                    className="p-1 rounded bg-gray-200"
+                  >
+                    <MinusSquare className="w-5 h-5" />
+                  </button>
+                  <div className="mx-2 w-10 text-center font-bold">{gridConfig.rows}</div>
+                  <button 
+                    onClick={() => updateDimension('rows', gridConfig.rows + 1)}
+                    className="p-1 rounded bg-gray-200"
+                  >
+                    <PlusSquare className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Grid Statistics */}
+      <div className="bg-white rounded-lg shadow border border-gray-200 mb-4">
+        <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-purple-50">
+          <h3 className="font-semibold text-gray-800">Grid Statistics</h3>
+        </div>
+        <div className="p-4">
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="bg-blue-50 p-3 rounded text-center">
+              <div className="text-sm text-blue-700 mb-1">{mechanismStats.label}</div>
+              <div className="text-lg font-bold text-blue-900">{mechanismStats.value}</div>
+            </div>
+            
+            <div className={`p-3 rounded text-center ${
+              gridMathStats.volatility <= 3 ? 'bg-green-50' : 
+              gridMathStats.volatility <= 7 ? 'bg-yellow-50' : 
+              'bg-red-50'
+            }`}>
+              <div className={`text-sm mb-1 ${
+                gridMathStats.volatility <= 3 ? 'text-green-700' : 
+                gridMathStats.volatility <= 7 ? 'text-yellow-700' : 
+                'text-red-700'
+              }`}>Volatility</div>
+              <div className={`text-lg font-bold ${
+                gridMathStats.volatility <= 3 ? 'text-green-900' : 
+                gridMathStats.volatility <= 7 ? 'text-yellow-900' : 
+                'text-red-900'
+              }`}>{gridMathStats.volatilityText}</div>
+            </div>
+          </div>
+          
+          <div className="p-3 bg-gray-50 rounded text-sm">
+            <div>A {gridConfig.reels}×{gridConfig.rows} grid with <strong>{payMechanism}</strong> creates a 
+            <strong className={
+              gridMathStats.volatility <= 3 ? ' text-green-700' : 
+              gridMathStats.volatility <= 7 ? ' text-yellow-700' : 
+              ' text-red-700'
+            }> {gridMathStats.volatilityText.toLowerCase()}-volatility</strong> game with approximately
+            <strong className=" text-blue-700"> {gridMathStats.hitFrequency.toFixed(1)}%</strong> hit frequency.</div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Note */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm mb-4">
+        <h4 className="font-medium text-yellow-800">Note About Custom Grid Sizes</h4>
+        <p className="text-yellow-700 text-sm mt-1">
+          Custom grid sizes may require adjustments to the game frame in later steps. Non-standard dimensions can affect symbols and animations but also give your game a unique look.
+        </p>
+      </div>
+      </div>
+      
+      {/* Preview Panel - RIGHT SIDE (50%) */}
+      <div data-testid="preview-panel" className="w-1/2 h-full flex flex-col items-center justify-center bg-gray-900">
+        {/* Clean professional grid preview with no unnecessary elements */}
+        <UnifiedGridPreview 
+          reels={gridConfig.reels} 
+          rows={gridConfig.rows} 
+          animate={animateGrid}
+          payMechanism={payMechanism} 
+          orientation="landscape" 
+          className="w-full h-full"
+          // Theme is already accessed in UnifiedGridPreview via useGameStore
+        />
+      </div>
+    </div>
+  );
+};
+
+export default Step3_ReelConfiguration;

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Direct Image Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    h1 {
+      color: #333;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 10px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background-color: white;
+      padding: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      border-radius: 8px;
+    }
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+    .image-box {
+      border: 1px solid #eee;
+      padding: 15px;
+      border-radius: 8px;
+    }
+    .image-container {
+      width: 200px;
+      height: 200px;
+      border: 1px solid #ddd;
+      background-color: #f9f9f9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+    .image-container img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+    .image-container.bg-image {
+      background-position: center;
+      background-size: contain;
+      background-repeat: no-repeat;
+    }
+    .path {
+      font-size: 12px;
+      color: #666;
+      word-break: break-all;
+    }
+    .buttons {
+      margin: 20px 0;
+    }
+    button {
+      background-color: #4f46e5;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    .timestamp {
+      font-size: 12px;
+      color: #999;
+      margin-top: 30px;
+    }
+    .results {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      margin-top: 20px;
+      font-family: monospace;
+      height: 200px;
+      overflow: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Direct Image Test</h1>
+    <p>This page tests loading images with different approaches.</p>
+    
+    <div class="buttons">
+      <button id="refreshButton">Refresh Test</button>
+      <button id="clearCacheButton">Clear Cache &amp; Refresh</button>
+    </div>
+    
+    <div class="image-grid">
+      <!-- Standard Images -->
+      <div class="image-box">
+        <h3>Minimal Decoration (Standard)</h3>
+        <div class="image-container">
+          <img src="/assets/frames/decorations/minimal.png" alt="Minimal Decoration" id="minimal-img">
+        </div>
+        <div class="path">Path: /assets/frames/decorations/minimal.png</div>
+      </div>
+      
+      <div class="image-box">
+        <h3>Decorated Frame (Standard)</h3>
+        <div class="image-container">
+          <img src="/assets/frames/decorations/decorated.png" alt="Decorated Frame" id="decorated-img">
+        </div>
+        <div class="path">Path: /assets/frames/decorations/decorated.png</div>
+      </div>
+      
+      <div class="image-box">
+        <h3>Cartoon Style (Standard)</h3>
+        <div class="image-container">
+          <img src="/assets/frames/styles/cartoon.png" alt="Cartoon Style" id="cartoon-img">
+        </div>
+        <div class="path">Path: /assets/frames/styles/cartoon.png</div>
+      </div>
+      
+      <div class="image-box">
+        <h3>Dark Style (Standard)</h3>
+        <div class="image-container">
+          <img src="/assets/frames/styles/dark.png" alt="Dark Style" id="dark-img">
+        </div>
+        <div class="path">Path: /assets/frames/styles/dark.png</div>
+      </div>
+      
+      <!-- Background Images -->
+      <div class="image-box">
+        <h3>Minimal Decoration (Background)</h3>
+        <div class="image-container bg-image" id="minimal-bg"></div>
+        <div class="path">Background Image: /assets/frames/decorations/minimal.png</div>
+      </div>
+      
+      <div class="image-box">
+        <h3>Cartoon Style (Background)</h3>
+        <div class="image-container bg-image" id="cartoon-bg"></div>
+        <div class="path">Background Image: /assets/frames/styles/cartoon.png</div>
+      </div>
+      
+      <!-- Control Images -->
+      <div class="image-box">
+        <h3>Symbol Image (Control)</h3>
+        <div class="image-container">
+          <img src="/assets/symbols/high_1.png" alt="Symbol" id="symbol-img">
+        </div>
+        <div class="path">Path: /assets/symbols/high_1.png</div>
+      </div>
+      
+      <div class="image-box">
+        <h3>External Image (Control)</h3>
+        <div class="image-container">
+          <img src="https://via.placeholder.com/200" alt="Placeholder" id="placeholder-img">
+        </div>
+        <div class="path">Path: https://via.placeholder.com/200</div>
+      </div>
+    </div>
+    
+    <div class="results" id="results">
+      Running tests...
+    </div>
+    
+    <div class="timestamp" id="timestamp">
+      Test run at: <span id="time"></span>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const resultsEl = document.getElementById('results');
+      const timeEl = document.getElementById('time');
+      const refreshButton = document.getElementById('refreshButton');
+      const clearCacheButton = document.getElementById('clearCacheButton');
+      
+      // Set background images with timestamp
+      function setBackgroundImages(timestamp) {
+        document.getElementById('minimal-bg').style.backgroundImage = 
+          `url('/assets/frames/decorations/minimal.png?t=${timestamp}')`;
+        document.getElementById('cartoon-bg').style.backgroundImage = 
+          `url('/assets/frames/styles/cartoon.png?t=${timestamp}')`;
+      }
+      
+      // Add timestamp to images
+      function refreshImageSources(timestamp, clearCache = false) {
+        // Add timestamp to standard image sources
+        document.getElementById('minimal-img').src = 
+          `/assets/frames/decorations/minimal.png?t=${timestamp}`;
+        document.getElementById('decorated-img').src = 
+          `/assets/frames/decorations/decorated.png?t=${timestamp}`;
+        document.getElementById('cartoon-img').src = 
+          `/assets/frames/styles/cartoon.png?t=${timestamp}`;
+        document.getElementById('dark-img').src = 
+          `/assets/frames/styles/dark.png?t=${timestamp}`;
+        document.getElementById('symbol-img').src = 
+          `/assets/symbols/high_1.png?t=${timestamp}`;
+        document.getElementById('placeholder-img').src = 
+          `https://via.placeholder.com/200?t=${timestamp}`;
+          
+        // Set background images
+        setBackgroundImages(timestamp);
+        
+        if (clearCache) {
+          // Force browser to reload images without cache
+          const imageElements = document.querySelectorAll('img');
+          imageElements.forEach(img => {
+            img.setAttribute('src', img.getAttribute('src'));
+          });
+        }
+      }
+      
+      // Test image loading
+      function runTests() {
+        const timestamp = new Date().getTime();
+        timeEl.textContent = new Date().toLocaleString();
+        
+        // Clear previous results
+        resultsEl.innerHTML = 'Running tests...<br>';
+        
+        // Refresh image sources with timestamp
+        refreshImageSources(timestamp);
+        
+        // Test each image
+        const imagesToTest = [
+          { id: 'minimal-img', path: '/assets/frames/decorations/minimal.png' },
+          { id: 'decorated-img', path: '/assets/frames/decorations/decorated.png' },
+          { id: 'cartoon-img', path: '/assets/frames/styles/cartoon.png' },
+          { id: 'dark-img', path: '/assets/frames/styles/dark.png' },
+          { id: 'symbol-img', path: '/assets/symbols/high_1.png' },
+          { id: 'placeholder-img', path: 'https://via.placeholder.com/200' }
+        ];
+        
+        // Test each image with Image objects
+        imagesToTest.forEach(img => {
+          const imageObj = new Image();
+          
+          imageObj.onload = function() {
+            resultsEl.innerHTML += 
+              `✅ SUCCESS: ${img.path} loaded (${this.naturalWidth}x${this.naturalHeight})<br>`;
+          };
+          
+          imageObj.onerror = function() {
+            resultsEl.innerHTML += `❌ ERROR: ${img.path} failed to load<br>`;
+            
+            // Try fetch as backup
+            fetch(`${img.path}?t=${timestamp}`, { method: 'HEAD' })
+              .then(response => {
+                if (response.ok) {
+                  resultsEl.innerHTML += 
+                    `  > Fetch successful (${response.status}), but image can't render<br>`;
+                } else {
+                  resultsEl.innerHTML += 
+                    `  > Fetch confirms file doesn't exist (${response.status})<br>`;
+                }
+              })
+              .catch(error => {
+                resultsEl.innerHTML += `  > Fetch error: ${error.message}<br>`;
+              });
+          };
+          
+          // Add timestamp to bypass cache
+          imageObj.src = `${img.path}?t=${timestamp}`;
+        });
+        
+        // Also check DOM images
+        setTimeout(function() {
+          imagesToTest.forEach(img => {
+            const domImg = document.getElementById(img.id);
+            if (domImg.complete) {
+              if (domImg.naturalWidth === 0) {
+                resultsEl.innerHTML += 
+                  `❌ DOM element ${img.id} failed to load<br>`;
+              } else {
+                resultsEl.innerHTML += 
+                  `✅ DOM element ${img.id} loaded (${domImg.naturalWidth}x${domImg.naturalHeight})<br>`;
+              }
+            } else {
+              resultsEl.innerHTML += 
+                `⏳ DOM element ${img.id} still loading...<br>`;
+            }
+          });
+        }, 1000);
+      }
+      
+      // Run tests on page load
+      runTests();
+      
+      // Set up refresh button
+      refreshButton.addEventListener('click', runTests);
+      
+      // Set up clear cache button
+      clearCacheButton.addEventListener('click', function() {
+        const timestamp = new Date().getTime();
+        refreshImageSources(timestamp, true);
+        resultsEl.innerHTML = 'Clearing cache and refreshing images...<br>';
+        setTimeout(runTests, 500);
+      });
+    });
+  </script>
+</body>
+</html>

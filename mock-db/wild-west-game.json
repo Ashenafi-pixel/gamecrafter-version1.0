@@ -1,0 +1,31 @@
+{
+  "gameId": "wild-west-game",
+  "theme": {
+    "mainTheme": "Wild West",
+    "artStyle": "realistic",
+    "colorScheme": "desert-sunset",
+    "mood": "adventurous",
+    "description": "A thrilling slot game set in the American Old West with cowboys, outlaws, and gold rush elements"
+  },
+  "bet": {
+    "min": 0.25,
+    "max": 100,
+    "increment": 0.25
+  },
+  "rtp": {
+    "baseRTP": 90,
+    "bonusRTP": 3,
+    "featureRTP": 3,
+    "targetRTP": 96,
+    "volatilityScale": 7
+  },
+  "reels": {
+    "payMechanism": "betlines",
+    "layout": {
+      "shape": "rectangle",
+      "reels": 5,
+      "rows": 3
+    },
+    "betlines": 20
+  }
+}

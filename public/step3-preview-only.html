@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/assets/brand/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Step 3 Preview Only</title>
+  <link rel="stylesheet" href="/src/index.css">
+  <style>
+    html, body, #root {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    // Handle incoming messages from parent frame
+    window.addEventListener('message', function(event) {
+      if (event.data && event.data.type === 'DISPATCH_SYMBOLS') {
+        // Dispatch symbol changed event
+        window.dispatchEvent(new CustomEvent('symbolsChanged', {
+          detail: { symbols: event.data.symbols }
+        }));
+        console.log('Received and dispatched symbols from parent frame');
+      }
+    });
+  </script>
+  <script type="module">
+    // This creates a minimal version with just the preview
+    import React from 'react';
+    import ReactDOM from 'react-dom/client';
+    
+    // Import direct reference to GridPreviewWrapper to avoid store dependencies
+    // This ensures we're showing the exact component used in Step 3
+    const App = React.lazy(() => import('/src/components/visual-journey/grid-preview/GridPreviewWrapper'));
+    
+    // Create the app
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(
+      <React.StrictMode>
+        <React.Suspense fallback={<div>Loading preview...</div>}>
+          <App />
+        </React.Suspense>
+      </React.StrictMode>
+    );
+  </script>
+</body>
+</html>

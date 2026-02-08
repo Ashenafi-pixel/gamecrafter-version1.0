@@ -1,0 +1,14 @@
+services:
+  # Node.js web service for SlotAI
+  - type: web
+    name: slotai
+    env: node
+    buildCommand: npm ci && npm run build
+    startCommand: node static-server.cjs
+    envVars:
+      - key: NODE_VERSION
+        value: 18
+      - key: PORT
+        value: 10000
+    autoDeploy: true
+    healthCheckPath: /

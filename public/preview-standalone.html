@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/assets/brand/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Symbol Preview - Standalone</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    .embedded-preview-container {
+      height: 100vh;
+      width: 100%;
+      background-color: #f3f4f6;
+      padding: 1rem;
+    }
+    .preview-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      background-color: white;
+      border-radius: 0.5rem;
+      box-shadow: 0 1px 3px rgba(0,, 0, 0.1);
+      height: calc(100vh - 2rem);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .header {
+      background-color: #1f2937;
+      color: white;
+      padding: 1rem;
+    }
+    .preview-frame {
+      flex: 1;
+      border: none;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div class="embedded-preview-container">
+    <div class="preview-content">
+      <div class="header">
+        <h1 class="text-xl font-bold">Premium Slot Preview - Standalone</h1>
+        <p class="text-sm opacity-80">View the SymbolPreviewWrapper component in isolation</p>
+        <div class="flex gap-2 mt-2">
+          <button 
+            id="dispatchButton"
+            class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+          >
+            Dispatch Test Symbols
+          </button>
+        </div>
+      </div>
+      
+      <iframe 
+        src="/step3-preview-only.html" 
+        class="preview-frame"
+        id="previewFrame"
+      ></iframe>
+    </div>
+  </div>
+  
+  <script>
+    // Once iframe loads, we'll setup communication
+    document.getElementById('previewFrame').onload = function() {
+      const frame = document.getElementById('previewFrame');
+      
+      // Set up the dispatch button
+      document.getElementById('dispatchButton').addEventListener('click', function() {
+        // Create test symbols array
+        const testSymbols = [
+          '/public/assets/symbols/wild.png',
+          '/public/assets/symbols/scatter.png',
+          '/public/assets/symbols/high_1.png',
+          '/public/assets/symbols/high_2.png',
+          '/public/assets/symbols/high_3.png',
+          '/public/assets/symbols/mid_1.png',
+          '/public/assets/symbols/mid_2.png',
+          '/public/assets/symbols/low_1.png',
+          '/public/assets/symbols/low_2.png',
+          '/public/assets/symbols/low_3.png'
+        ];
+        
+        // Send message to iframe
+        frame.contentWindow.postMessage({
+          type: 'DISPATCH_SYMBOLS',
+          symbols: testSymbols
+        }, '*');
+      });
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "gameId": "fantasy-kingdom_20250605",
+  "createdAt": "2025-06-05T20:03:15.468Z",
+  "updatedAt": "2025-06-05T20:03:15.468Z",
+  "folders": [
+    "symbols",
+    "symbols/wild",
+    "symbols/scatter",
+    "symbols/high",
+    "symbols/medium",
+    "symbols/low",
+    "background",
+    "frame",
+    "titles",
+    "ui",
+    "sound",
+    "sound/effects",
+    "sound/music",
+    "gameconfig"
+  ]
+}

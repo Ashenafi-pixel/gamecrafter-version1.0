@@ -1,0 +1,20 @@
+{
+  "gameId": "king-arthurs-bride_20250530",
+  "createdAt": "2025-05-30T07:49:34.156Z",
+  "updatedAt": "2025-05-30T07:49:34.156Z",
+  "folders": [
+    "symbols",
+    "symbols/wild",
+    "symbols/scatter",
+    "symbols/high",
+    "symbols/medium",
+    "symbols/low",
+    "background",
+    "frame",
+    "ui",
+    "sound",
+    "sound/effects",
+    "sound/music",
+    "gameconfig"
+  ]
+}

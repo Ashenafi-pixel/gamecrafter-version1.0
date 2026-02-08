@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animation Test Lab - SlotAI</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #ffd700;
+            margin-bottom: 30px;
+        }
+        .redirect-notice {
+            background: #2d1b69;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .redirect-btn {
+            background: #ffd700;
+            color: #1a1a2e;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 10px;
+        }
+        .redirect-btn:hover {
+            background: #ffed4e;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 Animation Test Lab</h1>
+        <div class="redirect-notice">
+            <h2>🎨 Enhanced Animation Lab Available!</h2>
+            <p>Your new Enhanced Animation Lab with the improved UI is ready:</p>
+            <a href="http://localhost:5173/animtest" class="redirect-btn">Launch Enhanced Animation Lab</a>
+            <p style="margin-top: 15px; font-size: 14px; opacity: 0.8;">
+                Features: Symbol creation • PIXI preview • Animation timeline • Professional tools
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Auto-redirect to Enhanced Animation Lab
+        if (window.location.hostname === 'localhost') {
+            setTimeout(() => {
+                window.location.href = 'http://localhost:5173/animtest';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Step 2: Game Type Selector - SlotAI</title>
+  <!-- Auto-fix redirect script for main app -->
+  <script>
+    // Check if being loaded via iframe from main app
+    if (window.location !== window.parent.location) {
+      // We're in an iframe, don't do anything
+      console.log('Running in iframe mode, no redirection needed');
+    } else if (document.referrer.includes('localhost') && !document.referrer.includes('standalone-step2')) {
+      // We were navigated here from the main app, add helper UI
+      window.addEventListener('load', function() {
+        const helper = document.createElement('div');
+        helper.style.cssText = 'position:fixed;top:10px;left:10px;background:#E60012;color:white;padding:8px 12px;border-radius:4px;z-index:9999;font-size:14px;';
+        helper.innerHTML = 'Standalone Step 2 Page';
+        document.body.appendChild(helper);
+      });
+    }
+  </script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      background-color: #f5f5f5;
+    }
+    
+    .game-type-card {
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    
+    .game-type-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    }
+    
+    .selected {
+      border: 3px solid #E60012;
+      box-shadow: 0 10px 15px -3px rgba(230, 0, 18, 0.2), 0 4px 6px -2px rgba(230, 0, 18, 0.1);
+      transform: scale(1.03);
+    }
+    
+    .nintendo-red {
+      background-color: #E60012;
+    }
+    
+    .progress-bar {
+      height: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #E60012 0%, #ff3b4e 100%);
+      width: 0;
+      transition: width 0.5s ease;
+    }
+    
+    .game-info-panel {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background-color: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 10px 15px;
+      border-radius: 8px;
+      font-size: 14px;
+      max-width: 300px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      z-index: 50;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.3s ease;
+    }
+    
+    .game-info-panel.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    
+    .pulse-animation {
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(230, 0, 18, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(230, 0, 18, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(230, 0, 18, 0); }
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div class="container mx-auto px-4 py-8 max-w-6xl">
+    <header class="mb-8">
+      <div class="flex justify-between items-center mb-4">
+        <h1 class="text-3xl font-bold text-gray-800">Game Type Selection</h1>
+        <div class="flex items-center">
+          <div class="text-sm font-medium text-gray-600 mr-2">Step 2 of 12</div>
+          <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+            <div class="text-blue-700 font-semibold">16%</div>
+          </div>
+        </div>
+      </div>
+      
+      <p class="text-gray-600 mb-4">Choose the type of slot game you want to create</p>
+      
+      <div class="progress-bar bg-gray-200 w-full">
+        <div class="progress-fill" id="progressBar"></div>
+      </div>
+    </header>
+    
+    <div class="bg-white shadow-md rounded-lg p-6 mb-8">
+      <h2 class="text-xl font-semibold mb-4 text-gray-800">Select Game Type</h2>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Game Type Cards -->
+        <div class="game-type-card bg-white rounded-lg shadow-md overflow-hidden" data-type="classic-reels">
+          <div class="h-40 bg-gray-200 overflow-hidden">
+            <img src="/themes/classic-reels.png" onerror="this.src='https://via.placeholder.com/400x240?text=Classic+Reels'" alt="Classic Reels" class="w-full h-full object-cover">
+          </div>
+          <div class="p-4">
+            <h3 class="text-lg font-bold mb-1">Classic Reels</h3>
+            <p class="text-sm text-gray-600">Traditional slot machine with fixed paylines and standard reels.</p>
+          </div>
+        </div>
+        
+        <div class="game-type-card bg-white rounded-lg shadow-md overflow-hidden" data-type="ways-to-win">
+          <div class="h-40 bg-gray-200 overflow-hidden">
+            <img src="/themes/ways-to-win.png" onerror="this.src='https://via.placeholder.com/400x240?text=Ways+to+Win'" alt="Ways to Win" class="w-full h-full object-cover">
+          </div>
+          <div class="p-4">
+            <h3 class="text-lg font-bold mb-1">Ways to Win</h3>
+            <p class="text-sm text-gray-600">No fixed paylines, wins for adjacent symbols in any position.</p>
+          </div>
+        </div>
+        
+        <div class="game-type-card bg-white rounded-lg shadow-md overflow-hidden" data-type="grid-slot">
+          <div class="h-40 bg-gray-200 overflow-hidden">
+            <img src="/themes/grid-slot.png" onerror="this.src='https://via.placeholder.com/400x240?text=Grid+Slot'" alt="Grid Slot" class="w-full h-full object-cover">
+          </div>
+          <div class="p-4">
+            <h3 class="text-lg font-bold mb-1">Grid Slot</h3>
+            <p class="text-sm text-gray-600">Cluster pays mechanic with grid-based layout instead of reels.</p>
+          </div>
+        </div>
+        
+        <div class="game-type-card bg-white rounded-lg shadow-md overflow-hidden" data-type="megaways-style">
+          <div class="h-40 bg-gray-200 overflow-hidden">
+            <img src="/themes/megaways-style.png" onerror="this.src='https://via.placeholder.com/400x240?text=Megaways+Style'" alt="Megaways Style" class="w-full h-full object-cover">
+          </div>
+          <div class="p-4">
+            <h3 class="text-lg font-bold mb-1">Megaways Style</h3>
+            <p class="text-sm text-gray-600">Dynamic reel layout with varying number of symbols per reel.</p>
+          </div>
+        </div>
+        
+        <div class="game-type-card bg-white rounded-lg shadow-md overflow-hidden" data-type="infinity-reels">
+          <div class="h-40 bg-gray-200 overflow-hidden">
+            <img src="/themes/infinity-reels.png" onerror="this.src='https://via.placeholder.com/400x240?text=Infinity+Reels'" alt="Infinity Reels" class="w-full h-full object-cover">
+          </div>
+          <div class="p-4">
+            <h3 class="text-lg font-bold mb-1">Infinity Reels</h3>
+            <p class="text-sm text-gray-600">Expanding reel set that adds new reels with consecutive wins.</p>
+          </div>
+        </div>
+        
+        <div class="game-type-card bg-white rounded-lg shadow-md overflow-hidden" data-type="hold-and-win">
+          <div class="h-40 bg-gray-200 overflow-hidden">
+            <img src="/themes/hold-and-win.png" onerror="this.src='https://via.placeholder.com/400x240?text=Hold+and+Win'" alt="Hold and Win" class="w-full h-full object-cover">
+          </div>
+          <div class="p-4">
+            <h3 class="text-lg font-bold mb-1">Hold and Win</h3>
+            <p class="text-sm text-gray-600">Respins feature that holds symbols in place for multiple spins.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="flex justify-between items-center pt-6 border-t border-gray-200">
+      <button id="backButton" class="flex items-center gap-2 px-6 py-3 rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        Back to Theme
+      </button>
+      
+      <div class="flex gap-3">
+        <button id="helpButton" class="px-4 py-2 bg-gray-600 text-white rounded-lg flex items-center gap-1">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          Help
+        </button>
+        
+        <button id="directStep3Button" class="hidden px-4 py-2 bg-orange-500 text-white rounded-lg flex items-center gap-2 hover:bg-orange-600">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 5H19V11"></path><path d="M19 5L5 19"></path></svg>
+          Skip to Step 3
+        </button>
+        
+        <button id="nextButton" class="flex items-center gap-2 px-6 py-3 nintendo-red text-white rounded-lg hover:bg-red-700 transition-colors opacity-50 cursor-not-allowed" disabled>
+          Continue to Grid Layout
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Game info panel -->
+  <div id="gameInfoPanel" class="game-info-panel">
+    <div class="text-sm mb-2"><span class="font-bold">Selected Game Type:</span> <span id="selectedTypeDisplay">None</span></div>
+    <div id="themeInfoDisplay" class="text-xs opacity-70 mb-2"></div>
+    <div id="gameIdDisplay" class="text-xs opacity-70"></div>
+  </div>
+  
+  <!-- Help dialog -->
+  <div id="helpDialog" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg shadow-xl max-w-lg w-full p-6 mx-4">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold text-gray-800">Navigation Help</h3>
+        <button id="closeHelpButton" class="text-gray-500 hover:text-gray-700">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      
+      <div class="mb-4">
+        <p class="mb-3">This is a standalone alternative for Step 2 (Game Type Selection) that works independently of the main navigation system.</p>
+        
+        <div class="bg-blue-50 border-l-4 border-blue-500 text-blue-700 p-4 mb-4">
+          <p class="font-medium">Your theme selection from Step 1 has been preserved.</p>
+        </div>
+        
+        <h4 class="font-bold mb-2">Instructions:</h4>
+        <ol class="list-decimal pl-5 space-y-2">
+          <li>Click on a game type card to select it</li>
+          <li>Click "Continue to Grid Layout" to proceed to Step 3</li>
+          <li>If you want to return to Step 1, click "Back to Theme"</li>
+        </ol>
+      </div>
+      
+      <div class="bg-gray-100 p-3 rounded-lg mb-4">
+        <p class="text-sm text-gray-700">
+          <strong>Note:</strong> This standalone page was created to provide a reliable alternative navigation path. Your selections will be synchronized with the main application.
+        </p>
+      </div>
+      
+      <div class="text-right">
+        <button id="closeHelpButtonBottom" class="px-4 py-2 bg-blue-600 text-white rounded-lg">Got it</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Set up elements
+    const gameTypeCards = document.querySelectorAll('.game-type-card');
+    const nextButton = document.getElementById('nextButton');
+    const backButton = document.getElementById('backButton');
+    const directStep3Button = document.getElementById('directStep3Button');
+    const progressBar = document.getElementById('progressBar');
+    const gameInfoPanel = document.getElementById('gameInfoPanel');
+    const selectedTypeDisplay = document.getElementById('selectedTypeDisplay');
+    const themeInfoDisplay = document.getElementById('themeInfoDisplay');
+    const gameIdDisplay = document.getElementById('gameIdDisplay');
+    const helpButton = document.getElementById('helpButton');
+    const helpDialog = document.getElementById('helpDialog');
+    const closeHelpButton = document.getElementById('closeHelpButton');
+    const closeHelpButtonBottom = document.getElementById('closeHelpButtonBottom');
+    
+    // Set initial progress
+    progressBar.style.width = '16%';
+    
+    // Track selected game type
+    let selectedGameType = null;
+    let gameData = {
+      gameId: null,
+      theme: null
+    };
+    
+    // Preload any saved game type
+    try {
+      // Try to get from URL parameters first
+      const params = new URLSearchParams(window.location.search);
+      const urlGameType = params.get('type');
+      if (urlGameType) {
+        selectedGameType = urlGameType;
+        console.log('Found game type in URL:', selectedGameType);
+      }
+    } catch (e) {
+      console.error('Error reading URL params:', e);
+    }
+    
+    // Load saved data from localStorage
+    loadSavedData();
+    
+    // Initial setup
+    function loadSavedData() {
+      try {
+        // Try multiple sources for saved data
+        const sources = [
+          'slotai_game_data',
+          'slotai_emergency_config',
+          'slotai_standalone_data',
+          'slotai_emergency_nav_data'
+        ];
+        
+        let foundData = false;
+        
+        for (const source of sources) {
+          const savedData = localStorage.getItem(source);
+          if (savedData) {
+            try {
+              const parsedData = JSON.parse(savedData);
+              console.log(`Found saved data in ${source}:`, parsedData);
+              
+              // Extract game ID if available
+              if (parsedData.gameId) {
+                gameData.gameId = parsedData.gameId;
+                foundData = true;
+              } else if (parsedData.config && parsedData.config.gameId) {
+                gameData.gameId = parsedData.config.gameId;
+                foundData = true;
+              }
+              
+              // Extract theme if available
+              if (parsedData.theme) {
+                gameData.theme = parsedData.theme;
+                foundData = true;
+              } else if (parsedData.config && parsedData.config.theme) {
+                gameData.theme = parsedData.config.theme;
+                foundData = true;
+              }
+              
+              // Extract game type if available and not already set
+              if (!selectedGameType) {
+                if (parsedData.selectedGameType) {
+                  selectedGameType = parsedData.selectedGameType;
+                } else if (parsedData.config && parsedData.config.selectedGameType) {
+                  selectedGameType = parsedData.config.selectedGameType;
+                }
+              }
+            } catch (parseError) {
+              console.error(`Error parsing ${source}:`, parseError);
+            }
+          }
+        }
+        
+        // If we found data, update the UI
+        if (foundData) {
+          // Show game info panel
+          updateGameInfoPanel();
+          
+          // Show direct to step 3 button if we have enough data
+          if (gameData.gameId || gameData.theme) {
+            directStep3Button.classList.remove('hidden');
+          }
+        }
+        
+        // Update selected game type in UI if we found one
+        if (selectedGameType) {
+          const card = document.querySelector(`[data-type="${selectedGameType}"]`);
+          if (card) {
+            card.classList.add('selected');
+            card.classList.add('pulse-animation');
+            setTimeout(() => card.classList.remove('pulse-animation'), 2000);
+            
+            // Enable next button
+            nextButton.disabled = false;
+            nextButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            
+            console.log('Pre-selected game type:', selectedGameType);
+            updateGameInfoPanel();
+          }
+        }
+      } catch (e) {
+        console.error('Error loading saved data:', e);
+      }
+    }
+    
+    // Update game info panel
+    function updateGameInfoPanel() {
+      // Update selected type
+      if (selectedGameType) {
+        selectedTypeDisplay.textContent = formatGameType(selectedGameType);
+      } else {
+        selectedTypeDisplay.textContent = 'None';
+      }
+      
+      // Update theme info
+      if (gameData.theme && gameData.theme.selectedThemeId) {
+        const themeName = gameData.theme.mainTheme || formatGameType(gameData.theme.selectedThemeId);
+        themeInfoDisplay.textContent = `Theme: ${themeName}`;
+      } else {
+        themeInfoDisplay.textContent = 'No theme selected';
+      }
+      
+      // Update game ID
+      if (gameData.gameId) {
+        gameIdDisplay.textContent = `Game ID: ${gameData.gameId}`;
+      } else {
+        gameIdDisplay.textContent = 'No Game ID set';
+      }
+      
+      // Show panel
+      gameInfoPanel.classList.add('visible');
+    }
+    
+    // Format game type for display
+    function formatGameType(type) {
+      if (!type) return 'None';
+      return type.split('-').map(word => 
+        word.charAt(0).toUpperCase() + word.slice(1)
+      ).join(' ');
+    }
+    
+    // Game type selection
+    gameTypeCards.forEach(card => {
+      card.addEventListener('click', () => {
+        // Remove selected class from all cards
+        gameTypeCards.forEach(c => c.classList.remove('selected'));
+        
+        // Add selected class to clicked card
+        card.classList.add('selected');
+        
+        // Get game type
+        selectedGameType = card.dataset.type;
+        console.log('Selected game type:', selectedGameType);
+        
+        // Update info panel
+        updateGameInfoPanel();
+        
+        // Enable next button
+        nextButton.disabled = false;
+        nextButton.classList.remove('opacity-50', 'cursor-not-allowed');
+        
+        // Save immediately
+        saveGameType();
+      });
+    });
+    
+    // Back button
+    backButton.addEventListener('click', () => {
+      console.log('Going back to step 1');
+      
+      // Save current selection before going back
+      if (selectedGameType) {
+        saveGameType();
+      }
+      
+      // Set localStorage for step 1
+      localStorage.setItem('slotai_emergency_nav', 'true');
+      localStorage.setItem('slotai_target_step', '0');
+      localStorage.setItem('slotai_timestamp', Date.now().toString());
+      
+      // Navigate to step 1
+      window.location.href = '/?step=0&force=true&t=' + Date.now();
+    });
+    
+    // Help button
+    helpButton.addEventListener('click', () => {
+      helpDialog.classList.remove('hidden');
+    });
+    
+    // Close help dialog
+    closeHelpButton.addEventListener('click', () => {
+      helpDialog.classList.add('hidden');
+    });
+    
+    closeHelpButtonBottom.addEventListener('click', () => {
+      helpDialog.classList.add('hidden');
+    });
+    
+    // Direct to step 3 button
+    directStep3Button.addEventListener('click', () => {
+      console.log('Direct navigation to step 3');
+      
+      if (selectedGameType) {
+        // Save selection
+        saveGameType();
+      }
+      
+      // Set localStorage for step 3
+      localStorage.setItem('slotai_emergency_nav', 'true');
+      localStorage.setItem('slotai_target_step', '2');
+      localStorage.setItem('slotai_timestamp', Date.now().toString());
+      
+      // Navigate to step 3
+      window.location.href = '/?step=2&force=true&t=' + Date.now();
+    });
+    
+    // Next button
+    nextButton.addEventListener('click', () => {
+      if (!selectedGameType) {
+        alert('Please select a game type first');
+        return;
+      }
+      
+      console.log('Navigating to step 3 with game type:', selectedGameType);
+      
+      // Save game type
+      saveGameType();
+      
+      // Set localStorage for step 3
+      localStorage.setItem('slotai_emergency_nav', 'true');
+      localStorage.setItem('slotai_target_step', '2');
+      localStorage.setItem('slotai_timestamp', Date.now().toString());
+      
+      // Navigate to step 3
+      window.location.href = '/?step=2&force=true&t=' + Date.now();
+    });
+    
+    // Save game type to localStorage
+    function saveGameType() {
+      try {
+        // Make sure we have a game ID
+        if (!gameData.gameId) {
+          gameData.gameId = `game_${Date.now()}`;
+        }
+        
+        // Make sure we have theme data
+        if (!gameData.theme) {
+          gameData.theme = {
+            selectedThemeId: 'default-theme',
+            mainTheme: 'Default Theme'
+          };
+        }
+        
+        // Create save data with selected game type
+        const saveData = {
+          gameId: gameData.gameId,
+          theme: gameData.theme,
+          selectedGameType: selectedGameType,
+          timestamp: Date.now()
+        };
+        
+        // Save to localStorage in multiple formats for redundancy
+        localStorage.setItem('slotai_emergency_config', JSON.stringify(saveData));
+        localStorage.setItem('slotai_game_data', JSON.stringify(saveData));
+        
+        // Also save in format compatible with main app
+        const mainAppData = {
+          config: {
+            gameId: gameData.gameId,
+            theme: gameData.theme,
+            selectedGameType: selectedGameType
+          },
+          timestamp: Date.now()
+        };
+        localStorage.setItem('slotai_standalone_data', JSON.stringify(mainAppData));
+        
+        // Set emergency flag
+        localStorage.setItem('slotai_emergency_nav', 'true');
+        
+        console.log('Saved game type to localStorage:', selectedGameType);
+      } catch (e) {
+        console.error('Error saving game type:', e);
+      }
+    }
+    
+    // Auto show help if first visit
+    if (!localStorage.getItem('standalone_step2_visited')) {
+      setTimeout(() => {
+        helpDialog.classList.remove('hidden');
+        localStorage.setItem('standalone_step2_visited', 'true');
+      }, 1000);
+    }
+  </script>
+</body>
+</html>

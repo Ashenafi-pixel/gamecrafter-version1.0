@@ -1,0 +1,901 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from 'framer-motion';
+import { ChevronRight, Expand, Maximize2, Minimize2, Sparkles, Palette, Play, PenTool, Sunrise, AlertTriangle } from 'lucide-react';
+import { useGameStore } from '../../../store';
+import EnhancedThemeExplorer from '../Step1_EnhancedThemeExplorer';
+import { GameCanvas, GameCanvasWorkspace, useGameCanvasStore } from '../../game-canvas';
+import ForceNavigator from '../ForceNavigator';
+import DirectDebugLogger, { directLog } from '../DirectDebugLogger';
+import { createFoldersForCurrentGame } from '../../../utils/folderCreator';
+
+/**
+ * Enhanced Step 1: Theme Selection Component
+ * 
+ * Premium UI/UX implementation inspired by industry leaders like Apple, Ubisoft,
+ * Microsoft, and Atlassian, featuring:
+ * 
+ * - Split view with canvas preview and theme selection
+ * - Micro-interactions and animated transitions
+ * - Depth effects and parallax scrolling
+ * - Adaptive layout with fullscreen toggle
+ * - Premium visual treatment with smooth animations
+ */
+const EnhancedStep1_ThemeSelection: React.FC = () => {
+  const { config, nextStep } = useGameStore();
+  const [showEmergencyNavigator, setShowEmergencyNavigator] = useState(false);
+  const [fullscreenCanvas, setFullscreenCanvas] = useState(false);
+  const canvasStore = useGameCanvasStore();
+  const [isUpdatingCanvas, setIsUpdatingCanvas] = useState(false);
+  const [showIntro, setShowIntro] = useState(true);
+  const [introCompleted, setIntroCompleted] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Motion values for parallax scrolling effect
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+  
+  // Smooth spring animations for mouse movements
+  const springConfig = { stiffness: 100, damping: 30 };
+  const smoothMouseX = useSpring(mouseX, springConfig);
+  const smoothMouseY = useSpring(mouseY, springConfig);
+  
+  // Transform values for parallax effects
+  const titleX = useTransform(smoothMouseX, [-500, 500], [10, -10]);
+  const titleY = useTransform(smoothMouseY, [-500, 500], [5, -5]);
+  
+  // Handle mouse move for parallax effect
+  const handleMouseMove = (e: React.MouseEvent) => {
+    const { clientX, clientY } = e;
+    if (containerRef.current) {
+      const { left, top, width, height } = containerRef.current.getBoundingClientRect();
+      const centerX = left + width / 2;
+      const centerY = top + height / 2;
+      mouseX.set(clientX - centerX);
+      mouseY.set(clientY - centerY);
+    }
+  };
+
+  // Play intro animation sequence
+  useEffect(() => {
+    if (showIntro) {
+      // After intro animation completes
+      const timer = setTimeout(() => {
+        setShowIntro(false);
+        setIntroCompleted(true);
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [showIntro]);
+
+  // Initialize canvas with proper dimensions on component mount
+  useEffect(() => {
+    // Set canvas layout optimized for theme preview
+    canvasStore.setZoom(1); // Reset zoom level for consistent display
+    
+    // Ensure we have edit mode off for better preview
+    if (canvasStore.editMode) {
+      canvasStore.toggleEditMode();
+    }
+    
+    // If we already have a selected theme in the config, load it immediately
+    if (config?.theme?.selectedThemeId) {
+      updateCanvasWithTheme(config.theme.selectedThemeId, config.theme.colors);
+    }
+  }, []);
+  
+  // Handle theme changes by updating the canvas
+  useEffect(() => {
+    if (config?.theme?.selectedThemeId) {
+      console.log('Theme changed, updating canvas with:', config.theme);
+      updateCanvasWithTheme(config.theme.selectedThemeId, config.theme.colors);
+    }
+  }, [config?.theme?.selectedThemeId, JSON.stringify(config?.theme?.colors)]);
+  
+  // Additional debug logging to track theme changes
+  useEffect(() => {
+    console.log('Current theme state:', {
+      themeId: config?.theme?.selectedThemeId,
+      themeName: config?.theme?.mainTheme,
+      colors: config?.theme?.colors
+    });
+  }, [config?.theme]);
+  
+  // Function to update canvas with selected theme
+  const updateCanvasWithTheme = (themeId: string, colors: any) => {
+    // Show loading indicator
+    setIsUpdatingCanvas(true);
+    
+    try {
+      // Get theme info to create appropriate elements
+      const themeName = themeId.replace(/-/g, ' ');
+      const themeBgSrc = `/themes/${themeId}.png`;
+      
+      // Find the background layer
+      const backgroundLayer = canvasStore.layers.find(layer => layer.type === 'background');
+      
+      if (backgroundLayer) {
+        // Find the background element
+        const bgElement = backgroundLayer.elements.find(el => el.id === 'bg-1');
+        const bgId = bgElement ? 'bg-1' : undefined;
+        
+        if (bgId) {
+          // Update the background element with the theme image
+          canvasStore.updateElement(bgId, {
+            data: { 
+              src: themeBgSrc,
+              themeId: themeId,
+              themeName: themeName,
+              colors: colors
+            }
+          });
+        } else {
+          // Create a new background element if one doesn't exist
+          const newBgId = canvasStore.addElement(backgroundLayer.id, {
+            id: 'bg-1',
+            type: 'background',
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 100,
+            data: {
+              src: themeBgSrc,
+              themeId: themeId,
+              themeName: themeName,
+              colors: colors
+            }
+          });
+          
+          console.log(`Created new background element with ID: ${newBgId}`);
+        }
+      } else {
+        console.warn('No background layer found in the canvas');
+      }
+      
+      // Update the UI layer with theme-specific elements
+      const uiLayer = canvasStore.layers.find(layer => layer.type === 'ui');
+      if (uiLayer) {
+        // Check if we have a title element
+        const titleElement = uiLayer.elements.find(el => el.id === 'theme-title');
+        
+        if (titleElement) {
+          // Update the title text
+          canvasStore.updateElement('theme-title', {
+            data: { 
+              text: themeName.toUpperCase(),
+              color: colors?.primary || '#FFFFFF'
+            }
+          });
+        } else {
+          // Add a title element
+          canvasStore.addElement(uiLayer.id, {
+            id: 'theme-title',
+            type: 'text',
+            x: 50,
+            y: 10,
+            width: 80,
+            height: 10,
+            rotation: 0,
+            scale: 1,
+            opacity: 1,
+            data: {
+              text: themeName.toUpperCase(),
+              color: colors?.primary || '#FFFFFF',
+              fontSize: 24,
+              fontWeight: 'bold',
+              align: 'center'
+            }
+          });
+        }
+      }
+      
+    } catch (error) {
+      console.error('Error updating canvas with theme:', error);
+    }
+    
+    // Hide loading indicator after a small delay
+    setTimeout(() => {
+      setIsUpdatingCanvas(false);
+    }, 500);
+  };
+
+  // Toggle fullscreen canvas mode
+  const toggleFullscreen = () => {
+    setFullscreenCanvas(!fullscreenCanvas);
+    console.log('🔴 CTO DEBUG: Toggled fullscreen mode:', !fullscreenCanvas);
+  };
+
+  // Determine if we can proceed to the next step - We've relaxed this condition
+  // Allow proceeding if at least one of theme or gameId is set
+  const strictCanProceed = !!config?.theme?.selectedThemeId && !!config?.gameId;
+  const relaxedCanProceed = !!config?.theme?.selectedThemeId || !!config?.gameId;
+  
+  // Use relaxed condition for the button state and logging for debugging
+  const canProceed = relaxedCanProceed;
+  
+  console.log('Next button state:', {
+    selectedThemeId: config?.theme?.selectedThemeId,
+    gameId: config?.gameId,
+    strictCanProceed,
+    relaxedCanProceed,
+    canProceed
+  });
+
+  // Improved next step button handler with UI-preserving navigation
+  const handleNextStep = async () => {
+    try {
+      // Log to direct logger for maximum visibility
+      directLog('🔴 NAVIGATION: Next button clicked', {
+        selectedThemeId: config?.theme?.selectedThemeId,
+        gameId: config?.gameId,
+        canProceed,
+        currentStep: useGameStore.getState().currentStep
+      });
+      
+      // =================================================================
+      // STEP 1: ENSURE ALL REQUIRED DATA IS SET IN STATE
+      // =================================================================
+      // Create all required updates upfront
+      const updates: any = {};
+      const needsGameId = !config.gameId;
+      const needsTheme = !config?.theme?.selectedThemeId;
+      
+      if (needsGameId) {
+        // Default game name if neither gameId nor theme exists
+        const themeName = config?.theme?.mainTheme || 'mygame';
+        const baseId = themeName.toLowerCase().replace(/\\s+/g, '-');
+        const currentDate = new Date();
+        const formattedDate = currentDate.toISOString().slice(0, 10).replace(/-/g, '');
+        const newGameId = `${baseId}_${formattedDate}`;
+        
+        directLog('🔴 NAVIGATION: Auto-generating gameId', { newGameId });
+        
+        // Add to updates object
+        updates.gameId = newGameId;
+        updates.displayName = config?.theme?.mainTheme || 'My Game';
+      }
+      
+      if (needsTheme) {
+        directLog('🔴 NAVIGATION: Setting a default theme');
+        updates.theme = {
+          ...config.theme || {},
+          mainTheme: 'Default Theme',
+          description: 'A default theme',
+          selectedThemeId: 'default-theme',
+          colors: {
+            primary: '#E60012',
+            secondary: '#0052cc',
+            accent: '#ff6600',
+            background: '#ffffff'
+          }
+        };
+      }
+      
+      // Apply all updates at once if needed
+      if (Object.keys(updates).length > 0) {
+        directLog('🔴 NAVIGATION: Applying data updates', updates);
+        // Use direct store update for reliability
+        useGameStore.getState().updateConfig(updates);
+      }
+
+      // =================================================================
+      // CREATE FOLDER STRUCTURE FOR GAME ASSETS
+      // =================================================================
+      // Get the current game configuration with updates applied
+      const gameConfig = useGameStore.getState().config;
+      const gameId = gameConfig.gameId || (updates.gameId ? updates.gameId : '');
+      
+      if (gameId) {
+        directLog('🔴 FOLDER CREATION: Creating folder structure for game ID', { gameId });
+        try {
+          const folderResult = await createFoldersForCurrentGame();
+          directLog('🔴 FOLDER CREATION: Result', { success: folderResult });
+          
+          // Save the gameId to localStorage for use in other components
+          localStorage.setItem('slotai_gameId', gameId);
+          localStorage.setItem('slotai_theme', gameConfig?.theme?.selectedThemeId || '');
+        } catch (folderError) {
+          console.error('Error creating folders:', folderError);
+          // Continue with navigation even if folder creation fails
+          directLog('🔴 FOLDER CREATION: Error creating folders', { error: folderError.message });
+        }
+      } else {
+        console.error('No gameId available for folder creation');
+        directLog('🔴 FOLDER CREATION: No gameId available');
+      }
+      
+      // =================================================================
+      // STEP 2: UI-PRESERVING DIRECT STATE MANIPULATION FOR NAVIGATION
+      // =================================================================
+      directLog('🔴 NAVIGATION: Executing UI-preserving navigation');
+      
+      try {
+        // Get fresh store state
+        const store = useGameStore.getState();
+        const beforeStep = store.currentStep;
+        
+        // Save current state to store's internal savedProgress
+        store.saveProgress();
+        
+        // Use a timeout to avoid React state conflicts
+        setTimeout(() => {
+          // Use the setStep method for proper state management
+          store.setStep(1);
+          
+          // Verify the step was changed
+          setTimeout(() => {
+            const afterStep = useGameStore.getState().currentStep;
+            directLog('🔴 NAVIGATION: Navigation state change', { beforeStep, afterStep, targetStep: 1 });
+            
+            if (afterStep !== 1) {
+              directLog('🔴 NAVIGATION: UI-preserving navigation failed, trying nextStep()');
+              
+              // Try the nextStep method which should advance by one step
+              useGameStore.getState().nextStep();
+              
+              // Verify again after a short delay
+              setTimeout(() => {
+                const finalStep = useGameStore.getState().currentStep;
+                if (finalStep !== 1) {
+                  directLog('🔴 NAVIGATION: All direct navigation methods failed, using fallback');
+                  // Fall back to the original forced navigation approach
+                  forcedNavigationFallback(config, updates);
+                }
+              }, 100);
+            }
+          }, 100);
+        }, 50);
+      } catch (err) {
+        console.error('🔴 CTO DEBUG: Error during state manipulation:', err);
+        // Fall back to original approach
+        forcedNavigationFallback(config, updates);
+      }
+    } catch (err) {
+      console.error('🔴 CTO DEBUG: Catastrophic error in handleNextStep:', err);
+      alert('A critical error occurred. Please try reloading the page.');
+    }
+  };
+  
+  // Fallback function for when in-app navigation fails
+  const forcedNavigationFallback = (config: any, updates: any) => {
+    directLog('🔴 NAVIGATION: Using forced navigation fallback');
+    
+    try {
+      // Save critical state to localStorage with UI preservation flag
+      localStorage.setItem('slotai_emergency_nav', 'true');
+      localStorage.setItem('slotai_target_step', '1');
+      localStorage.setItem('slotai_timestamp', Date.now().toString());
+      localStorage.setItem('slotai_preserve_ui', 'true'); // Special flag to preserve UI
+      localStorage.setItem('slotai_game_data', JSON.stringify({
+        gameId: config.gameId || updates.gameId,
+        theme: config.theme || updates.theme
+      }));
+      
+      directLog('🔴 NAVIGATION: State saved with UI preservation flag', {
+        gameId: config.gameId || updates.gameId,
+        hasTheme: !!(config.theme || updates.theme)
+      });
+      
+      // Add a button that allows direct navigation via URL
+      const navButton = document.createElement('button');
+      navButton.innerText = 'DIRECT TO STEP 2';
+      navButton.style.cssText = 'position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:10000; background:red; color:white; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold;';
+      navButton.onclick = () => window.location.href = '/?step=1&force=true&t=' + Date.now();
+      document.body.appendChild(navButton);
+      
+      // Also provide a link to the standalone version
+      const linkButton = document.createElement('a');
+      linkButton.innerText = 'OPEN STEP 2 IN NEW TAB';
+      linkButton.style.cssText = 'position:fixed; top:70px; left:50%; transform:translateX(-50%); z-index:10000; background:blue; color:white; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold; text-decoration:none;';
+      linkButton.href = '/standalone-step2.html';
+      linkButton.target = '_blank';
+      document.body.appendChild(linkButton);
+      
+      // Load the step navigation fix script
+      const fixScript = document.createElement('script');
+      fixScript.src = '/step-navigation-fix.js?t=' + Date.now();
+      document.body.appendChild(fixScript);
+      
+      directLog('🔴 NAVIGATION: Step navigation fix script loaded');
+    } catch (err) {
+      directLog('🔴 NAVIGATION: Failed to apply fallback', { error: err.message });
+      alert('Navigation failed. Please try reloading the page.');
+    }
+  };
+
+  return (
+    <div 
+      ref={containerRef}
+      className="enhanced-theme-selection"
+      onMouseMove={handleMouseMove}
+    >
+      {/* UNMISSABLE EMERGENCY BUTTON */}
+      <button
+        onClick={() => {
+          directLog('EMERGENCY NAVIGATION: Button clicked');
+          try {
+            // Try direct store update
+            useGameStore.getState().setStep(1);
+            // Verify after a short delay
+            setTimeout(() => {
+              if (useGameStore.getState().currentStep !== 1) {
+                // Try nextStep
+                useGameStore.getState().nextStep();
+                // Verify again
+                setTimeout(() => {
+                  if (useGameStore.getState().currentStep !== 1) {
+                    // Fallback to URL navigation
+                    window.location.href = '/?step=1&force=true&t=' + Date.now();
+                  }
+                }, 100);
+              }
+            }, 100);
+          } catch (e) {
+            // Direct URL navigation fallback
+            window.location.href = '/?step=1&force=true&t=' + Date.now();
+          }
+        }}
+        className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg z-[9999] text-lg animate-pulse"
+        style={{ boxShadow: '0 0 20px rgba(255, 0, 0, 0.8)' }}
+      >
+        ⚠️ EMERGENCY: CLICK TO GO TO STEP 2 ⚠️
+      </button>
+      {/* Emergency navigation component */}
+      {showEmergencyNavigator && <ForceNavigator />}
+      
+      {/* Direct Debug Logger - always visible */}
+      <DirectDebugLogger />
+      
+      {/* Cinematic intro animation */}
+      <AnimatePresence>
+        {showIntro && (
+          <motion.div 
+            className="absolute inset-0 z-50 flex items-center justify-center bg-gray-900"
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1 }}
+          >
+            <motion.div 
+              className="text-center"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ 
+                opacity: [0, 1, 1, 0],
+                scale: [0.8, 1.1, 1, 0.9],
+              }}
+              transition={{ 
+                duration: 3,
+                times: [0, 0.3, 0.7, 1],
+                ease: "easeInOut"
+              }}
+            >
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ 
+                  opacity: [0, 1, 1, 0],
+                  y: [20, 0, 0, -20] 
+                }}
+                transition={{ 
+                  duration: 3,
+                  times: [0, 0.3, 0.7, 1],
+                  ease: "easeInOut"
+                }}
+              >
+                <Sparkles className="w-16 h-16 text-red-400 mx-auto mb-4" />
+                <h1 className="text-3xl font-bold text-white tracking-wide mb-2">
+                  Begin Your Creative Journey
+                </h1>
+                <p className="text-blue-300 text-lg">
+                  Design an incredible slot game experience
+                </p>
+              </motion.div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Custom split layout with theme explorer and canvas */}
+      <motion.div 
+        className={`flex flex-col transition-all duration-300 ${fullscreenCanvas ? 'h-screen fixed inset-0 z-50 bg-gray-900' : 'min-h-[600px]'}`}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ 
+          delay: introCompleted ? 0 : 2.5,
+          duration: introCompleted ? 0.2 : 1.5 
+        }}
+      >
+        {/* Header with premium styling and parallax effect */}
+        <motion.div 
+          className={`${fullscreenCanvas 
+            ? 'border-b border-gray-700 bg-gray-900 py-4 px-6' 
+            : 'mb-4 py-6 px-8'}`}
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ 
+            delay: introCompleted ? 0 : 3,
+            duration: 0.6, 
+            ease: [0.175, 0.885, 0.32, 1] // Custom cubic bezier for Apple-like animation
+          }}
+          style={{ 
+            x: titleX,
+            y: titleY,
+            perspective: 500
+          }}
+        >
+          <div className="flex justify-between items-center">
+            <div>
+              <motion.h2 
+                className={`text-2xl font-bold ${fullscreenCanvas ? 'text-white' : 'text-transparent'} bg-clip-text bg-gradient-to-r from-red-500 to-red-700`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ 
+                  delay: introCompleted ? 0.1 : 3.2,
+                  duration: 0.6, 
+                  ease: [0.175, 0.885, 0.32, 1]
+                }}
+              >
+                Design Your Game Theme
+              </motion.h2>
+              <motion.p 
+                className={`mt-1 text-sm ${fullscreenCanvas ? 'text-gray-400' : 'text-gray-600 dark:text-gray-400'}`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ 
+                  delay: introCompleted ? 0.2 : 3.4,
+                  duration: 0.6, 
+                  ease: [0.175, 0.885, 0.32, 1]
+                }}
+              >
+                Create the perfect aesthetic for your slot game
+              </motion.p>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <motion.button
+                onClick={toggleFullscreen}
+                className={`p-2.5 rounded-lg transition-all shadow-sm 
+                  ${fullscreenCanvas 
+                    ? 'bg-gray-800 hover:bg-gray-700 text-white' 
+                    : 'bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700'}`}
+                aria-label={fullscreenCanvas ? "Exit fullscreen" : "Enter fullscreen"}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                {fullscreenCanvas ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
+              </motion.button>
+            </div>
+          </div>
+          
+          {/* Premium progress indicator */}
+          {!fullscreenCanvas && (
+            <motion.div 
+              className="mt-6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ 
+                delay: introCompleted ? 0.3 : 3.6,
+                duration: 0.5, 
+                ease: "easeOut"
+              }}
+            >
+              {/* Step pills with animation */}
+              <div className="flex items-center space-x-2 mb-4">
+                <div className="px-3 py-1 rounded-full bg-gradient-to-r from-red-600 to-red-700 text-white text-xs font-medium shadow-sm">
+                  Step 1: Theme
+                </div>
+                <div className="w-6 h-px bg-gray-300 dark:bg-gray-700"></div>
+                <div className="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-700 flex items-center justify-center text-xs text-gray-400">
+                  2
+                </div>
+                <div className="w-6 h-px bg-gray-300 dark:bg-gray-700"></div>
+                <div className="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-700 flex items-center justify-center text-xs text-gray-400">
+                  3
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-400 ml-1" />
+              </div>
+              
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Step 1 of 12</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">Theme Selection</span>
+              </div>
+              <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <motion.div 
+                  className="h-full bg-gradient-to-r from-red-500 to-red-700 rounded-full"
+                  initial={{ width: "0%" }}
+                  animate={{ width: "8.33%" }}
+                  transition={{ 
+                    duration: 1,
+                    delay: introCompleted ? 0.3 : 3.6,
+                    ease: "easeOut" 
+                  }}
+                />
+              </div>
+            </motion.div>
+          )}
+        </motion.div>
+        
+        {/* Main content area with theme explorer and canvas */}
+        <div className={`flex-grow flex ${fullscreenCanvas ? 'flex-row' : 'flex-col lg:flex-row'} gap-6 p-4 h-full`}>
+          {/* Theme explorer panel with premium styling */}
+          <motion.div 
+            className={`${fullscreenCanvas ? 'w-1/3 overflow-y-auto pr-4' : 'w-full lg:w-1/2 mb-6 lg:mb-0'}`}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ 
+              delay: introCompleted ? 0.4 : 3.7,
+              duration: 0.6, 
+              ease: "easeOut"
+            }}
+          >
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700 relative">
+              {/* Premium glass-effect header */}
+              <div className="relative overflow-hidden backdrop-blur-sm">
+                <div className="absolute inset-0 bg-gradient-to-r from-red-600/90 to-red-700/90"></div>
+                <div className="relative flex justify-between items-center px-6 py-4 text-white">
+                  <div className="flex items-center gap-2">
+                    <motion.div
+                      animate={{ 
+                        rotate: [0, 15, -15, 0],
+                        scale: [1, 1.1, 1]
+                      }}
+                      transition={{ 
+                        duration: 4,
+                        repeat: Infinity,
+                        repeatType: "reverse",
+                        ease: "easeInOut"
+                      }}
+                    >
+                      <Palette className="w-5 h-5 text-white" />
+                    </motion.div>
+                    <h3 className="text-lg font-semibold">Theme Selection</h3>
+                  </div>
+                  <motion.span 
+                    className="text-xs bg-white bg-opacity-20 px-3 py-1 rounded-full shadow-inner"
+                    whileHover={{ scale: 1.05 }}
+                  >
+                    Step 1 of 12
+                  </motion.span>
+                </div>
+                
+                {/* Decorative elements */}
+                <div className="absolute top-0 right-0 w-24 h-24 rounded-bl-full bg-gradient-to-br from-red-400/10 to-red-500/5"></div>
+                <div className="absolute bottom-0 left-0 w-16 h-16 rounded-tr-full bg-gradient-to-tl from-red-400/10 to-red-500/5"></div>
+              </div>
+              
+              <div className="p-4">
+                <EnhancedThemeExplorer />
+              </div>
+            </div>
+          </motion.div>
+          
+          {/* Canvas preview panel with premium styling */}
+          <motion.div 
+            className={`${fullscreenCanvas ? 'w-2/3 flex flex-col' : 'w-full lg:w-1/2'}`}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ 
+              delay: introCompleted ? 0.5 : 3.9,
+              duration: 0.6, 
+              ease: "easeOut"
+            }}
+          >
+            <div className="bg-gray-800 rounded-xl shadow-lg flex-grow flex flex-col overflow-hidden border border-gray-700 relative">
+              {/* Premium glass-effect header */}
+              <div className="relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-gray-800/95 to-gray-900/95 backdrop-blur-md"></div>
+                <div className="relative flex justify-between items-center p-4 border-b border-gray-700/50">
+                  <div className="flex items-center gap-3">
+                    <motion.div
+                      animate={{ 
+                        y: [0, -3, 0, 3, 0],
+                      }}
+                      transition={{ 
+                        duration: 5,
+                        repeat: Infinity,
+                        repeatType: "reverse",
+                        ease: "easeInOut"
+                      }}
+                    >
+                      <Play className="w-5 h-5 text-red-400" />
+                    </motion.div>
+                    <h3 className="text-lg font-medium text-white">Live Preview</h3>
+                    {isUpdatingCanvas && (
+                      <motion.div 
+                        className="bg-blue-600 bg-opacity-20 text-blue-300 text-xs px-3 py-1 rounded-full flex items-center gap-1"
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 10 }}
+                      >
+                        <div className="animate-spin w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full"></div>
+                        <span>Updating</span>
+                      </motion.div>
+                    )}
+                  </div>
+                  
+                  {/* Canvas controls with premium animations */}
+                  {!fullscreenCanvas && (
+                    <div className="flex items-center gap-2">
+                      <motion.button
+                        onClick={toggleFullscreen}
+                        className="p-2 rounded-lg hover:bg-gray-700 text-white transition-colors"
+                        title="Enter fullscreen"
+                        whileHover={{ scale: 1.1, rotate: 5 }}
+                        whileTap={{ scale: 0.9 }}
+                      >
+                        <Maximize2 size={16} />
+                      </motion.button>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Decorative elements */}
+                <div className="absolute top-0 right-0 w-24 h-24 rounded-bl-full bg-gradient-to-br from-red-400/5 to-red-500/3"></div>
+              </div>
+              
+              {/* Main canvas with premium loading animation */}
+              <div className="flex-grow relative bg-gradient-to-b from-gray-900 to-black">
+                {/* Loading overlay with premium animation */}
+                <AnimatePresence>
+                  {isUpdatingCanvas && (
+                    <motion.div 
+                      className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-10"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <motion.div
+                        className="bg-gray-800/90 backdrop-blur-md rounded-lg p-5 flex items-center gap-3 shadow-lg border border-gray-700/50"
+                        initial={{ scale: 0.9, y: 10 }}
+                        animate={{ scale: 1, y: 0 }}
+                        exit={{ scale: 0.9, y: 10 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                      >
+                        <div className="relative">
+                          <div className="animate-spin w-8 h-8 border-3 border-red-500/30 border-t-red-500 rounded-full"></div>
+                          <div className="absolute inset-0 animate-ping opacity-30 w-8 h-8 border-2 border-red-400 rounded-full"></div>
+                        </div>
+                        <span className="text-white font-medium">Updating theme...</span>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                
+                {/* Game canvas component */}
+                <GameCanvasWorkspace
+                  key={`canvas-${JSON.stringify(config?.theme?.colors || {})}`}
+                  fullscreen={fullscreenCanvas}
+                  onToggleFullscreen={toggleFullscreen}
+                  showPropertyPanel={false}
+                  showLayerPanel={false}
+                  className="w-full h-full"
+                />
+                
+                {/* Floating canvas corner controls */}
+                <motion.div 
+                  className="absolute top-4 right-4 z-30 opacity-50 hover:opacity-100 transition-opacity"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 0.5, scale: 1 }}
+                  transition={{ 
+                    delay: introCompleted ? 0.6 : 4.1,
+                    duration: 0.5
+                  }}
+                >
+                  <motion.button
+                    className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-gray-700/50 text-white shadow-lg"
+                    whileHover={{ scale: 1.1, backgroundColor: "rgba(0,0,0,0.7)" }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <Play className="w-5 h-5 ml-0.5" />
+                  </motion.button>
+                </motion.div>
+              </div>
+              
+              {/* Canvas instruction footer with premium styling */}
+              <div className="p-3 border-t border-gray-700/50 bg-gradient-to-r from-gray-800/95 to-gray-900/95 backdrop-blur-md text-white">
+                <p className="text-sm flex items-center">
+                  <Sunrise className="w-4 h-4 text-red-400 mr-2" />
+                  {fullscreenCanvas ? 
+                    "Select a theme from the panel on the left to see it reflected in the preview." :
+                    "Click on the fullscreen icon to get a larger preview."
+                  }
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+        
+        {/* Navigation footer with premium styling */}
+        <motion.div 
+          className={`flex justify-between items-center py-4 px-6 ${fullscreenCanvas ? 'border-t border-gray-700/50 backdrop-blur-sm bg-gray-900/90' : 'mt-4'}`}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ 
+            delay: introCompleted ? 0.7 : 4.3,
+            duration: 0.6, 
+            ease: "easeOut"
+          }}
+        >
+          {/* Theme/Game ID info with premium styling */}
+          <div className="flex items-center">
+            {config?.theme?.mainTheme ? (
+              <div className="flex items-center gap-3">
+                <motion.div 
+                  className="flex items-center gap-2 bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-900 px-3 py-1.5 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700"
+                  whileHover={{ scale: 1.03 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                >
+                  <div className="w-3 h-3 rounded-full bg-gradient-to-r from-green-400 to-green-500 shadow-sm"></div>
+                  <span className="font-medium text-gray-900 dark:text-white">{config.theme.mainTheme}</span>
+                </motion.div>
+                
+                {config?.gameId && (
+                  <motion.div 
+                    className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/20 px-3 py-1.5 rounded-lg shadow-sm border border-blue-100 dark:border-blue-800/30"
+                    whileHover={{ scale: 1.03 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                  >
+                    <span className="font-medium text-blue-700 dark:text-blue-300 text-sm">ID: {config.gameId}</span>
+                  </motion.div>
+                )}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500 bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-lg">
+                No theme selected
+              </div>
+            )}
+          </div>
+          
+          {/* Next step button with premium animation */}
+          <div className="flex items-center gap-3">
+            {/* Emergency navigation button - hidden by default, only visible after attempts */}
+            {!showEmergencyNavigator && (
+              <div className="flex gap-2">
+                <a
+                  href="/standalone-step2.html"
+                  target="_blank"
+                  className="px-3 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-all flex items-center gap-1.5"
+                  title="Open standalone Step 2 in new tab"
+                >
+                  <AlertTriangle size={16} />
+                  <span className="text-sm font-medium">Direct to Step 2</span>
+                </a>
+              </div>
+            )}
+            
+            <motion.div
+              whileHover={canProceed ? { scale: 1.03 } : {}}
+              whileTap={canProceed ? { scale: 0.98 } : {}}
+            >
+              <button
+                onClick={handleNextStep}
+                disabled={!canProceed} 
+                className={`px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg transition-all
+                          ${canProceed 
+                            ? 'bg-gradient-to-r from-red-600 to-red-700 text-white hover:shadow-xl hover:from-red-500 hover:to-red-600' 
+                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+              >
+                <span className="font-medium">Continue to Game Type</span>
+                <motion.div
+                  animate={canProceed ? { 
+                    x: [0, 5, 0],
+                    opacity: [1, 0.8, 1]
+                  } : {}}
+                  transition={{ 
+                    duration: 1.5, 
+                    repeat: Infinity,
+                    repeatType: "reverse",
+                    ease: "easeInOut"
+                  }}
+                >
+                  <ChevronRight size={18} />
+                </motion.div>
+              </button>
+            </motion.div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </div>
+  );
+};
+
+export default EnhancedStep1_ThemeSelection;

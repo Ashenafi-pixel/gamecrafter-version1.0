@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Premium Slot Preview Direct</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .header {
+      padding: 20px;
+      background: #1a1a2e;
+      color: white;
+      text-align: center;
+    }
+    .controls {
+      padding: 15px;
+      background: #f0f0f0;
+      border-bottom: 1px solid #ccc;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: row;
+      overflow: hidden;
+    }
+    .sidebar {
+      width: 250px;
+      background: #f0f0f0;
+      padding: 15px;
+      overflow-y: auto;
+    }
+    .preview-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #0f0f1e;
+      overflow: hidden;
+      position: relative;
+    }
+    .button {
+      padding: 8px 16px;
+      background: #4a4a9e;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .button:hover {
+      background: #5d5dbd;
+    }
+    .button.active {
+      background: #e63946;
+    }
+    .button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 600;
+    }
+    .debug-panel {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0,0,0,0.8);
+      color: lime;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+      max-width: 300px;
+      max-height: 80%;
+      overflow-y: auto;
+      z-index: 1000;
+    }
+    .loader {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+    .loader-spinner {
+      border: 5px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top: 5px solid #ffffff;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 15px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .nav-links {
+      margin-top: 20px;
+      padding-top: 15px;
+      border-top: 1px solid #ddd;
+    }
+    .nav-links a {
+      display: block;
+      padding: 8px 0;
+      color: #4a4a9e;
+      text-decoration: none;
+    }
+    .nav-links a:hover {
+      text-decoration: underline;
+    }
+    .status-bar {
+      background: #333;
+      color: white;
+      padding: 5px 10px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Premium Slot Preview</h1>
+      <p>Standalone tester for step 3 & 4 preview integration</p>
+    </div>
+    
+    <div class="controls">
+      <button id="goToStep3" class="button">View Step 3 Preview</button>
+      <button id="goToStep4" class="button">View Step 4 Preview</button>
+      <button id="toggleDebug" class="button">Toggle Debug Info</button>
+      <button id="reloadFrame" class="button">Reload Frame</button>
+    </div>
+    
+    <div class="main-content">
+      <div class="sidebar">
+        <div class="form-group">
+          <label for="dimensionControl">Container Size</label>
+          <select id="dimensionControl" class="input">
+            <option value="default">Default Size</option>
+            <option value="large">Large (900x600)</option>
+            <option value="medium">Medium (600x400)</option>
+            <option value="small">Small (300x200)</option>
+            <option value="tiny">Tiny (100x100)</option>
+            <option value="wide">Wide (800x300)</option>
+            <option value="tall">Tall (300x800)</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label>Step Parameters</label>
+          <div>
+            <input type="checkbox" id="showHeaderToggle" checked>
+            <label for="showHeaderToggle">Show Header</label>
+          </div>
+          <div>
+            <input type="checkbox" id="controlsDisabledToggle">
+            <label for="controlsDisabledToggle">Disable Controls</label>
+          </div>
+          <div>
+            <input type="checkbox" id="forceErrorToggle">
+            <label for="forceErrorToggle">Force Error State</label>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label>Direct Navigation</label>
+          <div>
+            <button id="directStep3Button" class="button">Direct to Step 3</button>
+            <button id="directStep4Button" class="button">Direct to Step 4</button>
+          </div>
+        </div>
+        
+        <div class="nav-links">
+          <a href="symbol-grid-test.html" target="_blank">Open FinalSymbolGrid Test</a>
+          <a href="/api-test.html" target="_blank">API Test Page</a>
+          <a href="/" target="_blank">Main Application</a>
+        </div>
+      </div>
+      
+      <div class="preview-container">
+        <iframe id="previewFrame" style="width: 100%; height: 100%; border: none;" src="about:blank"></iframe>
+        
+        <div id="debugPanel" class="debug-panel" style="display: none;">
+          <h3>Debug Information</h3>
+          <div id="debugContent"></div>
+        </div>
+        
+        <div id="loader" class="loader">
+          <div class="loader-spinner"></div>
+          <div>Loading preview...</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="status-bar" id="statusBar">
+      Ready to load preview
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // DOM Elements
+      const previewFrame = document.getElementById('previewFrame');
+      const debugPanel = document.getElementById('debugPanel');
+      const debugContent = document.getElementById('debugContent');
+      const loader = document.getElementById('loader');
+      const statusBar = document.getElementById('statusBar');
+      const dimensionControl = document.getElementById('dimensionControl');
+      const showHeaderToggle = document.getElementById('showHeaderToggle');
+      const controlsDisabledToggle = document.getElementById('controlsDisabledToggle');
+      const forceErrorToggle = document.getElementById('forceErrorToggle');
+      const toggleDebugBtn = document.getElementById('toggleDebug');
+      const reloadFrameBtn = document.getElementById('reloadFrame');
+      const goToStep3Btn = document.getElementById('goToStep3');
+      const goToStep4Btn = document.getElementById('goToStep4');
+      const directStep3Button = document.getElementById('directStep3Button');
+      const directStep4Button = document.getElementById('directStep4Button');
+      
+      // State
+      let currentStep = null;
+      let debugEnabled = false;
+      let isLoading = false;
+      
+      // Helper functions
+      function updateStatus(message) {
+        statusBar.textContent = message;
+      }
+      
+      function updateDebugInfo(info) {
+        const timestamp = new Date().toLocaleTimeString();
+        const infoText = typeof info === 'object' ? JSON.stringify(info, null, 2) : info;
+        debugContent.innerHTML += `<div><strong>${timestamp}</strong>: ${infoText}</div>`;
+        debugContent.scrollTop = debugContent.scrollHeight;
+      }
+      
+      function setLoading(loading) {
+        isLoading = loading;
+        loader.style.display = loading ? 'block' : 'none';
+        updateStatus(loading ? 'Loading...' : 'Ready');
+      }
+      
+      function resizePreviewContainer() {
+        const size = dimensionControl.value;
+        const container = document.querySelector('.preview-container');
+        
+        if (size === 'default') {
+          container.style.width = '';
+          container.style.height = '';
+        } else if (size === 'large') {
+          container.style.width = '900px';
+          container.style.height = '600px';
+        } else if (size === 'medium') {
+          container.style.width = '600px';
+          container.style.height = '400px';
+        } else if (size === 'small') {
+          container.style.width = '300px';
+          container.style.height = '200px';
+        } else if (size === 'tiny') {
+          container.style.width = '100px';
+          container.style.height = '100px';
+        } else if (size === 'wide') {
+          container.style.width = '800px';
+          container.style.height = '300px';
+        } else if (size === 'tall') {
+          container.style.width = '300px';
+          container.style.height = '800px';
+        }
+        
+        updateDebugInfo(`Container resized to: ${size}`);
+      }
+      
+      function loadStepPreview(step) {
+        if (isLoading) return;
+        setLoading(true);
+        currentStep = step;
+        
+        updateDebugInfo(`Loading step ${step} preview`);
+        
+        // Set localStorage values for direct navigation
+        localStorage.setItem('slotai_emergency_nav', 'true');
+        localStorage.setItem('slotai_target_step', step === 3 ? '2' : '3'); // 0-indexed
+        localStorage.setItem('slotai_timestamp', Date.now().toString());
+        
+        // Show header and controls options
+        const showHeader = showHeaderToggle.checked;
+        const disableControls = controlsDisabledToggle.checked;
+        const forceError = forceErrorToggle.checked;
+        
+        // Construct URL with parameters
+        const url = `/?step=${step === 3 ? '2' : '3'}&force=true&showHeader=${showHeader}&controlsDisabled=${disableControls}&debug=true${forceError ? '&forceError=true' : ''}`;
+        
+        updateDebugInfo(`Navigating to: ${url}`);
+        previewFrame.src = url;
+        
+        // Update active button
+        goToStep3Btn.classList.toggle('active', step === 3);
+        goToStep4Btn.classList.toggle('active', step === 4);
+        
+        previewFrame.onload = () => {
+          setLoading(false);
+          updateStatus(`Step ${step} preview loaded`);
+          updateDebugInfo(`Frame loaded successfully`);
+          
+          // Try to communicate with the frame
+          try {
+            previewFrame.contentWindow.postMessage({
+              type: 'DEBUG_REQUEST',
+              payload: {
+                requestDebugInfo: true
+              }
+            }, '*');
+          } catch (err) {
+            updateDebugInfo(`Error communicating with frame: ${err.message}`);
+          }
+        };
+        
+        previewFrame.onerror = (err) => {
+          setLoading(false);
+          updateStatus(`Error loading preview: ${err.message}`);
+          updateDebugInfo(`Frame load error: ${err.message}`);
+        };
+      }
+      
+      // Direct navigation
+      function navigateDirectlyToStep(step) {
+        // This uses a more direct method by reloading the main app with forced step
+        const showHeader = showHeaderToggle.checked;
+        const disableControls = controlsDisabledToggle.checked;
+        const forceError = forceErrorToggle.checked;
+        
+        // Set query parameters to force the right step
+        const urlParams = new URLSearchParams();
+        urlParams.set('directStep', step);
+        urlParams.set('showHeader', showHeader);
+        urlParams.set('disableControls', disableControls);
+        if (forceError) urlParams.set('forceError', 'true');
+        
+        const url = `/?${urlParams.toString()}`;
+        window.open(url, '_blank');
+      }
+      
+      // Event listeners
+      goToStep3Btn.addEventListener('click', () => loadStepPreview(3));
+      goToStep4Btn.addEventListener('click', () => loadStepPreview(4));
+      
+      directStep3Button.addEventListener('click', () => navigateDirectlyToStep(3));
+      directStep4Button.addEventListener('click', () => navigateDirectlyToStep(4));
+      
+      toggleDebugBtn.addEventListener('click', () => {
+        debugEnabled = !debugEnabled;
+        debugPanel.style.display = debugEnabled ? 'block' : 'none';
+        toggleDebugBtn.classList.toggle('active', debugEnabled);
+      });
+      
+      reloadFrameBtn.addEventListener('click', () => {
+        if (currentStep) {
+          loadStepPreview(currentStep);
+        } else {
+          updateStatus('No step loaded yet');
+        }
+      });
+      
+      dimensionControl.addEventListener('change', resizePreviewContainer);
+      
+      // Handle messages from iframe
+      window.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'DEBUG_INFO') {
+          updateDebugInfo(`From frame: ${JSON.stringify(event.data.payload)}`);
+        }
+      });
+      
+      // Initialize
+      updateDebugInfo('Page loaded');
+      setLoading(false);
+      
+      // Auto-load Step 3 preview
+      setTimeout(() => {
+        loadStepPreview(3);
+      }, 500);
+    });
+  </script>
+</body>
+</html>

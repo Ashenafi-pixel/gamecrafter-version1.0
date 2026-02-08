@@ -1,0 +1,107 @@
+node:internal/modules/cjs/loader:1143
+  throw err;
+  ^
+
+Error: Cannot find module 'express'
+Require stack:
+- /mnt/c/CodexCli/slotai/server.cjs
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1140:15)
+    at Module._load (node:internal/modules/cjs/loader:981:27)
+    at Module.require (node:internal/modules/cjs/loader:1231:19)
+    at require (node:internal/modules/helpers:177:18)
+    at Object.<anonymous> (/mnt/c/CodexCli/slotai/server.cjs:2:17)
+    at Module._compile (node:internal/modules/cjs/loader:1364:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1422:10)
+    at Module.load (node:internal/modules/cjs/loader:1203:32)
+    at Module._load (node:internal/modules/cjs/loader:1019:12)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:128:12) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [ '/mnt/c/CodexCli/slotai/server.cjs' ]
+}
+
+Node.js v18.20.8
+2026-01-14T22:12:19.334Z - Server started on port 3500
+2026-01-14T22:12:40.071Z - Server started on port 3500
+2026-01-15T06:56:26.580Z - Server started on port 3500
+2026-01-15T07:52:40.581Z - Server started on port 3500
+2026-01-15T07:55:04.440Z - Server started on port 3500
+2026-01-15T07:59:52.432Z - Server started on port 3500
+2026-01-15T08:01:27.063Z - Server started on port 3500
+2026-01-15T08:01:55.392Z - Server started on port 3500
+2026-01-15T08:02:32.690Z - Server started on port 3500
+2026-01-15T08:08:13.440Z - Server started on port 3500
+2026-01-15T08:14:14.472Z - Server started on port 3500
+2026-01-15T08:28:44.452Z - Server started on port 3500
+2026-01-15T08:48:09.614Z - Server started on port 3500
+2026-01-15T09:00:24.495Z - Server started on port 3500
+2026-01-15T14:59:13.370Z - Server started on port 3500
+2026-01-15T15:13:47.520Z - Server started on port 3500
+2026-01-15T17:39:50.782Z - Server started on port 3500
+2026-01-15T18:07:33.342Z - Server started on port 3500
+2026-01-18T08:27:12.563Z - Server started on port 3500
+2026-01-18T14:42:54.072Z - Server started on port 3500
+2026-01-18T16:21:07.335Z - Server started on port 3500
+2026-01-18T21:55:15.906Z - Server started on port 3500
+2026-01-18T22:55:23.740Z - Server started on port 3500
+2026-01-18T22:59:41.065Z - Server started on port 3500
+2026-01-18T23:00:58.396Z - Server started on port 3500
+2026-01-18T23:05:51.143Z - Server started on port 3500
+2026-01-18T23:16:21.265Z - Server started on port 3500
+2026-01-18T23:27:58.604Z - Server started on port 3500
+2026-01-19T07:55:17.735Z - Server started on port 3500
+2026-01-19T08:12:26.809Z - Server started on port 3500
+2026-01-19T08:13:21.263Z - Server started on port 3500
+2026-01-19T14:30:55.891Z - Server started on port 3500
+2026-01-19T16:20:12.013Z - Server started on port 3500
+2026-01-19T23:55:43.287Z - Server started on port 3500
+2026-01-20T05:09:02.166Z - Server started on port 3500
+2026-01-20T07:29:32.743Z - Server started on port 3500
+2026-01-20T09:13:41.192Z - Server started on port 3500
+2026-01-20T09:22:01.069Z - Server started on port 3500
+2026-01-20T09:29:08.405Z - Server started on port 3500
+2026-01-20T09:39:05.558Z - Server started on port 3500
+2026-01-20T09:40:21.127Z - Server started on port 3500
+2026-01-20T09:40:54.025Z - Server started on port 3500
+2026-01-20T09:41:29.274Z - Server started on port 3500
+2026-01-20T09:52:05.110Z - Server started on port 3500
+2026-01-20T11:18:24.465Z - Server started on port 3500
+2026-01-20T11:25:48.372Z - Server started on port 3500
+2026-01-20T16:12:20.295Z - Server started on port 3500
+2026-01-20T23:09:42.372Z - Server started on port 3500
+2026-01-21T18:13:59.160Z - Server started on port 3500
+2026-01-22T11:05:50.303Z - Server started on port 3500
+2026-01-22T12:40:32.195Z - Server started on port 3500
+2026-01-22T13:52:01.459Z - Server started on port 3500
+2026-01-22T14:01:18.770Z - Server started on port 3500
+2026-01-22T18:53:58.544Z - Server started on port 3500
+2026-01-22T19:49:30.461Z - Server started on port 3500
+2026-01-22T22:10:58.217Z - Server started on port 3500
+2026-01-22T23:10:45.578Z - Server started on port 3500
+2026-01-22T23:33:55.851Z - Server started on port 3500
+2026-01-23T00:02:04.609Z - Server started on port 3500
+2026-01-23T00:13:58.701Z - Server started on port 3500
+2026-01-24T10:40:15.128Z - Server started on port 3500
+2026-01-24T12:07:18.316Z - Server started on port 3500
+2026-01-24T13:17:56.047Z - Server started on port 3500
+2026-01-24T14:52:47.777Z - Server started on port 3500
+2026-01-26T09:21:17.106Z - Server started on port 3500
+2026-01-26T15:14:34.717Z - Server started on port 3500
+2026-01-26T15:20:32.618Z - Server started on port 3500
+2026-01-26T15:33:59.995Z - Server started on port 3500
+2026-01-26T15:56:41.134Z - Server started on port 3500
+2026-01-26T16:05:23.031Z - Server started on port 3500
+2026-01-26T17:01:04.148Z - Server started on port 3500
+2026-01-26T18:10:01.113Z - Server started on port 3500
+2026-01-28T10:11:51.576Z - Server started on port 3500
+2026-01-28T20:58:03.037Z - Server started on port 3500
+2026-01-29T05:43:35.121Z - Server started on port 3500
+2026-01-29T09:34:43.364Z - Server started on port 3500
+2026-01-31T07:55:01.821Z - Server started on port 3500
+2026-02-04T16:19:18.714Z - Server started on port 3500
+2026-02-04T16:44:04.414Z - Server started on port 3500
+2026-02-04T18:01:25.176Z - Server started on port 3500
+2026-02-05T05:46:11.065Z - Server started on port 3500
+2026-02-05T06:01:38.653Z - Server started on port 3500
+2026-02-05T06:13:15.717Z - Server started on port 3500
+2026-02-06T13:38:21.280Z - Server started on port 3500
+2026-02-07T21:21:11.971Z - Server started on port 3500

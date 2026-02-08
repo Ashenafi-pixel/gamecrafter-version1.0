@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal Sprite Detector Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .image-preview {
+            max-width: 300px;
+            border: 2px solid #ddd;
+            margin: 10px;
+        }
+        .sprite-result {
+            display: inline-block;
+            margin: 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #f9f9f9;
+        }
+        .sprite-image {
+            max-width: 100px;
+            max-height: 100px;
+            border: 1px solid #aaa;
+        }
+        .log {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            font-family: monospace;
+            height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        button {
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #005a87;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Universal Sprite Detector Test</h1>
+        
+        <div class="test-section">
+            <h2>Test Image</h2>
+            <img id="testImage" class="image-preview" src="/game-assets/animation-lab/knight.png" alt="Test Image">
+            <br>
+            <button onclick="testDetection()">🎯 Run Universal Detection</button>
+            <button onclick="changeTestImage()">🔄 Change Test Image</button>
+        </div>
+        
+        <div class="test-section">
+            <h2>Detection Results</h2>
+            <div id="results"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>Console Log</h2>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import the universal detector (simplified version for testing)
+        class UniversalSpriteDetector {
+            constructor(options = {}) {
+                this.options = {
+                    minSpriteSize: 100,
+                    maxSpriteSize: 50000,
+                    separationThreshold: 5,
+                    noiseFilter: true,
+                    mergeThreshold: 10,
+                    confidenceThreshold: 0.3,
+                    ...options
+                };
+                this.canvas = document.createElement('canvas');
+                this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
+            }
+
+            async detectSprites(imageUrl) {
+                this.log('🔍 Starting universal sprite detection...');
+                
+                const image = await this.loadImage(imageUrl);
+                this.setupCanvas(image);
+                
+                const binaryMask = this.createBinaryMask();
+                const regions = this.findConnectedComponents(binaryMask);
+                this.log(`📊 Found ${regions.length} initial regions`);
+                
+                const validRegions = this.filterRegions(regions);
+                this.log(`✅ Filtered to ${validRegions.length} valid sprites`);
+                
+                const sprites = await this.extractSprites(validRegions);
+                sprites.sort((a, b) => b.pixels - a.pixels);
+                
+                this.log(`🎯 Detection complete: ${sprites.length} sprites found`);
+                return sprites;
+            }
+
+            async loadImage(imageUrl) {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    img.onload = () => resolve(img);
+                    img.onerror = reject;
+                    img.src = imageUrl;
+                });
+            }
+
+            setupCanvas(image) {
+                this.width = image.width;
+                this.height = image.height;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+                
+                this.ctx.clearRect(0, 0, this.width, this.height);
+                this.ctx.drawImage(image, 0, 0);
+                this.imageData = this.ctx.getImageData(0, 0, this.width, this.height);
+                this.log(`📏 Image size: ${this.width}x${this.height}`);
+            }
+
+            createBinaryMask() {
+                const mask = new Uint8Array(this.width * this.height);
+                const data = this.imageData.data;
+                
+                for (let i = 0; i < data.length; i += 4) {
+                    const alpha = data[i + 3];
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+                    
+                    const isVisible = alpha > 30 && 
+                                     !(r > 240 && g > 240 && b > 240) && 
+                                     (r + g + b) < 720;
+                    
+                    mask[Math.floor(i / 4)] = isVisible ? 1 : 0;
+                }
+                
+                this.log(`🎨 Binary mask created`);
+                return mask;
+            }
+
+            findConnectedComponents(mask) {
+                const visited = new Uint8Array(this.width * this.height);
+                const regions = [];
+                
+                for (let y = 0; y < this.height; y++) {
+                    for (let x = 0; x < this.width; x++) {
+                        const index = y * this.width + x;
+                        
+                        if (mask[index] === 1 && visited[index] === 0) {
+                            const region = this.floodFill(mask, visited, x, y);
+                            if (region.pixelCount >= this.options.minSpriteSize && 
+                                region.pixelCount <= this.options.maxSpriteSize) {
+                                regions.push(region);
+                            }
+                        }
+                    }
+                }
+                
+                return regions;
+            }
+
+            floodFill(mask, visited, startX, startY) {
+                const pixels = [];
+                const stack = [{x: startX, y: startY}];
+                
+                let minX = startX, maxX = startX;
+                let minY = startY, maxY = startY;
+                
+                while (stack.length > 0) {
+                    const {x, y} = stack.pop();
+                    const index = y * this.width + x;
+                    
+                    if (x < 0 || x >= this.width || y < 0 || y >= this.height || 
+                        visited[index] === 1 || mask[index] === 0) {
+                        continue;
+                    }
+                    
+                    visited[index] = 1;
+                    pixels.push({x, y});
+                    
+                    minX = Math.min(minX, x);
+                    maxX = Math.max(maxX, x);
+                    minY = Math.min(minY, y);
+                    maxY = Math.max(maxY, y);
+                    
+                    stack.push(
+                        {x: x + 1, y}, {x: x - 1, y},
+                        {x, y: y + 1}, {x, y: y - 1}
+                    );
+                }
+                
+                return {
+                    pixels,
+                    bounds: {
+                        x: minX,
+                        y: minY,
+                        width: maxX - minX + 1,
+                        height: maxY - minY + 1
+                    },
+                    pixelCount: pixels.length
+                };
+            }
+
+            filterRegions(regions) {
+                return regions.filter(region => {
+                    const area = region.bounds.width * region.bounds.height;
+                    const density = region.pixelCount / area;
+                    return density > 0.1;
+                });
+            }
+
+            async extractSprites(regions) {
+                const sprites = [];
+                
+                for (let i = 0; i < regions.length; i++) {
+                    const region = regions[i];
+                    const bounds = region.bounds;
+                    
+                    const extractCanvas = document.createElement('canvas');
+                    const extractCtx = extractCanvas.getContext('2d');
+                    
+                    const padding = 2;
+                    extractCanvas.width = bounds.width + padding * 2;
+                    extractCanvas.height = bounds.height + padding * 2;
+                    
+                    extractCtx.clearRect(0, 0, extractCanvas.width, extractCanvas.height);
+                    extractCtx.drawImage(
+                        this.canvas,
+                        bounds.x, bounds.y, bounds.width, bounds.height,
+                        padding, padding, bounds.width, bounds.height
+                    );
+                    
+                    const area = bounds.width * bounds.height;
+                    const density = region.pixelCount / area;
+                    const aspectRatio = bounds.width / bounds.height;
+                    
+                    let type = 'unknown';
+                    if (density > 0.7 && Math.abs(aspectRatio - 1) < 0.3) {
+                        type = 'symbol';
+                    } else if (aspectRatio > 0.3 && aspectRatio < 3 && density > 0.4) {
+                        type = 'letter';
+                    } else if (density < 0.2) {
+                        type = 'decoration';
+                    } else {
+                        type = 'object';
+                    }
+                    
+                    sprites.push({
+                        id: `sprite_${i}`,
+                        bounds: bounds,
+                        pixels: region.pixelCount,
+                        density,
+                        imageData: extractCanvas.toDataURL('image/png'),
+                        confidence: Math.min(0.5 + (density > 0.3 ? 0.3 : 0) + (region.pixelCount > 500 ? 0.2 : 0), 1.0),
+                        type
+                    });
+                }
+                
+                return sprites;
+            }
+
+            log(message) {
+                console.log(message);
+                const logElement = document.getElementById('log');
+                logElement.textContent += message + '\n';
+                logElement.scrollTop = logElement.scrollHeight;
+            }
+        }
+
+        window.testDetection = async function() {
+            const imageUrl = document.getElementById('testImage').src;
+            const detector = new UniversalSpriteDetector({
+                minSpriteSize: 50,
+                maxSpriteSize: 100000,
+                confidenceThreshold: 0.1
+            });
+            
+            try {
+                const sprites = await detector.detectSprites(imageUrl);
+                displayResults(sprites);
+            } catch (error) {
+                detector.log(`❌ Detection failed: ${error.message}`);
+            }
+        };
+
+        window.changeTestImage = function() {
+            const images = [
+                '/game-assets/animation-lab/knight.png',
+                '/game-assets/ancient-egypt_20250529/symbols/high/high_2_high_2.png',
+                '/assets/brand/gold.png'
+            ];
+            const current = document.getElementById('testImage').src;
+            const currentIndex = images.findIndex(img => current.includes(img));
+            const nextIndex = (currentIndex + 1) % images.length;
+            document.getElementById('testImage').src = images[nextIndex];
+        };
+
+        function displayResults(sprites) {
+            const resultsElement = document.getElementById('results');
+            resultsElement.innerHTML = '';
+            
+            if (sprites.length === 0) {
+                resultsElement.innerHTML = '<p>No sprites detected</p>';
+                return;
+            }
+            
+            sprites.forEach((sprite, index) => {
+                const spriteDiv = document.createElement('div');
+                spriteDiv.className = 'sprite-result';
+                spriteDiv.innerHTML = `
+                    <h4>Sprite ${index + 1} (${sprite.type})</h4>
+                    <img src="${sprite.imageData}" class="sprite-image" alt="Detected sprite">
+                    <p>Size: ${sprite.bounds.width}×${sprite.bounds.height}</p>
+                    <p>Pixels: ${sprite.pixels}</p>
+                    <p>Density: ${sprite.density.toFixed(2)}</p>
+                    <p>Confidence: ${sprite.confidence.toFixed(2)}</p>
+                `;
+                resultsElement.appendChild(spriteDiv);
+            });
+        }
+    </script>
+</body>
+</html>
