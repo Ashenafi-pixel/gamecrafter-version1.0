@@ -361,9 +361,6 @@ const Step7_Export: React.FC = () => {
 
             console.log('configForHtml.theme.generated.symbols:', Object.keys(configForHtml.theme.generated.symbols));
             console.log('configForHtml.theme.generated.background:', configForHtml.theme.generated.background?.substring(0, 50));
-            console.log('configForHtml.scratch.layout.transform:', configForHtml.scratch?.layout?.transform);
-            console.log('configForHtml.scratch.logo:', configForHtml.scratch?.logo);
-            console.log('configForHtml.scratch.mascot:', configForHtml.scratch?.mascot);
 
             // COMPREHENSIVE ASSET VERIFICATION
             console.log('\n🔍 ========== ASSET VERIFICATION ==========');

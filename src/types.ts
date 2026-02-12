@@ -836,6 +836,7 @@ export interface ScratchConfig {
     isGenerating?: boolean;
     theme?: string;
   };
+  audioVolumes?: Record<string, number>;
   background: { // Backwards compat
     type: 'color' | 'image' | 'gradient';
     value: string; // Hex, URL, or Gradient String
