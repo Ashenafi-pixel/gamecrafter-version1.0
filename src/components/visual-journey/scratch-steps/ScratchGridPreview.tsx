@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useGameStore } from '../../../store';
 import { Volume2, VolumeX } from 'lucide-react';
-import { useScratchEngine } from '../../../hooks/useScratchEngine';
+import { useScratchEngine } from '../../../components/modals/StandaloneGameModal';
 import { useScratchSession } from '../../../hooks/useScratchSession';
 import FoilCanvas from './FoilCanvas';
 import { ASSET_MAP } from '../../../utils/scratchAssets';
@@ -30,9 +30,9 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
         life: number, color: string, type: 'spark' | 'confetti',
         size: number, rotation: number, vRotation: number
     }>>([]);
-    const particleCanvasRef = useRef<HTMLCanvasElement>(null);
+    const particleCanvasRef = useRef<HTMLCanvasElement>(null!);
     // Local ref to break circular dependency with useScratchEngine
-    const localContainerRef = useRef<HTMLDivElement>(null);
+    const localContainerRef = useRef<HTMLDivElement | null>(null!);
 
     // --- Audio System ---
     const [isMuted, setIsMuted] = useState(false);
@@ -50,7 +50,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
             audioRefs.current[id].src = url;
         }
 
-        const vol = (config.scratch?.audioVolumes as any)?.[id] ?? 0.5;
+        const vol = config.scratch?.audioVolumes?.[id] ?? 0.5;
         audioRefs.current[id].volume = isMuted ? 0 : vol;
         return audioRefs.current[id];
     }, [config.scratch?.audio, config.scratch?.audioVolumes, isMuted]);
@@ -127,7 +127,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
     const foilLogicRef = React.useRef({ reapply: () => { } });
 
     // --- Responsive Scaling Logic ---
-    const wrapperRef = React.useRef<HTMLDivElement>(null);
+    const wrapperRef = React.useRef<HTMLDivElement>(null!);
     const [fitScale, setFitScale] = useState(1);
 
     useEffect(() => {
@@ -601,7 +601,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
     // ...
 
-    const mainRef = useRef<HTMLDivElement>(null);
+    const mainRef = useRef<HTMLDivElement>(null!);
 
     return (
         <div ref={mainRef} className={`flex flex-col h-full bg-gray-900 rounded-xl overflow-hidden shadow-2xl relative ${className}`}>
@@ -638,12 +638,14 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                 /* NOTE: We now use a FIXED size container for the "Card Logic" so the Frame doesn't stretch when we resize the internal grid.
                    The user fits the grid INTO this frame window.
                 */}
-                {/* Card Anchor (Fixed 320x460 Center) */}
+                {/* Card Anchor (Fixed 320x460 Center, Scaled to Fit) */}
                 <div
                     className="relative z-10 origin-center rounded-xl"
                     style={{
                         width: `${CARD_WIDTH}px`,
                         height: `${CARD_HEIGHT}px`,
+                        // [FIX] Apply fitScale here so EVERYTHING (Mascot, Logo, Grid) scales together
+                        transform: `scale(${fitScale})`
                     }}
                 >
                     {/* --- LAYERS THAT DO NOT MOVE WITH FRAME TRANSFORM (Static/Independent) --- */}
@@ -715,6 +717,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                         >
                             {/* INNER CONTAINER: Handles Animation (Bounce/Pulse override transforms) */}
                             <div className={`
+                                w-full h-full flex items-center justify-center
                                 ${config.scratch.mascot.animation === 'bounce' ? 'animate-bounce' : ''}
                                 ${config.scratch.mascot.animation === 'pulse' ? 'animate-pulse' : ''}
                                 ${config.scratch.mascot.animation === 'float' ? 'animate-pulse' : '' /* Fallback if float missing */} 
@@ -723,9 +726,12 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                                 {/* IMAGE: Handles Scale */}
                                 <img
                                     src={config.scratch.mascot.image}
-                                    className="max-h-[300px] object-contain drop-shadow-2xl transition-transform"
+                                    className="object-contain drop-shadow-2xl transition-transform"
                                     style={{
-                                        transform: `scale(${(config.scratch.mascot.scale ?? 100) / 100})`
+                                        // [FIX] Use Height Percentage relative to Card Height (460px).
+                                        // This ensures consistency with Export logic and normalized sizing.
+                                        height: `${config.scratch.mascot.scale ?? 100}%`,
+                                        width: 'auto'
                                     }}
                                     alt="Mascot"
                                 />
@@ -754,8 +760,8 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                         className="absolute inset-0 z-20 origin-center shadow-[0_20px_60px_rgba(0,0,0,0.6)] rounded-xl overflow-hidden"
                         style={{
                             // Apply Transform to ONLY the Frame + Grid
-                            // Use calculated fitScale instead of Magic scaling (0.55)
-                            transform: `translate(${containerX}px, ${containerY}px) scale(${containerScaleX * fitScale}, ${containerScaleY * fitScale})`
+                            // [FIX] Removed fitScale from here (it's on parent now). Retained container transform X/Y/Scale.
+                            transform: `translate(${containerX}px, ${containerY}px) scale(${containerScaleX}, ${containerScaleY})`
                         }}
                     >
                         <div
@@ -894,7 +900,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                                         className={`absolute inset-0 z-[100] pointer-events-auto touch-none ${config.scratch?.mechanic?.type === 'wheel' ? 'rounded-full' : 'cursor-none'}`}
                                         ref={(el) => {
                                             if (containerRef) {
-                                                (containerRef as any).current = el;
+                                                containerRef.current = el;
                                             }
                                             localContainerRef.current = el;
                                         }}

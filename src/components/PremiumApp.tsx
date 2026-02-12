@@ -5,7 +5,6 @@ import { useGameStore } from '../store';
 import PremiumLayout from './layout/PremiumLayout';
 import EnhancedGameCrafterDashboard from './EnhancedGameCrafterDashboard';
 import ConfigModal from './ConfigModal';
-import StandaloneGameModal from './modals/StandaloneGameModal';
 import { Loader, Sparkles } from 'lucide-react';
 import { useWarningPopup } from './popups';
 
@@ -553,8 +552,6 @@ const PremiumApp: React.FC = () => {
           onClose={() => setShowConfig(false)}
         />
       )}
-
-      <StandaloneGameModal />
     </>
   );
 };

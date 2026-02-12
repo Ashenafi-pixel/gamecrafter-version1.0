@@ -521,45 +521,65 @@ export const generateScratchHTML = (cleanConfig: any): string => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>${cleanConfig.displayName || 'Scratch Game'} - Preview</title>
+    <title>${cleanConfig.displayName || 'Scratch Card'} | Game Crafter</title>
     <script src="https://pixijs.download/v8.1.0/pixi.min.js"></script>
     <style>
         body { margin: 0; background: #0f172a; overflow: hidden; touch-action: none; display: flex; flex-direction: column; height: 100vh; font-family: system-ui, sans-serif; }
         #loading { position: absolute; color: white; font-weight: bold; font-size: 24px; text-align: center; pointer-events: none; z-index: 10; }
         .spinner { width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        #game-container { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; }
-        canvas { box-shadow: 0 0 50px rgba(0,0,0,0.5); border-radius: 12px; max-width: 100%; max-height: 100%; }
+        #game-container { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; position: relative; width: 100%; height: 100%; }
+        canvas { display: block; width: 100%; height: 100%; }
         /* Casino Shell Footer */
-        #casino-footer { position: fixed; bottom: 0; left: 0; right: 0; height: 56px; background: #000; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-top: 1px solid #333; z-index: 50; box-shadow: 0 -4px 20px rgba(0,0,0,0.4); }
-        .footer-label { font-size: 10px; font-weight: bold; color: #FFD700; text-transform: uppercase; letter-spacing: 0.05em; }
-        .footer-value { font-size: 18px; font-weight: bold; font-family: monospace; }
-        #footer-balance, #footer-bet { display: flex; flex-direction: column; gap: 0; }
-        #footer-win { display: flex; flex-direction: column; align-items: flex-end; }
-        #footer-win .footer-value { color: #4ade80; }
-        .btn-buy { height: 40px; padding: 0 24px; background: #22c55e; color: #fff; border: none; border-radius: 999px; font-weight: 800; font-size: 16px; text-transform: uppercase; cursor: pointer; box-shadow: 0 4px 0 #15803d; transition: transform 0.1s, box-shadow 0.1s; }
-        .btn-buy:active { transform: translateY(4px); box-shadow: none; }
-        .btn-buy:disabled { background: #374151; color: #9ca3af; cursor: not-allowed; box-shadow: none; }
-        .btn-autoplay { width: 44px; height: 44px; background: #1f2937; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; border: none; cursor: pointer; font-size: 9px; font-weight: bold; }
+        #casino-footer { position: fixed; bottom: 0; left: 0; right: 0; height: 64px; background: #000; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-top: 1px solid #333; z-index: 50; box-shadow: 0 -4px 20px rgba(0,0,0,0.4); }
+        .footer-left, .footer-right { display: flex; align-items: center; gap: 16px; flex: 1; }
+        .footer-center { position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; }
+        .footer-right { justify-content: flex-end; }
+        
+        .footer-label { font-size: 9px; font-weight: bold; color: #FFD700; text-transform: uppercase; letter-spacing: 0.1em; }
+        .footer-value { font-size: 16px; font-weight: bold; font-family: monospace; line-height: 1; }
+        .footer-group { display: flex; flex-direction: column; gap: 2px; }
+        
+        .btn-icon { width: 36px; height: 36px; borderRadius: 50%; border: 1px solid #334155; background: transparent; color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+        .btn-icon:hover { border-color: #f8fafc; color: #f8fafc; }
+        
+        .bet-controls { display: flex; align-items: center; gap: 6px; }
+        .btn-bet { width: 24px; height: 24px; background: #1e293b; border: 1px solid #334155; color: #fff; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        .btn-bet:hover { background: #334155; }
+
+        .btn-buy { height: 44px; padding: 0 32px; background: #22c55e; color: #fff; border: none; border-radius: 999px; font-weight: 900; font-size: 18px; text-transform: uppercase; cursor: pointer; box-shadow: 0 3px 0 #15803d; transition: all 0.1s; display: flex; align-items: center; justify-content: center; }
+        .btn-buy:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #15803d; }
+        .btn-buy:disabled { background: #374151; color: #9ca3af; cursor: not-allowed; box-shadow: none; opacity: 0.7; }
+        
+        .btn-autoplay { width: 44px; height: 44px; background: #1f2937; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; border: none; cursor: pointer; font-size: 8px; font-weight: 900; gap: 1px; }
+        .btn-autoplay svg { width: 14px; height: 14px; }
         .btn-autoplay:hover:not(:disabled) { background: #374151; }
-        .btn-autoplay:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-stop { background: #dc2626; padding: 0 20px; font-weight: 800; }
-        /* Autoplay Modal */
-        #autoplay-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; align-items: center; justify-content: center; }
-        #autoplay-overlay.open { display: flex; }
-        #autoplay-modal { background: #1e293b; border-radius: 16px; padding: 24px; min-width: 280px; max-width: 90vw; border: 1px solid #334155; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
-        #autoplay-modal h3 { margin: 0 0 16px 0; color: #fff; font-size: 18px; }
-        .autoplay-row { margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-        .autoplay-row label { color: #cbd5e1; font-size: 14px; }
-        #autoplay-rounds { width: 80px; padding: 8px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #fff; font-size: 16px; }
-        .btn-modal { padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; border: none; font-size: 14px; }
-        .btn-modal-primary { background: #22c55e; color: #fff; }
-        .btn-modal-secondary { background: #475569; color: #fff; margin-right: 8px; }
-        /* Debug */
-        #debug-console { position: absolute; top: 0; left: 0; width: 300px; height: 100%; background: rgba(0,0,0,0.8); color: #0f0; font-family: monospace; font-size: 12px; padding: 10px; overflow-y: auto; z-index: 100; pointer-events: none; display: none; }
-        .log-info { color: #88ff88; }
-        .log-warn { color: #ffff88; }
-        .log-error { color: #ff8888; font-weight: bold; }
+        .btn-stop { background: #ef4444; color: #fff; width: auto; padding: 0 16px; border-radius: 999px; font-size: 12px; }
+
+        /* Modals */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); z-index: 200; align-items: center; justify-content: center; }
+        .modal-overlay.open { display: flex; }
+        .modal-card { background: #111; color: #fff; border-radius: 12px; width: 480px; max-width: 95vw; max-height: 85vh; display: flex; flex-direction: column; border: 1px solid #333; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8); }
+        .modal-header { padding: 16px; background: #000; border-bottom: 1px solid #222; display: flex; align-items: center; justify-content: space-between; }
+        .modal-header h3 { margin: 0; font-size: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; }
+        .modal-close { background: none; border: none; color: #666; cursor: pointer; padding: 4px; }
+        .modal-close:hover { color: #fff; }
+        .modal-body { flex: 1; overflow-y: auto; padding: 24px; }
+        
+        /* Stats Table (Hacksaw Style) */
+        .rules-section { margin-bottom: 24px; }
+        .rules-title { color: #FFD700; font-size: 11px; font-weight: 900; text-transform: uppercase; margin-bottom: 12px; border-left: 3px solid #FFD700; padding-left: 8px; }
+        .rules-text { font-size: 12px; color: #ccc; line-height: 1.5; white-space: pre-wrap; margin: 0; }
+        .paytable-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; border: 1px solid #222; }
+        .paytable-table th { background: #1a1a1a; padding: 8px; text-align: left; color: #888; border-bottom: 1px solid #333; }
+        .paytable-table td { padding: 8px; border-bottom: 1px solid #222; }
+        .paytable-table tr:nth-child(even) { background: #161616; }
+
+        @media (max-width: 600px) {
+            .footer-left .btn-icon:first-child { display: none; }
+            .footer-center { gap: 8px; }
+            .btn-buy { padding: 0 20px; font-size: 16px; }
+        }
     </style>
 </head>
 <body>
@@ -568,36 +588,96 @@ export const generateScratchHTML = (cleanConfig: any): string => {
         <div>Loading Assets...</div>
         <div id="loading-status" style="font-size:14px; margin-top:10px; opacity:0.7"></div>
     </div>
-    <div id="debug-console"></div>
     <div id="game-container"></div>
 
     <footer id="casino-footer">
-        <div style="display: flex; align-items: center; gap: 24px;">
-            <div id="footer-balance">
+        <div class="footer-left">
+            <button class="btn-icon" title="Menu">
+                <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            </button>
+            <button class="btn-icon" onclick="openInfoModal()" title="Info">
+                <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+            </button>
+            <div class="footer-group">
                 <span class="footer-label">Demo Balance</span>
-                <span class="footer-value" id="footer-balance-value">0.00</span>
-            </div>
-            <div id="footer-bet">
-                <span class="footer-label">Demo Bet</span>
-                <span class="footer-value" id="footer-bet-value">0.00</span>
+                <span class="footer-value">€<span id="footer-balance-value">0.00</span></span>
             </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <div id="footer-win" style="display: none;">
-                <span class="footer-label">Win</span>
-                <span class="footer-value" id="footer-win-value">0.00</span>
+        
+        <div class="footer-center">
+            <button class="btn-autoplay" id="btn-autoplay">
+                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M20 11a8.1 8.1 0 0 0-15.5-2m-.5-5v5h5"></path><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 5v-5h-5"></path></svg>
+                <span>AUTO</span>
+            </button>
+            <button class="btn-buy" id="btn-buy">BUY</button>
+            <div class="footer-group">
+                <span class="footer-label">Demo Bet</span>
+                <div class="bet-controls">
+                    <span class="footer-value">€<span id="footer-bet-value">0.00</span></span>
+                    <button class="btn-bet" onclick="changeBet(-0.1)">-</button>
+                    <button class="btn-bet" onclick="changeBet(0.1)">+</button>
+                </div>
             </div>
-            <button type="button" class="btn-buy" id="btn-buy">BUY</button>
-            <button type="button" class="btn-autoplay" id="btn-autoplay" title="Autoplay">⟲<br><span>AUTO</span></button>
+        </div>
+        
+        <div class="footer-right">
+            <div id="footer-win" class="footer-group" style="display: none; align-items: flex-end;">
+                <span class="footer-label" style="color: #4ade80;">Win</span>
+                <span class="footer-value" style="color: #4ade80; font-size: 20px;">€<span id="footer-win-value">0.00</span></span>
+            </div>
         </div>
     </footer>
 
-    <div id="autoplay-overlay">
-        <div id="autoplay-modal">
-            <h3>Autoplay</h3>
-            <div class="autoplay-row">
-                <label>Rounds</label>
-                <input type="number" id="autoplay-rounds" min="1" max="1000" value="10">
+    <!-- Info Modal (Hacksaw style) -->
+    <div id="info-overlay" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Game Info - ${cleanConfig.displayName || 'Scratch Game'}</h3>
+                <button class="modal-close" onclick="closeInfoModal()">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="rules-section">
+                    <h4 class="rules-title">How To Play</h4>
+                    <p class="rules-text" id="rules-how-to"></p>
+                </div>
+                <div class="rules-section">
+                    <h4 class="rules-title">Value Symbols</h4>
+                    <table class="paytable-table" id="rules-paytable">
+                        <thead><tr><th>Prize</th><th style="text-align:right">Multiplier</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="rules-section">
+                    <h4 class="rules-title">Game Rules</h4>
+                    <p class="rules-text" id="rules-general"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Autoplay Modal -->
+    <div id="autoplay-overlay" class="modal-overlay">
+        <div class="modal-card" style="width: 320px;">
+            <div class="modal-header">
+                <h3>Autoplay</h3>
+                <button class="modal-close" onclick="closeAutoplayModal()">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="footer-label" style="margin-bottom: 12px">Number of Rounds</p>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 24px;">
+                    <button class="btn-bet" style="width: 100%; height: 36px;" onclick="setAutoRounds(10)">10</button>
+                    <button class="btn-bet" style="width: 100%; height: 36px;" onclick="setAutoRounds(25)">25</button>
+                    <button class="btn-bet" style="width: 100%; height: 36px;" onclick="setAutoRounds(50)">50</button>
+                    <button class="btn-bet" style="width: 100%; height: 36px;" onclick="setAutoRounds(100)">100</button>
+                </div>
+                <button class="btn-buy" style="width: 100%;" onclick="startAutoplay()">Start</button>
+            </div>
+        </div>
+    </div>
             </div>
             <div class="autoplay-row">
                 <label><input type="checkbox" id="autoplay-turbo"> Turbo (no delay)</label>
@@ -619,36 +699,152 @@ export const generateScratchHTML = (cleanConfig: any): string => {
 
     <script>
         
-        // --- Setup Debugger ---
-        const consoleDiv = document.getElementById('debug-console');
+        // --- Setup Log ---
         function log(msg, type='info') {
             console.log(\`[\${type.toUpperCase()}] \`, msg);
-            const line = document.createElement('div');
-            line.className = 'log-' + type;
-            line.textContent = '>' + (typeof msg === 'object' ? JSON.stringify(msg) : msg);
-            consoleDiv.appendChild(line);
-            consoleDiv.scrollTop = consoleDiv.scrollHeight;
         }
         window.onerror = (msg, url, line) => {
             log(\`ERROR: \${msg} (\${line})\`, 'error');
-            document.getElementById('debug-console').style.display = 'block'; // Auto-show on error
         };
 
         // --- Standalone Scratch Mini-Engine ---
         let app, container, scratchMask, brushTexture;
         let isDrawing = false;
-        // [FIX] Global assetUrls for access in setupScene
         const assetUrls = new Set();
-        const textureCache = new Map(); // [FIX] Global texture cache for setupScene access
-        
-        // [CORS-FIX] Embed config via Script Tag to avoid JS Parser limits on huge strings
+        const textureCache = new Map();
+        const audioCache = new Map();
+        const CARD_WIDTH = 320;
+        const CARD_HEIGHT = 460;
+        let brushTip;
         let config = null;
+        let particles = [];
+        let particleContainer;
+        let surfaceUrl = '';
+        let hasCelebrated = false;
+        let scratchThreshold = 0.95;
+        let currentOutcome = { win: 0 };
 
         // --- Casino Shell State (Footer + Autoplay) ---
-        const ticketPrice = (config.scratch && config.scratch.math && config.scratch.math.ticketPrice) ? Number(config.scratch.math.ticketPrice) : 1;
-        let shellState = { balance: 1000, bet: ticketPrice, win: 0, gameState: 'idle', isAutoPlaying: false, autoplayId: 0 };
-        const OPERATOR_ENDPOINT = (config.operator_endpoint || ''); // Optional: set in editor for API balance/debit/credit
+        let ticketPrice = 1;
+        let shellState = { balance: 1000, bet: 1, win: 0, gameState: 'idle', isAutoPlaying: false, autoplayId: 0 };
+        let OPERATOR_ENDPOINT = '';
 
+        // --- UI Modal & Footer Logic ---
+        function openInfoModal() { 
+            populateInfoModal();
+            const overlay = document.getElementById('info-overlay');
+            if (overlay) overlay.classList.add('open'); 
+        }
+        function closeInfoModal() { 
+            const overlay = document.getElementById('info-overlay');
+            if (overlay) overlay.classList.remove('open'); 
+        }
+        
+        function openAutoplayModal() { 
+            const overlay = document.getElementById('autoplay-overlay');
+            if (overlay) overlay.classList.add('open'); 
+        }
+        function closeAutoplayModal() { 
+            const overlay = document.getElementById('autoplay-overlay');
+            if (overlay) overlay.classList.remove('open'); 
+        }
+        
+        function setAutoRounds(r) {
+            shellState.autoplayRounds = r;
+            // Visual feedback could be added here
+        }
+
+        function changeBet(delta) {
+            if (shellState.gameState !== 'idle') return;
+            const newBet = Math.max(0.1, shellState.bet + delta);
+            shellState.bet = Number(newBet.toFixed(2));
+            updateFooterDisplay();
+        }
+
+        function populateInfoModal() {
+            if (!config) return;
+            const rules = config.gameRules || {};
+            const howTo = document.getElementById('rules-how-to');
+            if (howTo) howTo.textContent = rules.howToPlayText || "Reveal three identical symbols to win a prize.";
+            
+            const general = document.getElementById('rules-general');
+            if (general) general.textContent = rules.rulesText || "Malfunction voids all pays and plays.";
+            
+            // Populate Paytable
+            const tbody = document.querySelector('#rules-paytable tbody');
+            if (tbody) {
+                tbody.innerHTML = '';
+                const rows = rules.paytableRows || [];
+                rows.forEach(function(row) {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = '<td>' + row.symbol + '</td><td style="text-align:right">' + row.value + '</td>';
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+
+        function initSound() {
+            log("Initializing Sound System");
+            const unlock = () => {
+                for (const sound of audioCache.values()) {
+                    sound.play().then(() => { sound.pause(); sound.currentTime = 0; }).catch(() => {});
+                }
+                window.removeEventListener('pointerdown', unlock);
+            };
+            window.addEventListener('pointerdown', unlock);
+        }
+
+        function initBrushTip() {
+            log("Initializing Brush Tip Resources");
+            const type = config.scratch?.brush?.tipType || 'coin';
+            
+            // Generate Emoji Textures for all types including Coin
+            if (type !== 'custom') {
+                const canvas = document.createElement('canvas');
+                canvas.width = 128; canvas.height = 128;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.font = '100px serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    let emoji = '🪙'; // Default Coin
+                    if (type === 'finger') emoji = '👆';
+                    else if (type === 'wand') emoji = '🪄';
+                    else if (type === 'coin') emoji = '🪙';
+                    
+                    ctx.fillText(emoji, 64, 74);
+                    const tex = PIXI.Texture.from(canvas);
+                    textureCache.set('brush_emoji_' + type, tex);
+                    log("Generated Brush Texture for: " + type);
+                }
+            }
+        }
+
+        function playSound(nameOrUrl, loop) {
+            let sound = audioCache.get(nameOrUrl);
+            if (!sound && config.scratch && config.scratch.audio) {
+                const path = config.scratch.audio[nameOrUrl];
+                if (path) sound = audioCache.get(path);
+            }
+            if (sound) {
+                if (loop) sound.loop = true;
+                sound.currentTime = 0;
+                sound.play().catch(e => log("Play failed: " + e.message, "warn"));
+            }
+        }
+
+        function stopSound(nameOrUrl) {
+            let sound = audioCache.get(nameOrUrl);
+            if (!sound && config.scratch && config.scratch.audio) {
+                const path = config.scratch.audio[nameOrUrl];
+                if (path) sound = audioCache.get(path);
+            }
+            if (sound) {
+                sound.pause();
+                sound.currentTime = 0;
+            }
+        }
+                    
         function updateFooterDisplay() {
             const balanceEl = document.getElementById('footer-balance-value');
             const betEl = document.getElementById('footer-bet-value');
@@ -656,12 +852,43 @@ export const generateScratchHTML = (cleanConfig: any): string => {
             const winDiv = document.getElementById('footer-win');
             const buyBtn = document.getElementById('btn-buy');
             const autoBtn = document.getElementById('btn-autoplay');
+            
             if (balanceEl) balanceEl.textContent = shellState.balance.toFixed(2);
             if (betEl) betEl.textContent = shellState.bet.toFixed(2);
             if (winEl) winEl.textContent = shellState.win.toFixed(2);
-            if (winDiv) winDiv.style.display = shellState.win > 0 ? 'flex' : 'none';
-            if (buyBtn) { buyBtn.textContent = shellState.gameState === 'playing' ? 'Playing...' : 'BUY'; buyBtn.disabled = shellState.gameState === 'playing' || shellState.balance < shellState.bet || shellState.isAutoPlaying; }
-            if (autoBtn) { autoBtn.textContent = ''; autoBtn.innerHTML = shellState.isAutoPlaying ? 'STOP' : '⟲<br><span>AUTO</span>'; autoBtn.className = shellState.isAutoPlaying ? 'btn-autoplay btn-stop' : 'btn-autoplay'; autoBtn.disabled = shellState.gameState === 'playing'; }
+            
+            if (winDiv) {
+                const hasWin = shellState.win > 0;
+                winDiv.style.display = hasWin ? 'flex' : 'none';
+                if (hasWin && !hasCelebrated) {
+                    winDiv.classList.add('animate-pulse');
+                    spawnWinConfetti(); // Trigger celebration
+                    hasCelebrated = true; 
+                    shellState.balance += shellState.win; // Add win to balance in demo
+                    if (balanceEl) balanceEl.textContent = shellState.balance.toFixed(2);
+                } else if (!hasWin) {
+                    winDiv.classList.remove('animate-pulse');
+                }
+            }
+            
+            if (buyBtn) {
+                let btnTxt = 'BUY';
+                if (shellState.gameState === 'playing') btnTxt = '...';
+                else if (shellState.gameState === 'revealed') btnTxt = 'PLAY';
+                buyBtn.textContent = btnTxt;
+                buyBtn.disabled = shellState.gameState === 'playing' || shellState.balance < shellState.bet || shellState.isAutoPlaying;
+            }
+            
+            if (autoBtn) {
+                if (shellState.isAutoPlaying) {
+                    autoBtn.innerHTML = 'STOP';
+                    autoBtn.classList.add('btn-stop');
+                } else {
+                    autoBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M20 11a8.1 8.1 0 0 0-15.5-2m-.5-5v5h5"></path><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 5v-5h-5"></path></svg><span>AUTO</span>';
+                    autoBtn.classList.remove('btn-stop');
+                }
+                autoBtn.disabled = shellState.gameState === 'playing';
+            }
         }
 
         function buyTicket() {
@@ -669,6 +896,16 @@ export const generateScratchHTML = (cleanConfig: any): string => {
             shellState.balance -= shellState.bet;
             shellState.win = 0;
             shellState.gameState = 'playing';
+            hasCelebrated = false;
+            
+            // Generate Random Outcome for Demo
+            const isWin = Math.random() > 0.6;
+            currentOutcome.win = isWin ? shellState.bet * (Math.floor(Math.random() * 5) + 2) : 0;
+            
+            // Play Buy Sound
+            playSound('spin'); // Try spin first
+            playSound('buy');  // Then buy
+            
             setupScene();
             updateFooterDisplay();
         }
@@ -708,23 +945,96 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                 try {
                     const raw = document.getElementById('game-config').textContent;
                     config = JSON.parse(raw);
-                    log(\`Config Loaded: \${config.displayName}\`);
+                    log("Config Loaded: " + (config ? config.displayName : "unknown"));
+
+                    // Initialize Math & Shell State from Config
+                    ticketPrice = (config.scratch && config.scratch.math && config.scratch.math.ticketPrice) ? Number(config.scratch.math.ticketPrice) : 1;
+                    shellState.bet = ticketPrice;
+                    OPERATOR_ENDPOINT = (config.operator_endpoint || '');
                 } catch(e) {
                     throw new Error("Failed to parse embedded config: " + e.message);
                 }
 
                 // 2. Setup Pixi App
+                // A. Background (Scene)
+                var bgUrl = (config.scratch && config.scratch.layers && config.scratch.layers.scene && config.scratch.layers.scene.value) || 
+                            (config.background && config.background.value);
+                
+                // Determine initial background color for the Pixi app canvas
+                // Determine initial background color for the Pixi app canvas
+                var bgColor = '#1e293b'; // Default fallback color
+                // [FIX] Pixi backgroundColor ONLY supports hex/rgb, NOT gradients.
+                // If gradient detected, use fallback here. The actual gradient is rendered in setupScene via Canvas/Texture.
+                if (bgUrl && (bgUrl.startsWith('#') || bgUrl.includes('rgb')) && !bgUrl.includes('gradient')) {
+                    bgColor = bgUrl;
+                }
+
                 app = new PIXI.Application();
                 await app.init({ 
-                    width: 600, 
-                    height: 800, 
-                    backgroundColor: '#1e293b',
+                    resizeTo: window, // [FIX] Fullscreen
+                    backgroundColor: bgColor,
                     resolution: window.devicePixelRatio || 1,
                     autoDensity: true
                 });
                 const gameContainer = document.getElementById('game-container');
                 if (gameContainer) gameContainer.appendChild(app.canvas); else document.body.appendChild(app.canvas);
                 log("Pixi App Initialized");
+
+                // --- Global Particle Physics Loop ---
+                let checkTicker = 0;
+                app.ticker.add(() => {
+                    checkTicker++;
+                    if (checkTicker % 60 === 0 && shellState.gameState === 'playing') {
+                        checkScratchProgress();
+                    }
+                    if (!particles.length || !particleContainer) return;
+                    
+                    // Clear container children
+                    particleContainer.removeChildren();
+                    
+                    for (let i = particles.length - 1; i >= 0; i--) {
+                        const p = particles[i];
+                        p.x += p.vx;
+                        p.y += p.vy;
+                        p.life -= 0.015;
+                        
+                        // Gravity
+                        p.vy += 0.4;
+                        // Friction
+                        p.vx *= 0.98;
+                        
+                        if (p.type === 'confetti') {
+                            p.rotation += p.vRotation;
+                        }
+                        
+                        // Bounds check
+                        if (p.life <= 0 || p.y > 1000) {
+                            particles.splice(i, 1);
+                            continue;
+                        }
+                        
+                        // Render Particle
+                        const g = new PIXI.Graphics();
+                        g.alpha = Math.min(1, p.life);
+                        
+                        if (p.type === 'confetti') {
+                            g.rect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6)
+                             .fill({ color: p.color });
+                            g.rotation = p.rotation;
+                        } else {
+                            g.circle(0, 0, p.size)
+                             .fill({ color: p.color });
+                        }
+                        
+                        g.x = p.x;
+                        g.y = p.y;
+                        particleContainer.addChild(g);
+                    }
+                });
+
+                // Software Cursor (Visual Brush Tip)
+                brushTip = new PIXI.Container();
+                app.stage.addChild(brushTip);
                 shellState.bet = ticketPrice;
                 updateFooterDisplay();
                 document.getElementById('btn-buy').onclick = buyTicket;
@@ -734,15 +1044,18 @@ export const generateScratchHTML = (cleanConfig: any): string => {
 
                 // 3. Asset Loading (Custom Offline Loader)
                 const imageExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.svg'];
+                const audioExtensions = ['.mp3', '.wav', '.ogg', '.m4a'];
 
                 // Broader traversal to catch everything
                 const traverse = (obj) => {
                     if (!obj) return;
                     if (typeof obj === 'string') {
-                        // Check if it looks like an asset path OR has image extension OR is Base64
+                        // Check if it looks like an asset path OR has image/audio extension OR is Base64
                         if (obj.includes('assets/') || 
                             imageExtensions.some(ext => obj.toLowerCase().endsWith(ext)) ||
-                            obj.startsWith('data:image')) {
+                            audioExtensions.some(ext => obj.toLowerCase().endsWith(ext)) ||
+                            obj.startsWith('data:image') ||
+                            obj.startsWith('data:audio')) {
                             assetUrls.add(obj);
                         }
                     } else if (Array.isArray(obj)) {
@@ -752,51 +1065,88 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                     }
                 };
                 traverse(config);
-                log(\`Found \${assetUrls.size} potential assets\`);
+                log("Found " + assetUrls.size + " potential assets");
 
-                // Preload Images via DOM 
+                // Preload Assets
                 let loadedCount = 0;
                 
                 // [FIX] Add timeout to prevent infinite loading
                 const loadTimeout = setTimeout(() => {
                     log('Asset loading timed out - forcing start', 'warn');
                     startGame();
-                }, 5000);
+                }, 8000); // 8 seconds for audio/large assets
 
                 const loadPromises = Array.from(assetUrls).map(url => {
-                    // Filter non-images
                     const lower = url.toLowerCase();
                     const isImage = imageExtensions.some(ext => lower.endsWith(ext)) || url.startsWith('data:image');
+                    const isAudio = audioExtensions.some(ext => lower.endsWith(ext)) || url.startsWith('data:audio');
                     
-                    if (!isImage) {
-                        return Promise.resolve();
+                    if (isImage) {
+                        return new Promise((resolve) => {
+                            const img = new Image();
+                            img.onload = () => {
+                                const tex = PIXI.Texture.from(img);
+                                textureCache.set(url, tex);
+                                log("Loaded Image: " + url.substring(0, 40) + "...");
+                                loadedCount++;
+                                updateStatus();
+                                resolve();
+                            };
+                            img.onerror = () => {
+                                log("Failed to load image: " + url, "warn");
+                                resolve(); 
+                            };
+                            img.src = url;
+                        });
+                    } else if (isAudio) {
+                        return new Promise((resolve) => {
+                            const audio = new Audio();
+                            audio.oncanplaythrough = () => {
+                                log("Loaded Audio: " + url.substring(0, 40) + "...");
+                                // Tag audio for lookup (find by extension-less name)
+                                let assetId = url;
+                                if (url.includes('base64')) {
+                                    // Map common audio keys if it's base64
+                                    if (config.scratch && config.scratch.audio) {
+                                        for (const [key, val] of Object.entries(config.scratch.audio)) {
+                                            if (val === url) { assetId = key; break; }
+                                        }
+                                    }
+                                }
+                                audioCache.set(assetId, audio);
+                                loadedCount++;
+                                updateStatus();
+                                resolve();
+                            };
+                            audio.oncanplay = () => resolve(); 
+                            audio.onerror = () => {
+                                log("Failed to load audio: " + url, "warn");
+                                resolve();
+                            };
+                            audio.src = url;
+                        });
                     }
-
-                    return new Promise((resolve) => {
-                        const img = new Image();
-                        img.onload = () => {
-                            const tex = PIXI.Texture.from(img);
-                            textureCache.set(url, tex);
-                            log(\`Loaded: \${url}\`);
-                            loadedCount++;
-                            if(document.getElementById('loading-status')) {
-                                document.getElementById('loading-status').innerText = \`\${loadedCount} / \${assetUrls.size}\`;
-                            }
-                            resolve();
-                        };
-                        img.onerror = (e) => {
-                            log(\`Failed to load: \${url}\`, 'warn'); // Warn but continue
-                            resolve(); 
-                        };
-                        img.src = url;
-                    });
+                    return Promise.resolve();
                 });
+
+                function updateStatus() {
+                    const statusEl = document.getElementById('loading-status');
+                    if(statusEl) {
+                        statusEl.innerText = loadedCount + " / " + assetUrls.size;
+                    }
+                }
 
                 if (loadPromises.length > 0) {
                     await Promise.all(loadPromises);
                 }
                 clearTimeout(loadTimeout);
                 log("Asset Loading Complete");
+
+                // Initialize Sound API
+                initSound();
+
+                // Initialize Brush Tip (Emoji Support)
+                initBrushTip();
                 
                 startGame();
 
@@ -824,296 +1174,455 @@ export const generateScratchHTML = (cleanConfig: any): string => {
              document.getElementById('loading').style.display = 'none';
         }
 
-            } catch (e) {
-                document.getElementById('loading').innerHTML = '<div style="color:red">Error: ' + e.message + '</div>';
-                log(e.message, 'error');
-                console.error(e);
+
+
+function setupScene() {
+    log('Setting up Scene...');
+    app.stage.removeChildren();
+    
+    var bgContainer = new PIXI.Container();
+    app.stage.addChild(bgContainer);
+
+    container = new PIXI.Container();
+    app.stage.addChild(container);
+
+    // Re-add/Move Brush Tip to the very top (Stage level)
+    if (!brushTip) brushTip = new PIXI.Container();
+    app.stage.addChild(brushTip);
+
+    // A. Background
+    var bgUrl = config.theme && config.theme.generated && config.theme.generated.background
+        ? config.theme.generated.background
+        : (config.scratch && config.scratch.layers && config.scratch.layers.scene && config.scratch.layers.scene.value);
+
+    // [HEURISTIC] Search for bg image if explicit path is missing
+    if (!bgUrl) {
+        var potentialBgs = Array.from(assetUrls).filter(function (u) { return u.toLowerCase().includes('bg') || u.toLowerCase().includes('background'); });
+        if (potentialBgs.length > 0) bgUrl = potentialBgs[0];
+    }
+
+    log('Background Value: ' + bgUrl);
+
+
+    if (bgUrl) {
+        // 1. Image Background (Try cache first, then direct load)
+        // [FIX] Allow direct loading if not in cache (e.g. data URIs or missed preloads)
+        if (textureCache.has(bgUrl) || bgUrl.startsWith('data:') || bgUrl.startsWith('http') || bgUrl.startsWith('/')) {
+            var bg = PIXI.Sprite.from(bgUrl);
+            var updateBgScale = () => {
+                var scaleX = app.screen.width / bg.texture.width;
+                var scaleY = app.screen.height / bg.texture.height;
+                var scale = Math.max(scaleX, scaleY);
+                bg.scale.set(scale);
+                bg.anchor.set(0.5);
+                bg.x = app.screen.width / 2;
+                bg.y = app.screen.height / 2;
+            };
+            updateBgScale();
+            bgContainer.addChild(bg);
+            
+            // Add Resize Listener
+            window.addEventListener('resize', () => {
+                updateBgScale();
+                // Re-center card container
+                cardAnchor.x = app.screen.width / 2;
+                cardAnchor.y = app.screen.height / 2;
+            });
+            log('Background Loaded (Image)');
+
+        // 2. CSS/Hex Background
+        } else if (bgUrl.startsWith('#') || bgUrl.includes('rgb') || bgUrl.includes('gradient')) {
+            log('Detected CSS Background');
+            
+            var createBgGfx = () => {
+                bgContainer.removeChildren();
+                
+                if (bgUrl.includes('gradient')) {
+                   var canvas = document.createElement('canvas');
+                   // Use screen size for gradient to avoid stretching issues if possible, or fixed size texture scaled
+                   canvas.width = 512; canvas.height = 512; 
+                   var ctx = canvas.getContext('2d');
+                   var grd = ctx.createLinearGradient(0, 0, 0, 512); // Vertical gradient
+                   
+                   var colors = bgUrl.match(/#[a-fA-F0-9]{3,6}|rgba?\([^\)]+\)/g) || ['#1e293b', '#0f172a'];
+                   if (colors.length >= 2) {
+                       grd.addColorStop(0, colors[0]);
+                       grd.addColorStop(1, colors[colors.length-1]);
+                   } else {
+                       grd.addColorStop(0, '#1e293b');
+                       grd.addColorStop(1, '#0f172a');
+                   }
+                   ctx.fillStyle = grd;
+                   ctx.fillRect(0, 0, 512, 512);
+                   
+                   var tex = PIXI.Texture.from(canvas);
+                   var bgSprite = new PIXI.Sprite(tex);
+                   bgSprite.width = app.screen.width;
+                   bgSprite.height = app.screen.height;
+                   bgContainer.addChild(bgSprite);
+                } else {
+                    // Solid Color
+                    var bgGfx = new PIXI.Graphics().rect(0, 0, app.screen.width, app.screen.height).fill({ color: bgUrl });
+                    bgContainer.addChild(bgGfx);
+                }
+            };
+            
+            createBgGfx();
+            
+            window.addEventListener('resize', () => {
+                 createBgGfx(); // Re-create/resize background
+                 cardAnchor.x = app.screen.width / 2;
+                 cardAnchor.y = app.screen.height / 2;
+            });
+            
+        } else {
+            log('Background defined but not found in assets/cache', 'warn');
+        }
+    } else {
+        log('No Background defined', 'warn');
+        var g = new PIXI.Graphics().rect(0, 0, app.screen.width, app.screen.height).fill({ color: 0x1e293b });
+        bgContainer.addChild(g);
+    }
+
+    // A. Card Anchor (Logical 320x460 - Matches Preview wrapper)
+    // This is the main container that scales to fit the window.
+    var cardAnchor = new PIXI.Container();
+    
+    // Fit logic: Scale 320x460 to fit comfortably in 600x800 app
+    var fitScale = Math.min((app.screen.width - 60) / CARD_WIDTH, (app.screen.height - 180) / CARD_HEIGHT);
+    cardAnchor.scale.set(fitScale);
+    
+    // Center Anchor on screen
+    cardAnchor.x = app.screen.width / 2;
+    cardAnchor.y = app.screen.height / 2;
+    cardAnchor.pivot.set(CARD_WIDTH / 2, CARD_HEIGHT / 2);
+    container.addChild(cardAnchor);
+
+    // B. Inner Masked Card Group (Frame + Grid + Surface)
+    var innerCardGroup = new PIXI.Container();
+    
+    // Extract User-defined Card Transform (Step 4 Layout settings)
+    var layoutTransform = (config.scratch && config.scratch.layout && config.scratch.layout.transform) || {};
+    var cScaleX = (layoutTransform.scaleX || layoutTransform.scale || 100) / 100;
+    var cScaleY = (layoutTransform.scaleY || layoutTransform.scale || 100) / 100;
+    var cOffsetX = layoutTransform.x || 0;
+    var cOffsetY = layoutTransform.y || 0;
+
+    // Apply the inner transform (Scale from center of card)
+    innerCardGroup.scale.set(cScaleX, cScaleY);
+    innerCardGroup.x = (CARD_WIDTH / 2) + cOffsetX;
+    innerCardGroup.y = (CARD_HEIGHT / 2) + cOffsetY;
+    innerCardGroup.pivot.set(CARD_WIDTH / 2, CARD_HEIGHT / 2);
+    
+    cardAnchor.addChild(innerCardGroup);
+
+    var symSizeScale = 0.85; 
+
+    // A.1 Card Frame (Overlay) - Persistent
+    var frameUrl = config.theme && config.theme.generated && config.theme.generated.frame;
+    var overlayColor = config.scratch?.layers?.overlay?.color || '#F2F0EB';
+    
+    var frameBg = new PIXI.Graphics().rect(0, 0, CARD_WIDTH, CARD_HEIGHT).fill({ color: overlayColor });
+    innerCardGroup.addChild(frameBg);
+
+    if (frameUrl && textureCache.has(frameUrl)) {
+        var frame = PIXI.Sprite.from(frameUrl);
+        frame.width = CARD_WIDTH;
+        frame.height = CARD_HEIGHT;
+        innerCardGroup.addChild(frame);
+        log('Card Frame Loaded');
+    }
+
+    // B. Grid / Internal Transforms
+    var rows = (config.scratch && config.scratch.layout && config.scratch.layout.rows) || 3;
+    var cols = (config.scratch && config.scratch.layout && config.scratch.layout.columns) || 3;
+
+    var gridScaleX = (config.scratch?.layout?.grid?.scaleX ?? config.scratch?.layout?.grid?.scale ?? 87) / 100;
+    var gridScaleY = (config.scratch?.layout?.grid?.scaleY ?? config.scratch?.layout?.grid?.scale ?? 79) / 100;
+    var gridX = (config.scratch?.layout?.grid?.x ?? 0) + (CARD_WIDTH / 2); // Center relative to card pivot
+    var gridY = (config.scratch?.layout?.grid?.y ?? 42) + (CARD_HEIGHT / 2);
+    var gridBgColor = config.scratch?.layout?.gridBackgroundColor || '#ffffff';
+    var cellStyle = config.scratch?.layout?.cellStyle || 'boxed';
+
+    var gridContainer = new PIXI.Container();
+    gridContainer.scale.set(gridScaleX, gridScaleY);
+    gridContainer.x = gridX;
+    gridContainer.y = gridY;
+    
+    // [FIX] Pivot should be Grid Center (200), not Card Center (230) to match Editor Scaling
+    var isWheel = config.scratch?.mechanic?.type === 'wheel';
+    var gridBaseHeight = isWheel ? 320 : 400;
+    gridContainer.pivot.set(CARD_WIDTH / 2, gridBaseHeight / 2);
+    
+    // Add Grid Background
+    var gridBg = new PIXI.Graphics().rect(0, 0, CARD_WIDTH, gridBaseHeight).fill({ color: gridBgColor, alpha: gridBgColor === 'transparent' ? 0 : 0.95 });
+    gridContainer.addChild(gridBg);
+    innerCardGroup.addChild(gridContainer);
+
+    var mascotUrl = config.theme && config.theme.generated && config.theme.generated.mascot;
+    var logoUrl = (config.scratch && config.scratch.logo && config.scratch.logo.image) || (config.theme && config.theme.generated && config.theme.generated.logo);
+
+    var symbolValues = Object.values((config.theme && config.theme.generated && config.theme.generated.symbols) || {});
+    
+    if (symbolValues.length === 0) {
+        symbolValues = ['https://cdn-icons-png.flaticon.com/512/616/616430.png'];
+    }
+
+    var cellW = CARD_WIDTH / cols;
+    var cellH = 400 / rows; // Standard grid height is 400 in preview
+
+    for (var r = 0; r < rows; r++) {
+        for (var c = 0; c < cols; c++) {
+            if (cellStyle === 'boxed') {
+                var box = new PIXI.Graphics()
+                    .roundRect(c * cellW + 4, r * cellH + 4, cellW - 8, cellH - 8, 8)
+                    .fill({ color: 0xffffff, alpha: 0.9 })
+                    .stroke({ color: 0xdddddd, width: 1 });
+                gridContainer.addChild(box);
+            }
+            var symUrl = symbolValues.length > 0 ? symbolValues[Math.floor(Math.random() * symbolValues.length)] : null;
+            if (symUrl) {
+                var s = PIXI.Sprite.from(symUrl);
+                s.width = cellW * 0.75;
+                s.height = cellH * 0.75;
+                s.anchor.set(0.5);
+                s.x = c * cellW + cellW / 2;
+                s.y = r * cellH + cellH / 2;
+                gridContainer.addChild(s);
             }
         }
+    }
 
-        function setupScene() {
-            log('Setting up Scene...');
-            if (container) app.stage.removeChild(container);
-            container = new PIXI.Container();
-            app.stage.addChild(container);
+    // C. Scratch Surface
+    var surfaceContainer = new PIXI.Container();
+    surfaceContainer.scale.set(gridScaleX, gridScaleY);
+    surfaceContainer.x = gridX;
+    surfaceContainer.y = gridY;
+    surfaceContainer.pivot.set(CARD_WIDTH / 2, gridBaseHeight / 2);
+    innerCardGroup.addChild(surfaceContainer);
 
-            // A. Background
-            var bgUrl = config.theme && config.theme.generated && config.theme.generated.background 
-                ? config.theme.generated.background 
-                : (config.scratch && config.scratch.layers && config.scratch.layers.scene && config.scratch.layers.scene.value);
-            
-            // [HEURISTIC] Search for bg image if explicit path is missing
-            if (!bgUrl) {
-                var potentialBgs = Array.from(assetUrls).filter(function(u) { return u.toLowerCase().includes('bg') || u.toLowerCase().includes('background'); });
-                if (potentialBgs.length > 0) bgUrl = potentialBgs[0];
-            }
+    surfaceUrl = config.theme && config.theme.generated && config.theme.generated.surface || '';
+    var cover;
+    if (surfaceUrl && textureCache.has(surfaceUrl)) {
+        cover = PIXI.Sprite.from(surfaceUrl);
+        cover.width = CARD_WIDTH;
+        cover.height = gridBaseHeight; 
+        log('Surface Image Loaded');
+    } else if (surfaceUrl && (surfaceUrl.includes('foil') || surfaceUrl.includes('gold') || surfaceUrl.includes('silver') || surfaceUrl.includes('platinum') || surfaceUrl.includes('sand') || surfaceUrl.includes('copper'))) {
+        log('Detected Procedural Preset: ' + surfaceUrl);
+        var canvas = document.createElement('canvas');
+        canvas.width = 512; canvas.height = 512;
+        var ctx = canvas.getContext('2d');
+        if (surfaceUrl.includes('sand')) {
+            ctx.fillStyle = '#e6c288'; ctx.fillRect(0, 0, 512, 512);
+            for (var i = 0; i < 50000; i++) { ctx.fillStyle = Math.random() > 0.5 ? '#d4a76a' : '#f0d9b5'; ctx.fillRect(Math.random() * 512, Math.random() * 512, 2, 2); }
+        } else if (surfaceUrl.includes('gold')) {
+            var grd = ctx.createLinearGradient(0, 0, 512, 512);
+            grd.addColorStop(0, '#bf953f'); grd.addColorStop(0.2, '#fcf6ba'); grd.addColorStop(0.4, '#b38728'); grd.addColorStop(0.6, '#fbf5b7'); grd.addColorStop(0.8, '#aa771c'); grd.addColorStop(1, '#bf953f');
+            ctx.fillStyle = grd; ctx.fillRect(0, 0, 512, 512);
+        } else if (surfaceUrl.includes('holographic')) {
+            var grd = ctx.createLinearGradient(0, 0, 512, 512);
+            grd.addColorStop(0, '#FF0000'); grd.addColorStop(0.14, '#FF7F00'); grd.addColorStop(0.28, '#FFFF00'); grd.addColorStop(0.42, '#00FF00'); grd.addColorStop(0.57, '#0000FF'); grd.addColorStop(0.71, '#4B0082'); grd.addColorStop(0.85, '#9400D3'); grd.addColorStop(1, '#FF0000');
+            ctx.fillStyle = grd; ctx.fillRect(0, 0, 512, 512);
+        } else if (surfaceUrl.includes('platinum') || surfaceUrl.includes('silver')) {
+            var grd = ctx.createLinearGradient(0, 0, 512, 512);
+            grd.addColorStop(0, '#E5E4E2'); grd.addColorStop(0.3, '#BFC0C2'); grd.addColorStop(0.6, '#FFFFFF'); grd.addColorStop(1, '#BFC0C2');
+            ctx.fillStyle = grd; ctx.fillRect(0, 0, 512, 512);
+        } else if (surfaceUrl.includes('copper')) {
+            var grd = ctx.createLinearGradient(0, 0, 512, 512);
+            grd.addColorStop(0, '#b87333'); grd.addColorStop(0.3, '#ec9b6b'); grd.addColorStop(0.6, '#b87333'); grd.addColorStop(1, '#8b4513');
+            ctx.fillStyle = grd; ctx.fillRect(0, 0, 512, 512);
+        } else {
+            var grd = ctx.createLinearGradient(0, 0, 512, 512);
+            grd.addColorStop(0, '#a0a0a0'); grd.addColorStop(0.5, '#e0e0e0'); grd.addColorStop(1, '#a0a0a0');
+            ctx.fillStyle = grd; ctx.fillRect(0, 0, 512, 512);
+        }
+        var tex = PIXI.Texture.from(canvas);
+        cover = new PIXI.Sprite(tex);
+        cover.width = CARD_WIDTH;
+        cover.height = gridBaseHeight; 
+        log('Generated Procedural Texture');
+    } else {
+        var bgGfx = new PIXI.Graphics().rect(0, 0, CARD_WIDTH, gridBaseHeight).fill({ color: 0xFFD700 }); 
+        cover = bgGfx;
+    }
+    surfaceContainer.addChild(cover);
 
-            log('Background Value: ' + bgUrl);
-
-            if (bgUrl) {
-                // 1. Image Background
-                if (textureCache.has(bgUrl)) {
-                    var bg = PIXI.Sprite.from(bgUrl);
-                    var ratio = Math.max(app.screen.width / bg.width, app.screen.height / bg.height);
-                    bg.scale.set(ratio);
-                    bg.anchor.set(0.5);
-                    bg.x = app.screen.width / 2;
-                    bg.y = app.screen.height / 2;
-                    container.addChild(bg);
-                    log('Background Loaded (Image)');
-                
-                // 2. CSS/Hex Background
-                } else if (bgUrl.startsWith('#') || bgUrl.includes('rgb') || bgUrl.includes('gradient')) {
-                     log('Detected CSS Background');
-                     var bgGfx = new PIXI.Graphics();
-                     
-                     if (bgUrl.includes('gradient')) {
-                         // Simple Gradient fallback: Vertical generic dark blue/purple if parsing fails, 
-                         // or try to parse simple colors? 
-                         // For now, let's just do a nice default gradient if it detects 'gradient' string, 
-                         // because parsing complex CSS gradients to Canvas is hard without a library.
-                         // But if user says "Gradient Background Not Loading", let's give them a nice default based on mood.
-                         
-                         var canvas = document.createElement('canvas');
-                         canvas.width = 64; canvas.height = 64;
-                         var ctx = canvas.getContext('2d');
-                         var grd = ctx.createLinearGradient(0,0,0,64);
-                         grd.addColorStop(0, '#1e293b'); // Dark Slate
-                         grd.addColorStop(1, '#0f172a'); // Darker
-                         ctx.fillStyle = grd;
-                         ctx.fillRect(0,0,64,64);
-                         
-                         var tex = PIXI.Texture.from(canvas);
-                         bg = new PIXI.Sprite(tex);
-                         bg.width = app.screen.width;
-                         bg.height = app.screen.height;
-                         container.addChild(bg);
-                         log('Rendered Procedural Gradient Background');
-
-                     } else {
-                         // Solid Color
-                         bgGfx.rect(0, 0, app.screen.width, app.screen.height);
-                         bgGfx.fill({ color: bgUrl }); // Pixi v8 handles hex/string colors
-                         container.addChild(bgGfx);
-                         log('Rendered Solid Color Background');
-                     }
-                } else {
-                    log('Background defined but not found in assets/cache', 'warn');
-                }
-            } else {
-                log('No Background defined', 'warn');
-            }
-
-            // A.1 [NEW] Logo Layer (Center Top)
-            // Look for logo in config
-            var logoUrl = (config.theme && config.theme.logo) || (config.marketing && config.marketing.logo) || (config.theme && config.theme.generated && config.theme.generated.logo);
-            
-            // Heuristic for Logo
-            if (!logoUrl) {
-                 var potentialLogos = Array.from(assetUrls).filter(function(u) { return u.toLowerCase().includes('logo'); });
-                 if (potentialLogos.length > 0) logoUrl = potentialLogos[0];
-            }
-            
-            log('Logo URL: ' + logoUrl);
-
-            if (logoUrl && textureCache.has(logoUrl)) {
-                 var logo = PIXI.Sprite.from(logoUrl);
-                 // Scale to reasonable size (e.g. 60% of card width)
-                 // But we don't know card width yet? Use screen width.
-                 var maxLogoW = Math.min(app.screen.width * 0.6, 300);
-                 var scale = maxLogoW / logo.width;
-                 if (logo.width > maxLogoW) logo.scale.set(scale);
-                 
-                 logo.anchor.set(0.5, 0); // Top Center
-                 logo.x = app.screen.width / 2;
-                 logo.y = 40; // Padding from top
-                 container.addChild(logo);
-                 log('Logo Loaded');
-            } else {
-                log('Logo not found or missing', 'info');
-            }
-
-
-            // B. Grid / Symbols (Underneath)
-
-            // B. Grid / Symbols (Underneath)
-            var gridContainer = new PIXI.Container();
-            
-            // Standard Layout
-            var rows = (config.scratch && config.scratch.layout && config.scratch.layout.rows) || 3;
-            var cols = (config.scratch && config.scratch.layout && config.scratch.layout.columns) || 3;
-            var cardWidth = Math.min(app.screen.width * 0.8, 500);
-            var cardHeight = Math.min(app.screen.height * 0.6, 500);
-            var startX = (app.screen.width - cardWidth) / 2;
-            var startY = (app.screen.height - cardHeight) / 2 + 50;
-            var cellW = cardWidth / cols;
-            var cellH = cardHeight / rows;
-
-            // Simple random fill for visual preview
-            var symbolValues = Object.values((config.theme && config.theme.generated && config.theme.generated.symbols) || {});
-            
-            // [HEURISTIC Failsafe] If no symbols found, use ALL other loaded images that aren't bg or surface
-            if (symbolValues.length === 0) {
-                 log('Explicit Symbols missing. Using all other assets...', 'warn');
-                 // Filter out BG and Surface (if known), and misc UI. ALSO filter for valid image extensions.
-                 var validExts = ['.png', '.jpg', '.jpeg', '.webp', '.svg'];
-                 symbolValues = Array.from(assetUrls).filter(function(u) { 
-                    var isImg = validExts.some(function(e) { return u.toLowerCase().endsWith(e); }) || u.startsWith('data:image');
-                    return isImg && u !== bgUrl && u !== surfaceUrl && !u.includes('brush') && !u.includes('cursor');
-                 });
-            }
-
-            log('Found ' + symbolValues.length + ' symbol assets');
-            
-            for(var r=0; r<rows; r++) {
-                for(var c=0; c<cols; c++) {
-                    var symUrl = symbolValues.length > 0 
-                        ? symbolValues[Math.floor(Math.random() * symbolValues.length)] 
-                        : null;
-                    
-                    if (symUrl) {
-                        // log('Creating symbol: ' + symUrl); // Verbose
-                        var s = PIXI.Sprite.from(symUrl);
-                        s.width = cellW * 0.8;
-                        s.height = cellH * 0.8;
-                        s.x = startX + c * cellW + (cellW - s.width)/2;
-                        s.y = startY + r * cellH + (cellH - s.height)/2;
-                        gridContainer.addChild(s);
-                    }
-                }
-            }
-            container.addChild(gridContainer);
-
-
-            // C. Scratch Surface (Cover)
-            var surfaceContainer = new PIXI.Container();
-            
-            // Try to find a cover image 
-            // Look for config.scratch.layers.surface.value
-            var surfaceUrl = config.scratch && config.scratch.layers && config.scratch.layers.surface && config.scratch.layers.surface.value;
-            
-            // [HEURISTIC Failsafe] If missing, look for 'cover', 'surface', 'overlay'
-            if (!surfaceUrl) {
-                 var potentialSurface = Array.from(assetUrls).filter(function(u) { return u.toLowerCase().includes('cover') || u.toLowerCase().includes('surface') || u.toLowerCase().includes('overlay'); });
-                 if (potentialSurface.length > 0) surfaceUrl = potentialSurface[0];
-            }
-
-            log('Surface URL: ' + surfaceUrl);
-            
-            var cover;
-            // [FIX] Check local textureCache
-            // [PROCEDURAL FALLBACK] Handle Presets that aren't external images
-            if (surfaceUrl && textureCache.has(surfaceUrl)) {
-                 // Use the image texture
-                 cover = PIXI.Sprite.from(surfaceUrl);
-                 
-                 var ratio = Math.max(app.screen.width / cover.width, app.screen.height / cover.height);
-                 cover.scale.set(ratio);
-                 cover.anchor.set(0.5);
-                 cover.x = app.screen.width / 2;
-                 cover.y = app.screen.height / 2;
-                 log('Surface Loaded');
-                 
-            } else if (surfaceUrl && (surfaceUrl.includes('foil') || surfaceUrl.includes('gold') || surfaceUrl.includes('silver') || surfaceUrl.includes('sand'))) {
-                 log('Detected Procedural Preset: ' + surfaceUrl);
-                 var canvas = document.createElement('canvas');
-                 canvas.width = 512; canvas.height = 512;
-                 var ctx = canvas.getContext('2d');
-                 
-                 // Procedural Textures
-                 if (surfaceUrl.includes('sand')) {
-                     // Sand Noise
-                     ctx.fillStyle = '#e6c288';
-                     ctx.fillRect(0,0,512,512);
-                     for(var i=0; i<50000; i++) {
-                         ctx.fillStyle = Math.random() > 0.5 ? '#d4a76a' : '#f0d9b5';
-                         ctx.fillRect(Math.random()*512, Math.random()*512, 2, 2);
-                     }
-                 } else if (surfaceUrl.includes('gold')) {
-                     // Gold Gradient
-                     var grd = ctx.createLinearGradient(0,0,512,512);
-                     grd.addColorStop(0, '#bf953f');
-                     grd.addColorStop(0.3, '#fcf6ba');
-                     grd.addColorStop(0.6, '#b38728');
-                     grd.addColorStop(1, '#fbf5b7');
-                     ctx.fillStyle = grd;
-                     ctx.fillRect(0,0,512,512);
-                 } else {
-                     // Silver/Generic Foil
-                     var grd = ctx.createLinearGradient(0,0,512,512);
-                     grd.addColorStop(0, '#a0a0a0');
-                     grd.addColorStop(0.5, '#e0e0e0');
-                     grd.addColorStop(1, '#a0a0a0');
-                     ctx.fillStyle = grd;
-                     ctx.fillRect(0,0,512,512);
-                     // Add scratching noise
-                     for(var i=0; i<10000; i++) {
-                          ctx.fillStyle = 'rgba(255,255,255,0.2)';
-                          ctx.fillRect(Math.random()*512, Math.random()*512, 2, 2);
-                     }
-                 }
-                 
-                 var tex = PIXI.Texture.from(canvas);
-                 cover = new PIXI.Sprite(tex);
-                 cover.width = cardWidth + 20;
-                 cover.height = cardHeight + 20;
-                 cover.x = startX - 10;
-                 cover.y = startY - 10;
-                 log('Generated Procedural Texture');
- 
-            } else {
-                 // Fallback: Gold Rectangle
-                 log('Surface NOT found in cache - Using Fallback', 'warn');
-                 cover = new PIXI.Graphics();
-                 cover.rect(startX - 10, startY - 10, cardWidth + 20, cardHeight + 20);
-                 cover.fill({ color: 0xFFD700 });
-            }
-
-            surfaceContainer.addChild(cover);
-
-    // D. Masking (The Scratch Effect)
-    const renderTexture = PIXI.RenderTexture.create({
-        width: app.screen.width,
-        height: app.screen.height
-    });
-
-    // Setup Mask
+    
+    // E. Masking (Card Rounding) - Applied to INNER GROUP ONLY
+    var mask = new PIXI.Graphics().roundRect(0, 0, CARD_WIDTH, CARD_HEIGHT, 16).fill({ color: 0xffffff });
+    innerCardGroup.addChild(mask);
+    innerCardGroup.mask = mask;
+    
+    // F. Scratch Masking (Surface)
     const maskRT = PIXI.RenderTexture.create({ width: app.screen.width, height: app.screen.height });
     const maskSprite = new PIXI.Sprite(maskRT);
-
-    // Fill mask with white (visible)
-    const fullQuad = new PIXI.Graphics().rect(0, 0, app.screen.width, app.screen.height).fill(0xffffff);
+    const fullQuad = new PIXI.Graphics().rect(0, 0, app.screen.width, app.screen.height).fill({ color: 0xffffff });
     app.renderer.render({ container: fullQuad, target: maskRT });
-
-    // Apply mask
     surfaceContainer.mask = maskSprite;
-    container.addChild(surfaceContainer);
-    container.addChild(maskSprite);
-    // Note: maskSprite must be in the display list for some v8 renderers or just 'active', 
-    // but we usually set it to raw alpha to be safe.
-    // In v8, using a sprite as a mask is valid.
+    
+    // G. Mascot Layer (Independent - Attached to Anchor, NOT Masked Group)
+    // 1. Dynamic Mascot (from Step 3/Theme)
+    if (mascotUrl) {
+        var mascot = textureCache.has(mascotUrl) ? PIXI.Sprite.from(mascotUrl) : PIXI.Sprite.from(mascotUrl);
+        var mascotConfig = (config.scratch && config.scratch.mascot) || {};
+        var userScalePct = (mascotConfig.scale || 100) / 100;
+        
+        var baseRatio = CARD_HEIGHT / mascot.texture.height; 
+        mascot.scale.set(baseRatio * userScalePct); 
+        mascot.anchor.set(0.5);
+        mascot.x = (CARD_WIDTH / 2) + (mascotConfig.customPosition?.x || 0);
+        mascot.y = (CARD_HEIGHT / 2) + (mascotConfig.customPosition?.y || 0);
+        cardAnchor.addChild(mascot);
+        log('Mascot Overlay Added: ' + mascot.x + ',' + mascot.y);
+    }
+    
+    // 2. Legacy Mascots
+    if (config.scratch && config.scratch.layers && config.scratch.layers.overlay && Array.isArray(config.scratch.layers.overlay.mascots)) {
+        config.scratch.layers.overlay.mascots.forEach(function(m) {
+            if (m.source && textureCache.has(m.source)) {
+                var legacyMascot = PIXI.Sprite.from(m.source);
+                var scale = m.scale || 1;
+                legacyMascot.width = 120 * scale; 
+                var ratio = legacyMascot.texture.height / legacyMascot.texture.width;
+                legacyMascot.height = legacyMascot.width * ratio;
+                if (m.position.includes('top')) legacyMascot.y = -30;
+                if (m.position.includes('bottom')) legacyMascot.y = CARD_HEIGHT - legacyMascot.height + 30;
+                if (m.position.includes('left')) legacyMascot.x = -30;
+                if (m.position.includes('right')) legacyMascot.x = CARD_WIDTH - legacyMascot.width + 30;
+                
+                cardAnchor.addChild(legacyMascot);
+            }
+        });
+    }
+
+    // H. Logo Layer
+    if (logoUrl && textureCache.has(logoUrl)) {
+        var logo = PIXI.Sprite.from(logoUrl);
+        var logoConfig = (config.scratch && config.scratch.logo) || {};
+        var logoLayout = logoConfig.layout || 'pop-out';
+        var logoScale = (logoConfig.scale || 100) / 100;
+        
+        // Use texture width for reliable base dimensions
+        var baseWidth = logo.texture.width;
+        if (baseWidth > 280) {
+            logoScale *= (280 / baseWidth);
+        }
+
+        logo.scale.set(logoScale);
+        logo.anchor.set(0.5, 0); // Match React 'top: 0' + 'translate'
+        
+        // Positioning relative to Card Anchor
+        logo.x = (CARD_WIDTH / 2) + (logoConfig.customPosition?.x || 0);
+        logo.y = (logoConfig.customPosition?.y ?? -180); 
+        
+        if (logoLayout === 'integrated') {
+            innerCardGroup.addChild(logo);
+        } else {
+            cardAnchor.addChild(logo);
+        }
+        log('Logo Added: ' + logo.x + ',' + logo.y + ' scale: ' + logoScale);
+    }
+
+        // I. Particle Layer (Topmost within card)
+        particleContainer = new PIXI.Container();
+        cardAnchor.addChild(particleContainer);
+
+        function setupBrushInteraction() {
+    let brushVisual;
+    var brushConfig = (config.scratch && config.scratch.brush) || {};
+    var bSize = brushConfig.size || 40;
+    var tipType = brushConfig.tipType || 'coin';
+    
+    if (brushConfig.customTipImage && textureCache.has(brushConfig.customTipImage)) {
+        brushVisual = PIXI.Sprite.from(brushConfig.customTipImage);
+        brushVisual.width = bSize; brushVisual.height = bSize;
+        brushVisual.anchor.set(0.5);
+    } else if (textureCache.has('brush_emoji_' + tipType)) {
+        brushVisual = PIXI.Sprite.from('brush_emoji_' + tipType);
+        brushVisual.width = bSize; brushVisual.height = bSize;
+        brushVisual.anchor.set(0.5);
+    } else {
+        // Fallback or Coin
+        brushVisual = new PIXI.Graphics().circle(0, 0, bSize/2).fill({ color: 0xffffff, alpha: 0.8 }).stroke({ color: 0x000000, width: 2 });
+    }
+    brushTip.addChild(brushVisual);
+    brushTip.visible = true; // [FIX] Always visible to act as cursor
+    brushTip.eventMode = 'none'; 
 
     // Input Handling
     app.stage.eventMode = 'static';
     app.stage.hitArea = app.screen;
+    app.stage.cursor = 'none'; // [FIX] Hide default system cursor
 
     app.stage.on('pointerdown', onDragStart);
     app.stage.on('pointerup', onDragEnd);
     app.stage.on('pointerupoutside', onDragEnd);
     app.stage.on('pointermove', onDragMove);
 
-    const brush = new PIXI.Graphics().circle(0, 0, 40).fill({ color: 0x000000, alpha: 1 });
+    var brushSize = (config.scratch && config.scratch.brush && config.scratch.brush.size) || 40;
+    const brush = new PIXI.Graphics().circle(0, 0, brushSize).fill({ color: 0x000000, alpha: 1 });
 
-    function onDragStart() { isDrawing = true; }
-    function onDragEnd() { isDrawing = false; }
+    function onDragStart(e) { 
+        isDrawing = true; 
+        playSound('scratch', true); 
+        brushTip.scale.set(0.9); // Visual feedback
+        onDragMove(e);
+    }
+    function onDragEnd() { 
+        isDrawing = false; 
+        stopSound('scratch');
+        brushTip.scale.set(1.0); // Reset scale
+    }
     function onDragMove(e) {
+        const pos = e.global;
+        // Update Brush Tip (Visual)
+        brushTip.position.copyFrom(pos);
+        
         if (isDrawing) {
-            const pos = e.global;
             brush.position.copyFrom(pos);
-            // Erase mode
             brush.blendMode = 'erase';
             app.renderer.render({ container: brush, target: maskRT, clear: false });
+
+            // Spawn Particles (Shavings)
+            if (config.scratch?.effects?.particles !== false) {
+                // Map global to local coordinates for particle spawning relative to Card Anchor
+                const localPos = cardAnchor.toLocal(pos);
+                for (let i = 0; i < 8; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const r = Math.random() * 20;
+                    particles.push({
+                        x: localPos.x + Math.cos(angle) * r,
+                        y: localPos.y + Math.sin(angle) * r,
+                        vx: (Math.random() - 0.5) * 6,
+                        vy: (Math.random() - 0.5) * 6,
+                        life: 1.5,
+                        color: (surfaceUrl && surfaceUrl.includes('gold')) ? 0xFFD700 : 0xC0C0C0,
+                        type: 'spark',
+                        size: Math.random() * 3 + 1
+                    });
+                }
+            }
         }
+    }
+        }
+        setupBrushInteraction();
+    }
+
+function spawnWinConfetti() {
+    for (let i = 0; i < 100; i++) {
+        particles.push({
+            x: Math.random() * CARD_WIDTH,
+            y: -20 - Math.random() * 100,
+            vx: (Math.random() - 0.5) * 10,
+            vy: Math.random() * 5 + 2,
+            life: 4.0,
+            color: Math.random() * 0xFFFFFF,
+            type: 'confetti',
+            size: Math.random() * 8 + 4,
+            rotation: Math.random() * Math.PI,
+            vRotation: (Math.random() - 0.5) * 0.2
+        });
     }
 }
 
@@ -1121,7 +1630,38 @@ function resetGame() {
     setupScene();
 }
 
-// init(); -> Moved to window.addEventListener('load')
+
+async function checkScratchProgress() {
+    if (shellState.gameState !== 'playing') return;
+    
+    try {
+        // [FIX] Simple heuristic: Check alpha of the mask texture
+        // Extract pixels is slow, so we only do it sparingly.
+        const pixels = await app.renderer.extract.pixels({
+            target: maskRT,
+            format: 'rgba8unorm'
+        });
+        
+        // Count white pixels (unscratched area)
+        let whiteCount = 0;
+        for (let i = 3; i < pixels.length; i += 4) {
+            if (pixels[i] > 128) whiteCount++;
+        }
+        
+        const totalPixels = pixels.length / 4;
+        const scratchedPct = 1 - (whiteCount / totalPixels);
+        
+        if (scratchedPct >= scratchThreshold) {
+            shellState.win = currentOutcome.win;
+            shellState.gameState = 'revealed'; // Show "PLAY" button
+            updateFooterDisplay();
+        }
+    } catch(e) {
+        log("Progress check failed: " + e.message, "warn");
+    }
+}
+
+window.addEventListener('load', init);
 </script>
     </body>
     </html>`;
