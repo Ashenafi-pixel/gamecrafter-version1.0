@@ -556,6 +556,15 @@ export const generateScratchHTML = (cleanConfig: any): string => {
         .btn-autoplay:hover:not(:disabled) { background: #374151; }
         .btn-stop { background: #ef4444; color: #fff; width: auto; padding: 0 16px; border-radius: 999px; font-size: 12px; }
 
+        /* Autoplay Toggles */
+        .autoplay-row { display: flex; items-center: center; justify-content: space-between; padding: 12px; background: #161616; border-radius: 8px; border: 1px solid #222; margin-bottom: 8px; cursor: pointer; }
+        .autoplay-row:hover { background: #1a1a1a; border-color: #333; }
+        .autoplay-row label { display: flex; items-center: center; gap: 8px; font-size: 13px; font-weight: bold; color: #ccc; cursor: pointer; width: 100%; }
+        .autoplay-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: #22c55e; }
+        .btn-round { padding: 8px 0; background: #1e293b; border: 1px solid #334155; color: #fff; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 13px; transition: all 0.2s; }
+        .btn-round.active { background: #22c55e; border-color: #22c55e; color: #fff; }
+        .btn-round:hover:not(.active) { background: #334155; }
+
         /* Modals */
         .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); z-index: 200; align-items: center; justify-content: center; }
         .modal-overlay.open { display: flex; }
@@ -659,35 +668,43 @@ export const generateScratchHTML = (cleanConfig: any): string => {
 
     <!-- Autoplay Modal -->
     <div id="autoplay-overlay" class="modal-overlay">
-        <div class="modal-card" style="width: 320px;">
+        <div class="modal-card" style="width: 360px;">
             <div class="modal-header">
-                <h3>Autoplay</h3>
+                <h3 style="display: flex; align-items: center; gap: 8px;">
+                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="#22c55e" stroke-width="3" fill="none"><path d="M20 11a8.1 8.1 0 0 0-15.5-2m-.5-5v5h5"></path><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 5v-5h-5"></path></svg>
+                    Autoplay Options
+                </h3>
                 <button class="modal-close" onclick="closeAutoplayModal()">
                     <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
             </div>
             <div class="modal-body">
-                <p class="footer-label" style="margin-bottom: 12px">Number of Rounds</p>
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 24px;">
-                    <button class="btn-bet" style="width: 100%; height: 36px;" onclick="setAutoRounds(10)">10</button>
-                    <button class="btn-bet" style="width: 100%; height: 36px;" onclick="setAutoRounds(25)">25</button>
-                    <button class="btn-bet" style="width: 100%; height: 36px;" onclick="setAutoRounds(50)">50</button>
-                    <button class="btn-bet" style="width: 100%; height: 36px;" onclick="setAutoRounds(100)">100</button>
+                <p class="footer-label" style="margin-bottom: 12px; color: #666;">Number of Rounds</p>
+                <div id="autoplay-round-selector" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 24px;">
+                    <button class="btn-round active" onclick="setAutoRounds(10)">10</button>
+                    <button class="btn-round" onclick="setAutoRounds(25)">25</button>
+                    <button class="btn-round" onclick="setAutoRounds(50)">50</button>
+                    <button class="btn-round" onclick="setAutoRounds(75)">75</button>
+                    <button class="btn-round" onclick="setAutoRounds(100)">100</button>
                 </div>
-                <button class="btn-buy" style="width: 100%;" onclick="startAutoplay()">Start</button>
-            </div>
-        </div>
-    </div>
-            </div>
-            <div class="autoplay-row">
-                <label><input type="checkbox" id="autoplay-turbo"> Turbo (no delay)</label>
-            </div>
-            <div class="autoplay-row">
-                <label><input type="checkbox" id="autoplay-stop-bonus" checked> Stop on Bonus</label>
-            </div>
-            <div style="margin-top: 16px; display: flex; justify-content: flex-end;">
-                <button type="button" class="btn-modal btn-modal-secondary" id="autoplay-cancel">Cancel</button>
-                <button type="button" class="btn-modal btn-modal-primary" id="autoplay-start">Start</button>
+
+                <div class="autoplay-row">
+                    <label>
+                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="#eab308" stroke-width="3" fill="none" style="margin-right: 4px;"><path d="m13 2-2 10h9L7 22l2-10H1L13 2z"/></svg>
+                        Turbo Spin
+                    </label>
+                    <input type="checkbox" id="autoplay-turbo">
+                </div>
+
+                <div class="autoplay-row">
+                    <label>Stop on Bonus</label>
+                    <input type="checkbox" id="autoplay-stop-bonus" checked>
+                </div>
+
+                <div style="display: flex; gap: 12px; margin-top: 24px;">
+                    <button class="btn-icon" style="flex: 1; height: 44px; border-radius: 12px;" onclick="closeAutoplayModal()">Cancel</button>
+                    <button id="btn-start-autoplay" class="btn-buy" style="flex: 1; border-radius: 12px;" onclick="runAutoplay()">Start</button>
+                </div>
             </div>
         </div>
     </div>
@@ -726,7 +743,7 @@ export const generateScratchHTML = (cleanConfig: any): string => {
 
         // --- Casino Shell State (Footer + Autoplay) ---
         let ticketPrice = 1;
-        let shellState = { balance: 1000, bet: 1, win: 0, gameState: 'idle', isAutoPlaying: false, autoplayId: 0 };
+        let shellState = { balance: 1000, bet: 1, win: 0, gameState: 'idle', isAutoPlaying: false, autoplayId: 0, autoplayRounds: 10 };
         let OPERATOR_ENDPOINT = '';
 
         // --- UI Modal & Footer Logic ---
@@ -748,11 +765,17 @@ export const generateScratchHTML = (cleanConfig: any): string => {
             const overlay = document.getElementById('autoplay-overlay');
             if (overlay) overlay.classList.remove('open'); 
         }
-        
+
         function setAutoRounds(r) {
             shellState.autoplayRounds = r;
-            // Visual feedback could be added here
+            const btns = document.querySelectorAll('.btn-round');
+            btns.forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.textContent) === r);
+            });
+            log("Autoplay Rounds set to: " + r);
         }
+        
+
 
         function changeBet(delta) {
             if (shellState.gameState !== 'idle') return;
@@ -786,12 +809,15 @@ export const generateScratchHTML = (cleanConfig: any): string => {
         function initSound() {
             log("Initializing Sound System");
             const unlock = () => {
-                for (const sound of audioCache.values()) {
-                    sound.play().then(() => { sound.pause(); sound.currentTime = 0; }).catch(() => {});
-                }
+                // Play a tiny silent dummy sound to unlock the AudioContext/HTML5 Audio for the session
+                const dummy = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFRm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==");
+                dummy.play().catch(function() {});
+                log("Audio Unlocked");
                 window.removeEventListener('pointerdown', unlock);
+                window.removeEventListener('touchstart', unlock);
             };
             window.addEventListener('pointerdown', unlock);
+            window.addEventListener('touchstart', unlock);
         }
 
         function initBrushTip() {
@@ -828,8 +854,15 @@ export const generateScratchHTML = (cleanConfig: any): string => {
             }
             if (sound) {
                 if (loop) sound.loop = true;
+                
+                // If it's a loop and already playing, don't restart it (prevents stutter)
+                if (loop && !sound.paused) return;
+
                 sound.currentTime = 0;
-                sound.play().catch(e => log("Play failed: " + e.message, "warn"));
+                const p = sound.play();
+                if (p !== undefined) {
+                    p.catch(function(e) { log("Play failed: " + e.message, "warn"); });
+                }
             }
         }
 
@@ -910,11 +943,10 @@ export const generateScratchHTML = (cleanConfig: any): string => {
             updateFooterDisplay();
         }
 
-        function openAutoplayModal() { document.getElementById('autoplay-overlay').classList.add('open'); }
-        function closeAutoplayModal() { document.getElementById('autoplay-overlay').classList.remove('open'); }
+
 
         async function runAutoplay() {
-            const rounds = Math.min(1000, Math.max(1, parseInt(document.getElementById('autoplay-rounds').value, 10) || 10));
+            const rounds = shellState.autoplayRounds || 10;
             const turbo = document.getElementById('autoplay-turbo').checked;
             const stopOnBonus = document.getElementById('autoplay-stop-bonus').checked;
             closeAutoplayModal();
@@ -1039,8 +1071,6 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                 updateFooterDisplay();
                 document.getElementById('btn-buy').onclick = buyTicket;
                 document.getElementById('btn-autoplay').onclick = function() { if (shellState.isAutoPlaying) stopAutoplay(); else openAutoplayModal(); };
-                document.getElementById('autoplay-cancel').onclick = closeAutoplayModal;
-                document.getElementById('autoplay-start').onclick = runAutoplay;
 
                 // 3. Asset Loading (Custom Offline Loader)
                 const imageExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.svg'];
@@ -1101,6 +1131,7 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                     } else if (isAudio) {
                         return new Promise((resolve) => {
                             const audio = new Audio();
+                            audio.preload = 'auto'; // Force buffer preload
                             audio.oncanplaythrough = () => {
                                 log("Loaded Audio: " + url.substring(0, 40) + "...");
                                 // Tag audio for lookup (find by extension-less name)
@@ -1389,6 +1420,21 @@ function setupScene() {
                 s.x = c * cellW + cellW / 2;
                 s.y = r * cellH + cellH / 2;
                 gridContainer.addChild(s);
+
+                // Add small currency label like at bottom right
+                var currencyLabel = new PIXI.Text({
+                    text: '$10',
+                    style: {
+                        fontFamily: 'monospace',
+                        fontSize: 10,
+                        fontWeight: 'bold',
+                        fill: gridBgColor === 'transparent' ? 0x666666 : 0x999999,
+                    }
+                });
+                currencyLabel.anchor.set(1, 1);
+                currencyLabel.x = (c + 1) * cellW - 6;
+                currencyLabel.y = (r + 1) * cellH - 6;
+                gridContainer.addChild(currencyLabel);
             }
         }
     }
