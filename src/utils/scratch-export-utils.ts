@@ -1607,7 +1607,7 @@ function setupScene() {
     app.stage.on('pointermove', onDragMove);
 
     var brushSize = (config.scratch && config.scratch.brush && config.scratch.brush.size) || 40;
-    const brush = new PIXI.Graphics().circle(0, 0, brushSize).fill({ color: 0x000000, alpha: 1 });
+    const brush = new PIXI.Graphics().circle(0, 0, brushSize / 2).fill({ color: 0x000000, alpha: 1 });
 
     function onDragStart(e) { 
         isDrawing = true; 
