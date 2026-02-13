@@ -1501,11 +1501,18 @@ function setupScene() {
     innerCardGroup.mask = mask;
     
     // F. Scratch Masking (Surface)
-    const maskRT = PIXI.RenderTexture.create({ width: app.screen.width, height: app.screen.height });
+    const MASK_WIDTH = CARD_WIDTH;
+    const MASK_HEIGHT = gridBaseHeight;
+    const maskRT = PIXI.RenderTexture.create({ width: MASK_WIDTH, height: MASK_HEIGHT });
     const maskSprite = new PIXI.Sprite(maskRT);
-    const fullQuad = new PIXI.Graphics().rect(0, 0, app.screen.width, app.screen.height).fill({ color: 0xffffff });
+    
+    // Initial Fill (White = Covered)
+    const fullQuad = new PIXI.Graphics().rect(0, 0, MASK_WIDTH, MASK_HEIGHT).fill({ color: 0xffffff });
     app.renderer.render({ container: fullQuad, target: maskRT });
+    
+    // Apply mask to surface
     surfaceContainer.mask = maskSprite;
+    surfaceContainer.addChild(maskSprite); // Add to local space
     
     // G. Mascot Layer (Independent - Attached to Anchor, NOT Masked Group)
     // 1. Dynamic Mascot (from Step 3/Theme)
@@ -1607,7 +1614,7 @@ function setupScene() {
     app.stage.on('pointermove', onDragMove);
 
     var brushSize = (config.scratch && config.scratch.brush && config.scratch.brush.size) || 40;
-    const brush = new PIXI.Graphics().circle(0, 0, brushSize / 2).fill({ color: 0x000000, alpha: 1 });
+    const brush = new PIXI.Graphics().circle(0, 0, brushSize).fill({ color: 0x000000, alpha: 1 });
 
     function onDragStart(e) { 
         isDrawing = true; 
@@ -1626,7 +1633,14 @@ function setupScene() {
         brushTip.position.copyFrom(pos);
         
         if (isDrawing) {
-            brush.position.copyFrom(pos);
+            // [FIX] Map global pointer to local coordinate space for masking
+            const localPos = surfaceContainer.toLocal(pos);
+            // Calculate local radius to match global visual brush tip (bSize is diameter)
+            const localEdge = surfaceContainer.toLocal({ x: pos.x + bSize / 2, y: pos.y });
+            const localRadius = Math.sqrt(Math.pow(localEdge.x - localPos.x, 2) + Math.pow(localEdge.y - localPos.y, 2)) * 0.85;
+
+            brush.clear().circle(0, 0, localRadius).fill({ color: 0x000000, alpha: 1 });
+            brush.position.set(localPos.x, localPos.y);
             brush.blendMode = 'erase';
             app.renderer.render({ container: brush, target: maskRT, clear: false });
 
