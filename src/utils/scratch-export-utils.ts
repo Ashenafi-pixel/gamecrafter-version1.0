@@ -532,13 +532,13 @@ export const generateScratchHTML = (cleanConfig: any): string => {
         canvas { display: block; width: 100%; height: 100%; }
         /* Casino Shell Footer */
         #casino-footer { position: fixed; bottom: 0; left: 0; right: 0; height: 64px; background: #000; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-top: 1px solid #333; z-index: 50; box-shadow: 0 -4px 20px rgba(0,0,0,0.4); }
-        .footer-left, .footer-right { display: flex; align-items: center; gap: 16px; flex: 1; }
-        .footer-center { position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; }
-        .footer-right { justify-content: flex-end; }
+        .footer-left { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; overflow: hidden; }
+        .footer-center { display: flex; align-items: center; gap: 10px; flex: 1.2; justify-content: center; padding: 0 4px; }
+        .footer-right { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex: 1; min-width: 0; overflow: hidden; }
         
-        .footer-label { font-size: 9px; font-weight: bold; color: #FFD700; text-transform: uppercase; letter-spacing: 0.1em; }
-        .footer-value { font-size: 16px; font-weight: bold; font-family: monospace; line-height: 1; }
-        .footer-group { display: flex; flex-direction: column; gap: 2px; }
+        .footer-label { font-size: 10px; font-weight: bold; color: #FFD700; text-transform: uppercase; letter-spacing: 0.1em; line-height: 1.2; white-space: nowrap; }
+        .footer-value { font-size: 18px; font-weight: bold; font-family: monospace; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+        .footer-group { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
         
         .btn-icon { width: 36px; height: 36px; borderRadius: 50%; border: 1px solid #334155; background: transparent; color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
         .btn-icon:hover { border-color: #f8fafc; color: #f8fafc; }
@@ -584,10 +584,39 @@ export const generateScratchHTML = (cleanConfig: any): string => {
         .paytable-table td { padding: 8px; border-bottom: 1px solid #222; }
         .paytable-table tr:nth-child(even) { background: #161616; }
 
-        @media (max-width: 600px) {
-            .footer-left .btn-icon:first-child { display: none; }
-            .footer-center { gap: 8px; }
-            .btn-buy { padding: 0 20px; font-size: 16px; }
+        /* Mobile Optimization */
+        @media (max-width: 640px) {
+            #casino-footer { height: 72px; padding: 0 8px; }
+            .footer-left { gap: 6px; flex: 1; }
+            .footer-center { gap: 6px; flex: 1.4; }
+            .footer-right { flex: 1; }
+            
+            .footer-label { font-size: 7px; letter-spacing: 0.02em; }
+            .footer-value { font-size: 13px; }
+            
+            .btn-buy { height: 38px; padding: 0 12px; font-size: 13px; }
+            .btn-autoplay { width: 34px; height: 34px; font-size: 6px; }
+            .btn-icon { width: 30px; height: 30px; }
+            
+            .bet-controls { gap: 3px; }
+            .btn-bet { width: 18px; height: 18px; font-size: 11px; }
+            
+            .modal-card { width: 100%; height: 100%; max-width: none; max-height: none; border-radius: 0; border: none; }
+            .footer-left .btn-icon:first-child { display: none; } /* Hide menu on mobile */
+            .btn-autoplay .stop-text { display: none; }
+        }
+        
+        @media (max-width: 420px) {
+            .footer-label { display: none; } 
+            .footer-group { justify-content: center; }
+            .footer-left { gap: 4px; }
+            .footer-center { gap: 4px; }
+        }
+        
+        @media (max-width: 380px) {
+            .footer-label { display: none; } /* Hide labels on very small screens to save space */
+            .footer-group { justify-content: center; }
+            .btn-buy { padding: 0 12px; font-size: 14px; }
         }
     </style>
 </head>
@@ -608,19 +637,20 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                 <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
             </button>
             <div class="footer-group">
-                <span class="footer-label">Demo Balance</span>
+                <span class="footer-label">Balance</span>
                 <span class="footer-value">€<span id="footer-balance-value">0.00</span></span>
             </div>
         </div>
         
         <div class="footer-center">
             <button class="btn-autoplay" id="btn-autoplay">
-                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M20 11a8.1 8.1 0 0 0-15.5-2m-.5-5v5h5"></path><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 5v-5h-5"></path></svg>
-                <span>AUTO</span>
+                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" id="autoplay-icon-spin"><path d="M20 11a8.1 8.1 0 0 0-15.5-2m-.5-5v5h5"></path><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 5v-5h-5"></path></svg>
+                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="currentColor" id="autoplay-icon-stop" style="display:none"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                <span class="stop-text">AUTO</span>
             </button>
             <button class="btn-buy" id="btn-buy">BUY</button>
             <div class="footer-group">
-                <span class="footer-label">Demo Bet</span>
+                <span class="footer-label">Bet</span>
                 <div class="bet-controls">
                     <span class="footer-value">€<span id="footer-bet-value">0.00</span></span>
                     <button class="btn-bet" onclick="changeBet(-0.1)">-</button>
@@ -913,11 +943,19 @@ export const generateScratchHTML = (cleanConfig: any): string => {
             }
             
             if (autoBtn) {
+                const spinIcon = document.getElementById('autoplay-icon-spin');
+                const stopIcon = document.getElementById('autoplay-icon-stop');
+                const stopText = autoBtn.querySelector('.stop-text');
+                
                 if (shellState.isAutoPlaying) {
-                    autoBtn.innerHTML = 'STOP';
+                    if (spinIcon) spinIcon.style.display = 'none';
+                    if (stopIcon) stopIcon.style.display = 'block';
+                    if (stopText) stopText.textContent = 'STOP';
                     autoBtn.classList.add('btn-stop');
                 } else {
-                    autoBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M20 11a8.1 8.1 0 0 0-15.5-2m-.5-5v5h5"></path><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 5v-5h-5"></path></svg><span>AUTO</span>';
+                    if (spinIcon) spinIcon.style.display = 'block';
+                    if (stopIcon) stopIcon.style.display = 'none';
+                    if (stopText) stopText.textContent = 'AUTO';
                     autoBtn.classList.remove('btn-stop');
                 }
                 autoBtn.disabled = shellState.gameState === 'playing';
@@ -1234,100 +1272,72 @@ function setupScene() {
 
     log('Background Value: ' + bgUrl);
 
+    // A. Card Anchor (Logical 320x460 - Matches Preview wrapper)
+    var cardAnchor = new PIXI.Container();
 
-    if (bgUrl) {
-        // 1. Image Background (Try cache first, then direct load)
-        // [FIX] Allow direct loading if not in cache (e.g. data URIs or missed preloads)
-        if (textureCache.has(bgUrl) || bgUrl.startsWith('data:') || bgUrl.startsWith('http') || bgUrl.startsWith('/')) {
-            var bg = PIXI.Sprite.from(bgUrl);
-            var updateBgScale = () => {
-                var scaleX = app.screen.width / bg.texture.width;
-                var scaleY = app.screen.height / bg.texture.height;
-                var scale = Math.max(scaleX, scaleY);
+    // Unified Resize Handler for Mobile/Desktop parity
+    var updateLayout = () => {
+        // 1. Background Scaling
+        if (bgContainer.children.length > 0) {
+            var bg = bgContainer.children[0];
+            if (bg instanceof PIXI.Sprite) {
+                var scale = Math.max(app.screen.width / bg.texture.width, app.screen.height / bg.texture.height);
                 bg.scale.set(scale);
-                bg.anchor.set(0.5);
                 bg.x = app.screen.width / 2;
                 bg.y = app.screen.height / 2;
-            };
-            updateBgScale();
-            bgContainer.addChild(bg);
-            
-            // Add Resize Listener
-            window.addEventListener('resize', () => {
-                updateBgScale();
-                // Re-center card container
-                cardAnchor.x = app.screen.width / 2;
-                cardAnchor.y = app.screen.height / 2;
-            });
-            log('Background Loaded (Image)');
+            } else if (bg instanceof PIXI.Graphics) {
+                bg.clear().rect(0, 0, app.screen.width, app.screen.height).fill({ color: bgUrl || 0x1e293b });
+            }
+        }
 
-        // 2. CSS/Hex Background
+        // 2. Card Scaling & Centering
+        var footerH = window.innerWidth <= 640 ? 80 : 70;
+        var marginX = window.innerWidth <= 640 ? 40 : 60;
+        var marginY = window.innerWidth <= 640 ? 100 : 180;
+        
+        var fitScale = Math.min((app.screen.width - marginX) / CARD_WIDTH, (app.screen.height - marginY) / CARD_HEIGHT);
+        cardAnchor.scale.set(fitScale);
+        cardAnchor.x = app.screen.width / 2;
+        cardAnchor.y = (app.screen.height - footerH) / 2;
+    };
+
+    if (bgUrl) {
+        if (textureCache.has(bgUrl) || bgUrl.startsWith('data:') || bgUrl.startsWith('http') || bgUrl.startsWith('/')) {
+            var bgSprite = PIXI.Sprite.from(bgUrl);
+            bgSprite.anchor.set(0.5);
+            bgContainer.addChild(bgSprite);
+            log('Background Loaded (Image)');
         } else if (bgUrl.startsWith('#') || bgUrl.includes('rgb') || bgUrl.includes('gradient')) {
             log('Detected CSS Background');
-            
-            var createBgGfx = () => {
-                bgContainer.removeChildren();
-                
-                if (bgUrl.includes('gradient')) {
-                   var canvas = document.createElement('canvas');
-                   // Use screen size for gradient to avoid stretching issues if possible, or fixed size texture scaled
-                   canvas.width = 512; canvas.height = 512; 
-                   var ctx = canvas.getContext('2d');
-                   var grd = ctx.createLinearGradient(0, 0, 0, 512); // Vertical gradient
-                   
-                   var colors = bgUrl.match(/#[a-fA-F0-9]{3,6}|rgba?\([^\)]+\)/g) || ['#1e293b', '#0f172a'];
-                   if (colors.length >= 2) {
-                       grd.addColorStop(0, colors[0]);
-                       grd.addColorStop(1, colors[colors.length-1]);
-                   } else {
-                       grd.addColorStop(0, '#1e293b');
-                       grd.addColorStop(1, '#0f172a');
-                   }
-                   ctx.fillStyle = grd;
-                   ctx.fillRect(0, 0, 512, 512);
-                   
-                   var tex = PIXI.Texture.from(canvas);
-                   var bgSprite = new PIXI.Sprite(tex);
-                   bgSprite.width = app.screen.width;
-                   bgSprite.height = app.screen.height;
-                   bgContainer.addChild(bgSprite);
-                } else {
-                    // Solid Color
-                    var bgGfx = new PIXI.Graphics().rect(0, 0, app.screen.width, app.screen.height).fill({ color: bgUrl });
-                    bgContainer.addChild(bgGfx);
-                }
-            };
-            
-            createBgGfx();
-            
-            window.addEventListener('resize', () => {
-                 createBgGfx(); // Re-create/resize background
-                 cardAnchor.x = app.screen.width / 2;
-                 cardAnchor.y = app.screen.height / 2;
-            });
-            
-        } else {
-            log('Background defined but not found in assets/cache', 'warn');
+            if (bgUrl.includes('gradient')) {
+                var canvas = document.createElement('canvas');
+                canvas.width = 512; canvas.height = 512; 
+                var ctx = canvas.getContext('2d');
+                var grd = ctx.createLinearGradient(0, 0, 0, 512);
+                var colors = bgUrl.match(/#[a-fA-F0-9]{3,6}|rgba?\([^\)]+\)/g) || ['#1e293b', '#0f172a'];
+                if (colors.length >= 2) { grd.addColorStop(0, colors[0]); grd.addColorStop(1, colors[colors.length-1]); }
+                else { grd.addColorStop(0, '#1e293b'); grd.addColorStop(1, '#0f172a'); }
+                ctx.fillStyle = grd; ctx.fillRect(0, 0, 512, 512);
+                var bgSprite = new PIXI.Sprite(PIXI.Texture.from(canvas));
+                bgSprite.anchor.set(0.5);
+                bgContainer.addChild(bgSprite);
+            } else {
+                var bgGfx = new PIXI.Graphics().rect(0, 0, app.screen.width, app.screen.height).fill({ color: bgUrl });
+                bgContainer.addChild(bgGfx);
+            }
         }
     } else {
-        log('No Background defined', 'warn');
         var g = new PIXI.Graphics().rect(0, 0, app.screen.width, app.screen.height).fill({ color: 0x1e293b });
         bgContainer.addChild(g);
     }
 
-    // A. Card Anchor (Logical 320x460 - Matches Preview wrapper)
-    // This is the main container that scales to fit the window.
-    var cardAnchor = new PIXI.Container();
-    
-    // Fit logic: Scale 320x460 to fit comfortably in 600x800 app
-    var fitScale = Math.min((app.screen.width - 60) / CARD_WIDTH, (app.screen.height - 180) / CARD_HEIGHT);
-    cardAnchor.scale.set(fitScale);
-    
-    // Center Anchor on screen
-    cardAnchor.x = app.screen.width / 2;
-    cardAnchor.y = app.screen.height / 2;
     cardAnchor.pivot.set(CARD_WIDTH / 2, CARD_HEIGHT / 2);
     container.addChild(cardAnchor);
+
+    // Initial Layout & Listeners
+    updateLayout();
+    window.addEventListener('resize', updateLayout);
+    window.addEventListener('orientationchange', () => setTimeout(updateLayout, 200));
 
     // B. Inner Masked Card Group (Frame + Grid + Surface)
     var innerCardGroup = new PIXI.Container();
@@ -1349,19 +1359,38 @@ function setupScene() {
 
     var symSizeScale = 0.85; 
 
-    // A.1 Card Frame (Overlay) - Persistent
-    var frameUrl = config.theme && config.theme.generated && config.theme.generated.frame;
-    var overlayColor = config.scratch?.layers?.overlay?.color || '#F2F0EB';
-    
-    var frameBg = new PIXI.Graphics().rect(0, 0, CARD_WIDTH, CARD_HEIGHT).fill({ color: overlayColor });
-    innerCardGroup.addChild(frameBg);
+    // A.1 Card Base Background (Always Bottom)
+    var overlayConf = config.scratch?.layers?.overlay || {};
+    var overlayColor = overlayConf.color || '#F2F0EB';
+    if (overlayColor !== 'transparent') {
+        var cardBg = new PIXI.Graphics().rect(0, 0, CARD_WIDTH, CARD_HEIGHT).fill({ color: overlayColor });
+        innerCardGroup.addChild(cardBg);
+        log('Card Base Background Rendered: ' + overlayColor);
+    }
 
-    if (frameUrl && textureCache.has(frameUrl)) {
-        var frame = PIXI.Sprite.from(frameUrl);
-        frame.width = CARD_WIDTH;
-        frame.height = CARD_HEIGHT;
-        innerCardGroup.addChild(frame);
-        log('Card Frame Loaded');
+    // A.2 Card Frame Image Layer
+    var frameUrl = config.theme && config.theme.generated && config.theme.generated.frame;
+    var overlayZIndex = overlayConf.zIndex ?? 120;
+    var overlayBlendMode = overlayConf.blendMode || 'normal';
+
+    function renderFrameImage() {
+        if (frameUrl && (textureCache.has(frameUrl) || frameUrl.startsWith('data:'))) {
+            var frame = PIXI.Sprite.from(frameUrl);
+            frame.width = CARD_WIDTH;
+            frame.height = CARD_HEIGHT;
+            if (overlayBlendMode === 'multiply') {
+                frame.blendMode = 'multiply';
+            }
+            log('Card Frame Sprite Rendered (' + overlayBlendMode + ')');
+            return frame;
+        }
+        return null;
+    }
+
+    var frameSprite = renderFrameImage();
+    if (frameSprite && overlayZIndex < 50) {
+        innerCardGroup.addChild(frameSprite); // Add at bottom (above background)
+        log('Frame Image: Bottom');
     }
 
     // B. Grid / Internal Transforms
@@ -1499,6 +1528,12 @@ function setupScene() {
     var mask = new PIXI.Graphics().roundRect(0, 0, CARD_WIDTH, CARD_HEIGHT, 16).fill({ color: 0xffffff });
     innerCardGroup.addChild(mask);
     innerCardGroup.mask = mask;
+
+    // [NEW] Add Frame Layer on TOP if zIndex is high
+    if (frameSprite && overlayZIndex >= 50) {
+        innerCardGroup.addChild(frameSprite);
+        log('Frame Layer: Top');
+    }
     
     // F. Scratch Masking (Surface)
     const MASK_WIDTH = CARD_WIDTH;
@@ -1617,6 +1652,14 @@ function setupScene() {
     const brush = new PIXI.Graphics().circle(0, 0, brushSize).fill({ color: 0x000000, alpha: 1 });
 
     function onDragStart(e) { 
+        // [FIX] Restrict scratch start to the Card Area (Grid/Foil) only
+        var localPos = surfaceContainer.toLocal(e.global);
+        var margin = 10;
+        if (localPos.x < -margin || localPos.x > CARD_WIDTH + margin || 
+            localPos.y < -margin || localPos.y > gridBaseHeight + margin) {
+            return;
+        }
+
         isDrawing = true; 
         playSound('scratch', true); 
         brushTip.scale.set(0.9); // Visual feedback
@@ -1627,6 +1670,17 @@ function setupScene() {
         stopSound('scratch');
         brushTip.scale.set(1.0); // Reset scale
     }
+    // [FIX] Helper for dynamic particle colors matching foil type
+    const getParticleColor = () => {
+        const foil = (surfaceUrl || '').toLowerCase();
+        if (foil.includes('gold')) return 0xFFD700;
+        if (foil.includes('silver') || foil.includes('platinum')) return 0xE5E4E2;
+        if (foil.includes('copper')) return 0xB87333;
+        if (foil.includes('holographic')) return Math.random() * 0xFFFFFF;
+        if (foil.includes('sand')) return 0xE6C288;
+        return 0xC0C0C0;
+    };
+
     function onDragMove(e) {
         const pos = e.global;
         // Update Brush Tip (Visual)
@@ -1635,32 +1689,56 @@ function setupScene() {
         if (isDrawing) {
             // [FIX] Map global pointer to local coordinate space for masking
             const localPos = surfaceContainer.toLocal(pos);
-            // Calculate local radius to match global visual brush tip (bSize is diameter)
-            const localEdge = surfaceContainer.toLocal({ x: pos.x + bSize / 2, y: pos.y });
-            const localRadius = Math.sqrt(Math.pow(localEdge.x - localPos.x, 2) + Math.pow(localEdge.y - localPos.y, 2)) * 0.85;
 
-            brush.clear().circle(0, 0, localRadius).fill({ color: 0x000000, alpha: 1 });
-            brush.position.set(localPos.x, localPos.y);
-            brush.blendMode = 'erase';
-            app.renderer.render({ container: brush, target: maskRT, clear: false });
+            // Only scratch and spawn particles if we are within the surface bounds
+            if (localPos.x >= 0 && localPos.x <= CARD_WIDTH && localPos.y >= 0 && localPos.y <= gridBaseHeight) {
+                // [FIX] Calculate separate local X/Y radii to compensate for non-uniform scaling
+                const localEdgeX = surfaceContainer.toLocal({ x: pos.x + bSize / 2, y: pos.y });
+                const localEdgeY = surfaceContainer.toLocal({ x: pos.x, y: pos.y + bSize / 2 });
+                
+                const localRadiusX = Math.sqrt(Math.pow(localEdgeX.x - localPos.x, 2) + Math.pow(localEdgeX.y - localPos.y, 2)) * 0.85;
+                const localRadiusY = Math.sqrt(Math.pow(localEdgeY.x - localPos.x, 2) + Math.pow(localEdgeY.y - localPos.y, 2)) * 0.85;
 
-            // Spawn Particles (Shavings)
-            if (config.scratch?.effects?.particles !== false) {
-                // Map global to local coordinates for particle spawning relative to Card Anchor
-                const localPos = cardAnchor.toLocal(pos);
-                for (let i = 0; i < 8; i++) {
-                    const angle = Math.random() * Math.PI * 2;
-                    const r = Math.random() * 20;
-                    particles.push({
-                        x: localPos.x + Math.cos(angle) * r,
-                        y: localPos.y + Math.sin(angle) * r,
-                        vx: (Math.random() - 0.5) * 6,
-                        vy: (Math.random() - 0.5) * 6,
-                        life: 1.5,
-                        color: (surfaceUrl && surfaceUrl.includes('gold')) ? 0xFFD700 : 0xC0C0C0,
-                        type: 'spark',
-                        size: Math.random() * 3 + 1
-                    });
+                brush.clear().ellipse(0, 0, localRadiusX, localRadiusY).fill({ color: 0x000000, alpha: 1 });
+                brush.position.set(localPos.x, localPos.y);
+                brush.blendMode = 'erase';
+                app.renderer.render({ container: brush, target: maskRT, clear: false });
+
+                // Spawn Particles (Shavings + Confetti)
+                if (config.scratch?.effects?.particles !== false) {
+                    const localCardPos = cardAnchor.toLocal(pos);
+                    // 1. Shavings (Sparks) - Match foil color
+                    for (let i = 0; i < 6; i++) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const r = Math.random() * 20;
+                        particles.push({
+                            x: localCardPos.x + Math.cos(angle) * r,
+                            y: localCardPos.y + Math.sin(angle) * r,
+                            vx: (Math.random() - 0.5) * 6,
+                            vy: (Math.random() - 0.5) * 6,
+                            life: 1.5,
+                            color: getParticleColor(),
+                            type: 'spark',
+                            size: Math.random() * 3 + 1
+                        });
+                    }
+                    // 2. Confetti Snippets - Random vibrant colors (Parity with Preview)
+                    if (config.scratch?.effects?.confetti !== false) {
+                        for (let i = 0; i < 2; i++) {
+                            particles.push({
+                                x: localCardPos.x,
+                                y: localCardPos.y,
+                                vx: (Math.random() - 0.5) * 6,
+                                vy: -5 - Math.random() * 5,
+                                life: 3.0,
+                                color: Math.random() * 0xFFFFFF,
+                                type: 'confetti',
+                                size: Math.random() * 6 + 4,
+                                rotation: Math.random() * Math.PI,
+                                vRotation: (Math.random() - 0.5) * 0.2
+                            });
+                        }
+                    }
                 }
             }
         }

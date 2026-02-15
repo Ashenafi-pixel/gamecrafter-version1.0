@@ -79,38 +79,37 @@ export const GameControls: React.FC<GameControlsProps> = ({
     const paytableRows = rulesConfig?.paytableRows || defaultRows;
 
     return (
-        <div className="w-full bg-black text-white p-3 shadow-2xl relative z-50 flex items-center justify-between border-t border-gray-800 overflow-x-auto scrollbar-hide">
-
+        <div className="w-full bg-black text-white p-2 sm:p-3 shadow-2xl relative z-50 flex items-center justify-between border-t border-gray-800 overflow-x-auto scrollbar-hide md:justify-around">
             {/* LEFT: Menu, Info, Balance */}
-            <div className="flex items-center gap-4 shrink-0 z-10 relative">
-                <button className="text-white hover:text-gray-300 transition-colors shrink-0">
+            <div className="flex items-center gap-1.5 md:gap-4 shrink-0 z-10 relative">
+                <button className="text-white hover:text-gray-300 transition-colors shrink-0 hidden md:block">
                     <Menu size={24} />
                 </button>
 
                 <button
                     onClick={() => setShowInfoModal(true)}
-                    className="w-8 h-8 rounded-full border border-gray-600 flex items-center justify-center text-gray-400 hover:text-white hover:border-white transition-colors shrink-0"
+                    className="w-7 h-7 md:w-8 md:h-8 rounded-full border border-gray-600 flex items-center justify-center text-gray-400 hover:text-white hover:border-white transition-colors shrink-0"
                 >
-                    <Info size={16} />
+                    <Info size={14} className="md:size-4" />
                 </button>
 
-                <div className="flex flex-col shrink-0">
-                    <span className="text-[10px] font-bold text-[#FFD700] uppercase tracking-wider">Demo Balance</span>
-                    <span className="text-lg font-bold font-mono leading-none">€{balance.toFixed(2)}</span>
+                <div className="flex flex-col shrink min-w-0 max-w-[100px] sm:max-w-none">
+                    <span className="text-[7px] md:text-[10px] font-bold text-[#FFD700] uppercase tracking-wider truncate hidden xs:block">Balance</span>
+                    <span className="text-xs md:text-lg font-bold font-mono leading-none truncate tracking-tight">€{balance.toFixed(2)}</span>
                 </div>
             </div>
 
-            {/* CENTER (Absolute): Auto - Buy - Bet */}
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-4">
+            {/* CENTER: Auto - Buy - Bet */}
+            <div className="flex items-center gap-2 md:gap-6 px-2 sm:px-4">
                 {/* Auto */}
                 <button
                     onClick={() => setShowAutoModal(true)}
                     disabled={isAutoPlaying || gameState === 'playing'}
-                    className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-700 text-white transition-colors disabled:opacity-50 shrink-0"
+                    className="w-8 h-8 md:w-12 md:h-12 bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-700 text-white transition-colors disabled:opacity-50 shrink-0"
                 >
                     <div className="flex flex-col items-center justify-center">
-                        <RotateCcw size={16} />
-                        <span className="text-[8px] font-bold">AUTO</span>
+                        <RotateCcw size={12} className="md:size-4" />
+                        <span className="text-[6px] md:text-[8px] font-bold">AUTO</span>
                     </div>
                 </button>
 
@@ -119,17 +118,18 @@ export const GameControls: React.FC<GameControlsProps> = ({
                     {isAutoPlaying ? (
                         <button
                             onClick={onStopAuto}
-                            className="h-12 px-6 bg-red-600 hover:bg-red-500 text-white rounded-full font-black text-sm shadow-[0_3px_0_#991b1b] active:shadow-none active:translate-y-[3px] transition-all flex items-center gap-2"
+                            className="h-9 md:h-14 px-3 md:px-8 bg-red-600 hover:bg-red-500 text-white rounded-full font-black text-xs md:text-base shadow-[0_3px_0_#991b1b] active:shadow-none active:translate-y-[2px] transition-all flex items-center gap-1.5"
                         >
-                            <Pause size={18} fill="currentColor" />
+                            <Pause size={14} className="md:size-5" fill="currentColor" />
+                            <span className="hidden sm:inline">STOP</span>
                         </button>
                     ) : (
                         <button
                             onClick={onBuy}
                             disabled={gameState === 'playing'}
-                            className={`h-12 px-8 rounded-full font-black text-lg shadow-[0_3px_0_#15803d] active:shadow-none active:translate-y-[3px] transition-all flex items-center justify-center gap-2 uppercase tracking-wide
+                            className={`h-9 md:h-14 px-4 md:px-10 rounded-full font-black text-xs md:text-xl shadow-[0_3px_0_#15803d] active:shadow-none active:translate-y-[2px] transition-all flex items-center justify-center gap-2 uppercase tracking-wide
                                 ${gameState === 'playing'
-                                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed shadow-none translate-y-[3px]'
+                                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed shadow-none translate-y-[2px]'
                                     : gameState === 'won' || gameState === 'revealed'
                                         ? 'bg-[#4ade80] text-green-900 hover:bg-[#22c55e]'
                                         : 'bg-[#22c55e] text-white hover:bg-[#16a34a]'
@@ -142,38 +142,35 @@ export const GameControls: React.FC<GameControlsProps> = ({
                 </div>
 
                 {/* Bet */}
-                <div className="flex flex-col relative group shrink-0">
-                    <span className="text-[10px] font-bold text-[#FFD700] uppercase tracking-wider">Demo Bet</span>
-                    <div className="flex items-center gap-2">
-                        <span className="text-lg font-bold font-mono leading-none">€{bet.toFixed(2)}</span>
+                <div className="flex flex-col relative group shrink-0 min-w-0 max-w-[60px] sm:max-w-none">
+                    <span className="text-[7px] md:text-[10px] font-bold text-[#FFD700] uppercase tracking-wider truncate hidden xs:block">Bet</span>
+                    <div className="flex items-center gap-1 md:gap-2">
+                        <span className="text-xs md:text-lg font-bold font-mono leading-none tracking-tight">€{bet.toFixed(2)}</span>
                         {!isFixedBet && gameState === 'idle' && (
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-gray-900 border border-gray-700 rounded-lg p-2 hidden group-hover:flex gap-1 shadow-xl z-50">
-                                <button onClick={() => onBetChange(Math.max(0.1, bet - 0.1))} className="w-8 h-8 bg-gray-800 rounded hover:bg-gray-700 flex items-center justify-center font-bold text-lg">-</button>
-                                <button onClick={() => onBetChange(bet + 0.1)} className="w-8 h-8 bg-gray-800 rounded hover:bg-gray-700 flex items-center justify-center font-bold text-lg">+</button>
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-gray-900 border border-gray-700 rounded-lg p-1 hidden sm:group-hover:flex gap-1 shadow-xl z-50">
+                                <button onClick={() => onBetChange(Math.max(0.1, bet - 0.1))} className="w-6 h-6 bg-gray-800 rounded hover:bg-gray-700 flex items-center justify-center font-bold text-base">-</button>
+                                <button onClick={() => onBetChange(bet + 0.1)} className="w-6 h-6 bg-gray-800 rounded hover:bg-gray-700 flex items-center justify-center font-bold text-base">+</button>
                             </div>
                         )}
                     </div>
                 </div>
             </div>
 
-            {/* RIGHT: Win (and spacer/empty for balance) */}
-            <div className="flex items-center gap-4 shrink-0 z-10 relative">
-                {/* Win */}
-                <div className="flex flex-col items-end shrink-0 min-w-[80px]">
-                    {win > 0 && (
-                        <div className="flex flex-col items-end animate-pulse">
-                            <span className="text-[10px] font-bold text-green-400 uppercase tracking-wider">Win</span>
-                            <span className="text-xl font-black text-green-400">€{win.toFixed(2)}</span>
-                        </div>
-                    )}
-                </div>
+            {/* RIGHT: Win */}
+            <div className="flex items-center justify-end shrink-0 min-w-[50px] sm:min-w-[70px] z-10 relative">
+                {win > 0 && (
+                    <div className="flex flex-col items-end animate-pulse">
+                        <span className="text-[7px] md:text-[10px] font-bold text-green-400 uppercase tracking-wider truncate hidden xs:block">Win</span>
+                        <span className="text-xs md:text-xl font-black text-green-400">€{win.toFixed(2)}</span>
+                    </div>
+                )}
             </div>
 
             {/* AUTOPLAY MODAL */}
             <Dialog.Root open={showAutoModal} onOpenChange={setShowAutoModal}>
                 <Dialog.Portal>
                     <Dialog.Overlay className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100]" />
-                    <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#1a1a1a] text-white p-6 rounded-2xl w-[400px] shadow-2xl border border-gray-800 z-[101]">
+                    <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#1a1a1a] text-white p-6 rounded-2xl w-[95vw] max-w-[400px] shadow-2xl border border-gray-800 z-[101]">
                         <Dialog.Title className="text-xl font-bold mb-6 flex items-center gap-2">
                             <RotateCcw className="text-[#22c55e]" /> Autoplay Options
                         </Dialog.Title>
@@ -233,7 +230,7 @@ export const GameControls: React.FC<GameControlsProps> = ({
                                 onClick={startAutoplay}
                                 className="flex-1 py-3 rounded-xl font-bold bg-[#22c55e] text-white hover:bg-green-500 shadow-lg shadow-green-900/50 transition-all hover:scale-[1.02]"
                             >
-                                Start Autoplay
+                                Start
                             </button>
                         </div>
                     </Dialog.Content>
@@ -244,7 +241,7 @@ export const GameControls: React.FC<GameControlsProps> = ({
             <Dialog.Root open={showInfoModal} onOpenChange={setShowInfoModal}>
                 <Dialog.Portal>
                     <Dialog.Overlay className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100]" />
-                    <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#1a1a1a] text-white p-0 rounded-xl w-[600px] shadow-2xl border border-gray-800 z-[101] max-h-[85vh] overflow-hidden flex flex-col">
+                    <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#1a1a1a] text-white p-0 rounded-xl w-[95vw] max-w-[600px] shadow-2xl border border-gray-800 z-[101] max-h-[85vh] overflow-hidden flex flex-col">
 
                         {/* Header */}
                         <div className="p-4 bg-[#111] border-b border-gray-800 flex justify-center relative shrink-0">
