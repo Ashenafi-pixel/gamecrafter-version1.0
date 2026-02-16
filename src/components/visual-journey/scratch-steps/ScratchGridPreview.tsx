@@ -129,23 +129,74 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
     const wrapperRef = React.useRef<HTMLDivElement>(null!);
     const [fitScale, setFitScale] = useState(1);
 
+    // [NEW] Calculate Total Visual Bounds (Card + Pop-out Mascot/Logo)
+    const visualBounds = useMemo(() => {
+        let minX = 0;
+        let maxX = CARD_WIDTH;
+        let minY = 0;
+        let maxY = CARD_HEIGHT;
+
+        const mascot = config.scratch?.mascot;
+        const logo = config.scratch?.logo;
+
+        // Account for Mascot
+        if (mascot?.type === 'image' && mascot.image) {
+            const mx = (CARD_WIDTH / 2) + (mascot.customPosition?.x || 0);
+            const my = (CARD_HEIGHT / 2) + (mascot.customPosition?.y || 0);
+            const mSize = (CARD_HEIGHT * (mascot.scale || 100)) / 100;
+            // Refined heuristic: Mascots are usually ~0.6 width of height
+            minX = Math.min(minX, mx - (mSize * 0.3));
+            maxX = Math.max(maxX, mx + (mSize * 0.3));
+            minY = Math.min(minY, my - (mSize * 0.5));
+            maxY = Math.max(maxY, my + (mSize * 0.5));
+        }
+
+        // Account for Logo (Pop-out)
+        if (logo?.image && logo.layout !== 'integrated') {
+            const lx = (CARD_WIDTH / 2) + (logo.customPosition?.x || 0);
+            const ly = (logo.customPosition?.y ?? -180);
+            const lScale = (logo.scale || 100) / 100;
+            const lW = 280 * lScale;
+            minX = Math.min(minX, lx - lW / 2);
+            maxX = Math.max(maxX, lx + lW / 2);
+            minY = Math.min(minY, ly);
+        }
+
+        // Calculate "Max Distance" from card center to keep CARD centered visually
+        // Horizontal: dist from 160
+        const maxDistX = Math.max(160 - minX, maxX - 160);
+        // Vertical: dist from 230
+        const maxDistY = Math.max(230 - minY, maxY - 230);
+
+        return {
+            width: maxDistX * 2,
+            height: maxDistY * 2,
+            offsetX: 0, // Keep card centered horizontally
+            offsetY: (minY + maxY) / 2 - (CARD_HEIGHT / 2) // Maintain vertical balance
+        };
+    }, [config.scratch?.mascot, config.scratch?.logo, CARD_WIDTH, CARD_HEIGHT]);
+
     useEffect(() => {
         if (!wrapperRef.current) return;
         const updateScale = () => {
             const { width, height } = wrapperRef.current!.getBoundingClientRect();
             if (width === 0 || height === 0) return;
-            // [FIX] Slimmer padding for mobile (matching export style)
+
             const marginX = width <= 640 ? 40 : 60;
             const marginY = width <= 640 ? 100 : 180;
-            const s = Math.min((width - marginX) / CARD_WIDTH, (height - marginY) / CARD_HEIGHT);
+
+            // Use visualBounds.width instead of fixed CARD_WIDTH
+            const s = Math.min(
+                (width - marginX) / visualBounds.width,
+                (height - marginY) / visualBounds.height
+            );
             setFitScale(s > 0 ? s : 1);
         };
         const observer = new ResizeObserver(updateScale);
         observer.observe(wrapperRef.current);
-        // Initial
         updateScale();
         return () => observer.disconnect();
-    }, [CARD_WIDTH, CARD_HEIGHT]);
+    }, [visualBounds]);
 
     // --- Transform & Layout Extraction (Moved up for Hook Dependency) ---
     // 1. Card Container (Frame Config) - Controls Frame position on screen
@@ -168,7 +219,9 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
     // Generate dynamic brush image for default types
     const brushUrl = useMemo(() => {
-        const type = config.scratch?.brush?.tipType;
+        const type = config.scratch?.brush?.tipType || 'coin';
+
+
         if (type === 'custom') return config.scratch?.brush?.customTipImage;
 
         // Generate emoji-based brush for default types
@@ -179,12 +232,12 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
             const ctx = canvas.getContext('2d');
             if (ctx) {
                 ctx.clearRect(0, 0, 128, 128);
-                ctx.font = '100px serif'; // Large emoji
+                ctx.font = '115px serif'; // Increased font to fill canvas more
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 // Map type to emoji
                 const emoji = type === 'finger' ? '👆' : type === 'wand' ? '🪄' : type === 'eraser' ? '🧼' : '🪙';
-                ctx.fillText(emoji, 64, 64 + 10); // +10 to center vertically better (emojis ride high)
+                ctx.fillText(emoji, 64, 64 + 6); // Slightly less vertical offset for larger font
                 return canvas.toDataURL();
             }
         }
@@ -196,6 +249,8 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
         containerRef,
         initCanvas,
         fillCanvas,
+        clearCanvas,
+        progress,
         isReady,
         isScratching
     } = useScratchEngine({
@@ -236,14 +291,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                 sfx.pause();
             }
         }, [getAudio]),
-        onScratchProgress: useCallback((p: number) => {
-            const threshold = config.scratch?.brush?.revealThreshold || 0.95;
-            const isRevealed = p >= threshold;
-            if (isRevealed) {
-                // Trigger win/reveal if threshold met
-                resolveRound(true);
-            }
-        }, [resolveRound, config.scratch?.brush?.revealThreshold]),
+        onScratchProgress: undefined, // Handled by useEffect below to avoid circular dependency
         // Update onScratchMove to handle coordinate mapping
         onScratchMove: useCallback(({ x, y }: { x: number, y: number }) => {
             // Helper to get color based on foil
@@ -284,7 +332,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
             if (config.scratch?.effects?.particles) {
                 for (let i = 0; i < count; i++) {
                     const angle = Math.random() * Math.PI * 2;
-                    const r = Math.random() * 20;
+                    const r = Math.random() * (brushSize / 2);
                     const offsetX = Math.cos(angle) * r;
                     const offsetY = Math.sin(angle) * r;
 
@@ -597,6 +645,17 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
     // ...
 
+    // [FIX] Auto-reveal completion logic (Moved here to avoid circular dependency with clearCanvas)
+    useEffect(() => {
+        let threshold = config.scratch?.brush?.revealThreshold || 0.95;
+        if (threshold > 1) threshold /= 100; // [FIX] Parity: Handle 65 vs 0.65
+
+        if (progress >= threshold && gameState === 'playing' && isReady) {
+            clearCanvas();
+            resolveRound(true);
+        }
+    }, [progress, clearCanvas, resolveRound, config.scratch?.brush?.revealThreshold, gameState, isReady]);
+
     const mainRef = useRef<HTMLDivElement>(null!);
 
     return (
@@ -640,8 +699,8 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                     style={{
                         width: `${CARD_WIDTH}px`,
                         height: `${CARD_HEIGHT}px`,
-                        // [FIX] Apply fitScale here so EVERYTHING (Mascot, Logo, Grid) scales together
-                        transform: `scale(${fitScale})`
+                        // [FIX] Apply fitScale and translate to keep the ENTIRE scene (including side mascots) centered
+                        transform: `scale(${fitScale}) translate(${-visualBounds.offsetX}px, ${-visualBounds.offsetY}px)`
                     }}
                 >
                     {/* --- LAYERS THAT DO NOT MOVE WITH FRAME TRANSFORM (Static/Independent) --- */}
@@ -962,10 +1021,10 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                     style={{
                         left: cursorPos.x,
                         top: cursorPos.y,
-                        width: `${brushSize}px`,
-                        height: `${brushSize}px`,
+                        width: `${brushSize * fitScale}px`,
+                        height: `${brushSize * fitScale}px`,
                         transformOrigin: 'center center',
-                        transform: `translate(-50%, -50%) ${isScratching ? 'scale(0.85)' : 'scale(1)'}`
+                        transform: `translate(-50%, -50%) ${isScratching ? 'scale(0.95)' : 'scale(1)'}`
                     }}
                 >
                     {brushUrl ? (

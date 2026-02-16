@@ -770,6 +770,7 @@ export const generateScratchHTML = (cleanConfig: any): string => {
         let hasCelebrated = false;
         let scratchThreshold = 0.95;
         let currentOutcome = { win: 0 };
+        let fitScale = 1; // [FIX] Global fitScale for interaction handlers
 
         // --- Casino Shell State (Footer + Autoplay) ---
         let ticketPrice = 1;
@@ -860,15 +861,16 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                 canvas.width = 128; canvas.height = 128;
                 const ctx = canvas.getContext('2d');
                 if (ctx) {
-                    ctx.font = '100px serif';
+                    ctx.font = '115px serif';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
                     let emoji = '🪙'; // Default Coin
                     if (type === 'finger') emoji = '👆';
                     else if (type === 'wand') emoji = '🪄';
+                    else if (type === 'eraser') emoji = '🧼';
                     else if (type === 'coin') emoji = '🪙';
                     
-                    ctx.fillText(emoji, 64, 74);
+                    ctx.fillText(emoji, 64, 70);
                     const tex = PIXI.Texture.from(canvas);
                     textureCache.set('brush_emoji_' + type, tex);
                     log("Generated Brush Texture for: " + type);
@@ -926,6 +928,7 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                 if (hasWin && !hasCelebrated) {
                     winDiv.classList.add('animate-pulse');
                     spawnWinConfetti(); // Trigger celebration
+                    playSound('win'); // [FIX] Add win sound parity with preview
                     hasCelebrated = true; 
                     shellState.balance += shellState.win; // Add win to balance in demo
                     if (balanceEl) balanceEl.textContent = shellState.balance.toFixed(2);
@@ -1020,6 +1023,9 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                     // Initialize Math & Shell State from Config
                     ticketPrice = (config.scratch && config.scratch.math && config.scratch.math.ticketPrice) ? Number(config.scratch.math.ticketPrice) : 1;
                     shellState.bet = ticketPrice;
+                    scratchThreshold = (config.scratch && config.scratch.brush && config.scratch.brush.revealThreshold) ? Number(config.scratch.brush.revealThreshold) : 0.95;
+                    // [FIX] Normalize threshold (Handle 65% vs 0.65 parity)
+                    if (scratchThreshold > 1) scratchThreshold /= 100;
                     OPERATOR_ENDPOINT = (config.operator_endpoint || '');
                 } catch(e) {
                     throw new Error("Failed to parse embedded config: " + e.message);
@@ -1054,7 +1060,7 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                 let checkTicker = 0;
                 app.ticker.add(() => {
                     checkTicker++;
-                    if (checkTicker % 60 === 0 && shellState.gameState === 'playing') {
+                    if (checkTicker % 10 === 0 && shellState.gameState === 'playing') {
                         checkScratchProgress();
                     }
                     if (!particles.length || !particleContainer) return;
@@ -1109,6 +1115,22 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                 updateFooterDisplay();
                 document.getElementById('btn-buy').onclick = buyTicket;
                 document.getElementById('btn-autoplay').onclick = function() { if (shellState.isAutoPlaying) stopAutoplay(); else openAutoplayModal(); };
+
+                // [FIX] Generate Emoji Brushes (Parity with Preview)
+                function generateEmojiBrush(type, emoji) {
+                     var c = document.createElement('canvas');
+                     c.width = 128; c.height = 128; // High res
+                     var ctx = c.getContext('2d');
+                     ctx.font = '115px serif';
+                     ctx.textAlign = 'center'; 
+                     ctx.textBaseline = 'middle';
+                     ctx.fillText(emoji, 64, 70);
+                     return PIXI.Texture.from(c);
+                }
+                textureCache.set('brush_emoji_finger', generateEmojiBrush('finger', '👆'));
+                textureCache.set('brush_emoji_wand', generateEmojiBrush('wand', '🪄'));
+                textureCache.set('brush_emoji_eraser', generateEmojiBrush('eraser', '🧼'));
+                textureCache.set('brush_emoji_coin', generateEmojiBrush('coin', '🪙'));
 
                 // 3. Asset Loading (Custom Offline Loader)
                 const imageExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.svg'];
@@ -1247,6 +1269,8 @@ export const generateScratchHTML = (cleanConfig: any): string => {
 
 function setupScene() {
     log('Setting up Scene...');
+    // [FIX] Clean up existing listeners to prevent duplication on re-play
+    app.stage.removeAllListeners();
     app.stage.removeChildren();
     
     var bgContainer = new PIXI.Container();
@@ -1257,6 +1281,7 @@ function setupScene() {
 
     // Re-add/Move Brush Tip to the very top (Stage level)
     if (!brushTip) brushTip = new PIXI.Container();
+    brushTip.removeChildren(); // [FIX] Clear old visual tips
     app.stage.addChild(brushTip);
 
     // A. Background
@@ -1277,6 +1302,41 @@ function setupScene() {
 
     // Unified Resize Handler for Mobile/Desktop parity
     var updateLayout = () => {
+        // [NEW] Calculate Total Visual Bounds (Card + Pop-out Mascot/Logo)
+        var minX = 0, maxX = CARD_WIDTH, minY = 0, maxY = CARD_HEIGHT;
+        var mascotConf = (config.scratch && config.scratch.mascot) || {};
+        var logoConf = (config.scratch && config.scratch.logo) || {};
+
+        if (mascotConf.type === 'image' && mascotConf.image) {
+            var mx = (CARD_WIDTH / 2) + (mascotConf.customPosition?.x || 0);
+            var my = (CARD_HEIGHT / 2) + (mascotConf.customPosition?.y || 0);
+            var mSize = (CARD_HEIGHT * (mascotConf.scale || 100)) / 100;
+            // Refined heuristic: Mascots are usually ~0.6 width of height
+            minX = Math.min(minX, mx - (mSize * 0.3)); 
+            maxX = Math.max(maxX, mx + (mSize * 0.3));
+            minY = Math.min(minY, my - (mSize * 0.5));
+            maxY = Math.max(maxY, my + (mSize * 0.5));
+        }
+        if (logoConf.image && logoConf.layout !== 'integrated') {
+            var lx = (CARD_WIDTH / 2) + (logoConf.customPosition?.x || 0);
+            var ly = (logoConf.customPosition?.y ?? -180);
+            var lScale = (logoConf.scale || 100) / 100;
+            var lW = 280 * lScale;
+            minX = Math.min(minX, lx - lW / 2);
+            maxX = Math.max(maxX, lx + lW / 2);
+            minY = Math.min(minY, ly);
+        }
+
+        // Horizontal: dist from 160
+        var maxDistX = Math.max(160 - minX, maxX - 160);
+        // Vertical: dist from 230
+        var maxDistY = Math.max(230 - minY, maxY - 230);
+
+        var totalW = maxDistX * 2;
+        var totalH = maxDistY * 2;
+        var vOffsetX = 0; // Keep card centered horizontally
+        var vOffsetY = (minY + maxY) / 2 - (CARD_HEIGHT / 2);
+
         // 1. Background Scaling
         if (bgContainer.children.length > 0) {
             var bg = bgContainer.children[0];
@@ -1295,10 +1355,14 @@ function setupScene() {
         var marginX = window.innerWidth <= 640 ? 40 : 60;
         var marginY = window.innerWidth <= 640 ? 100 : 180;
         
-        var fitScale = Math.min((app.screen.width - marginX) / CARD_WIDTH, (app.screen.height - marginY) / CARD_HEIGHT);
+        // Use totalW/totalH for scaling
+        fitScale = Math.min((app.screen.width - marginX) / totalW, (app.screen.height - marginY) / totalH);
         cardAnchor.scale.set(fitScale);
-        cardAnchor.x = app.screen.width / 2;
-        cardAnchor.y = (app.screen.height - footerH) / 2;
+        cardAnchor.x = (app.screen.width / 2) - (vOffsetX * fitScale);
+        cardAnchor.y = ((app.screen.height - footerH) / 2) - (vOffsetY * fitScale);
+
+        // [FIX] Scale brush tip to match fitScale (keep 1:1 with card logical size)
+        if (brushTip) brushTip.scale.set(fitScale);
     };
 
     if (bgUrl) {
@@ -1535,15 +1599,25 @@ function setupScene() {
         log('Frame Layer: Top');
     }
     
-    // F. Scratch Masking (Surface)
+    // F. Scratch Masking (Surface) - [REFACTORED] Use Canvas2D for reliable parity with Preview
     const MASK_WIDTH = CARD_WIDTH;
     const MASK_HEIGHT = gridBaseHeight;
-    const maskRT = PIXI.RenderTexture.create({ width: MASK_WIDTH, height: MASK_HEIGHT });
-    const maskSprite = new PIXI.Sprite(maskRT);
+    const maskCanvas = document.createElement('canvas');
+    maskCanvas.width = MASK_WIDTH;
+    maskCanvas.height = MASK_HEIGHT;
+    const maskCtx = maskCanvas.getContext('2d');
     
     // Initial Fill (White = Covered)
-    const fullQuad = new PIXI.Graphics().rect(0, 0, MASK_WIDTH, MASK_HEIGHT).fill({ color: 0xffffff });
-    app.renderer.render({ container: fullQuad, target: maskRT });
+    maskCtx.fillStyle = 'white';
+    maskCtx.fillRect(0, 0, MASK_WIDTH, MASK_HEIGHT);
+    
+    const maskTexture = PIXI.Texture.from(maskCanvas);
+    const maskSprite = new PIXI.Sprite(maskTexture);
+    
+    // [FIX] Store on window for easy access by checkScratchProgress
+    window.maskSprite = maskSprite;
+    window.maskCtx = maskCtx;
+    window.maskCanvas = maskCanvas;
     
     // Apply mask to surface
     surfaceContainer.mask = maskSprite;
@@ -1619,10 +1693,10 @@ function setupScene() {
         function setupBrushInteraction() {
     let brushVisual;
     var brushConfig = (config.scratch && config.scratch.brush) || {};
-    var bSize = brushConfig.size || 40;
+    var bSize = Number(brushConfig.size || 40);
     var tipType = brushConfig.tipType || 'coin';
     
-    if (brushConfig.customTipImage && textureCache.has(brushConfig.customTipImage)) {
+    if (tipType === 'custom' && brushConfig.customTipImage && textureCache.has(brushConfig.customTipImage)) {
         brushVisual = PIXI.Sprite.from(brushConfig.customTipImage);
         brushVisual.width = bSize; brushVisual.height = bSize;
         brushVisual.anchor.set(0.5);
@@ -1631,7 +1705,7 @@ function setupScene() {
         brushVisual.width = bSize; brushVisual.height = bSize;
         brushVisual.anchor.set(0.5);
     } else {
-        // Fallback or Coin
+        // Fallback (Circle) - Visual Cursor
         brushVisual = new PIXI.Graphics().circle(0, 0, bSize/2).fill({ color: 0xffffff, alpha: 0.8 }).stroke({ color: 0x000000, width: 2 });
     }
     brushTip.addChild(brushVisual);
@@ -1648,8 +1722,9 @@ function setupScene() {
     app.stage.on('pointerupoutside', onDragEnd);
     app.stage.on('pointermove', onDragMove);
 
-    var brushSize = (config.scratch && config.scratch.brush && config.scratch.brush.size) || 40;
-    const brush = new PIXI.Graphics().circle(0, 0, brushSize).fill({ color: 0x000000, alpha: 1 });
+    var brushSize = Number((config.scratch && config.scratch.brush && config.scratch.brush.size) || 40);
+    // [REMOVED] brush graphics/sprite is no longer used for masking, only visual cursor
+
 
     function onDragStart(e) { 
         // [FIX] Restrict scratch start to the Card Area (Grid/Foil) only
@@ -1662,13 +1737,16 @@ function setupScene() {
 
         isDrawing = true; 
         playSound('scratch', true); 
-        brushTip.scale.set(0.9); // Visual feedback
+        // [FIX] Apply fitScale here too, use 0.95 for parity with preview
+        brushTip.scale.set(fitScale * 0.95); 
         onDragMove(e);
     }
     function onDragEnd() { 
         isDrawing = false; 
         stopSound('scratch');
-        brushTip.scale.set(1.0); // Reset scale
+        checkScratchProgress(); // [FIX] Final check for instant reveal
+        // [FIX] Restore to current fitScale
+        brushTip.scale.set(fitScale); 
     }
     // [FIX] Helper for dynamic particle colors matching foil type
     const getParticleColor = () => {
@@ -1692,17 +1770,42 @@ function setupScene() {
 
             // Only scratch and spawn particles if we are within the surface bounds
             if (localPos.x >= 0 && localPos.x <= CARD_WIDTH && localPos.y >= 0 && localPos.y <= gridBaseHeight) {
-                // [FIX] Calculate separate local X/Y radii to compensate for non-uniform scaling
-                const localEdgeX = surfaceContainer.toLocal({ x: pos.x + bSize / 2, y: pos.y });
-                const localEdgeY = surfaceContainer.toLocal({ x: pos.x, y: pos.y + bSize / 2 });
-                
-                const localRadiusX = Math.sqrt(Math.pow(localEdgeX.x - localPos.x, 2) + Math.pow(localEdgeX.y - localPos.y, 2)) * 0.85;
-                const localRadiusY = Math.sqrt(Math.pow(localEdgeY.x - localPos.x, 2) + Math.pow(localEdgeY.y - localPos.y, 2)) * 0.85;
+                // [FIX] Use image-based scratching for 1:1 parity with Preview engine
+                // This correctly handles image aspect ratio and internal padding/alpha
+                let maskImg = null;
+                if (brushVisual && brushVisual.texture) {
+                    maskImg = brushVisual.texture.source?.resource;
+                }
 
-                brush.clear().ellipse(0, 0, localRadiusX, localRadiusY).fill({ color: 0x000000, alpha: 1 });
-                brush.position.set(localPos.x, localPos.y);
-                brush.blendMode = 'erase';
-                app.renderer.render({ container: brush, target: maskRT, clear: false });
+                // Calculate local scale compensation once
+                const sCX = (typeof cScaleX !== 'undefined' ? cScaleX : 1);
+                const sGX = (typeof gridScaleX !== 'undefined' ? gridScaleX : 1);
+                const sCY = (typeof cScaleY !== 'undefined' ? cScaleY : 1);
+                const sGY = (typeof gridScaleY !== 'undefined' ? gridScaleY : 1);
+                
+                maskCtx.save();
+                maskCtx.globalCompositeOperation = 'destination-out';
+                
+                if (maskImg) {
+                    // Match the visual brush's square envelope in local space
+                    const localW = bSize / (sCX * sGX);
+                    const localH = bSize / (sCY * sGY);
+                    maskCtx.drawImage(maskImg, localPos.x - localW / 2, localPos.y - localH / 2, localW, localH);
+                } else {
+                    // Fallback to ellipse (matches Preview's geometric scratch path)
+                    // We use 0.85 padding compensation for geometric shapes to match Preview parity
+                    const localRadiusX = ((bSize / 2) * 0.85) / (sCX * sGX);
+                    const localRadiusY = ((bSize / 2) * 0.85) / (sCY * sGY);
+                    maskCtx.beginPath();
+                    maskCtx.ellipse(localPos.x, localPos.y, localRadiusX, localRadiusY, 0, 0, Math.PI * 2);
+                    maskCtx.fill();
+                }
+                maskCtx.restore();
+                
+                // Update the Pixi texture source
+                if (maskTexture.source) maskTexture.source.update();
+                else if (maskTexture.update) maskTexture.update(); // Legacy fallback
+
 
                 // Spawn Particles (Shavings + Confetti)
                 if (config.scratch?.effects?.particles !== false) {
@@ -1710,7 +1813,7 @@ function setupScene() {
                     // 1. Shavings (Sparks) - Match foil color
                     for (let i = 0; i < 6; i++) {
                         const angle = Math.random() * Math.PI * 2;
-                        const r = Math.random() * 20;
+                        const r = Math.random() * (bSize / 2);
                         particles.push({
                             x: localCardPos.x + Math.cos(angle) * r,
                             y: localCardPos.y + Math.sin(angle) * r,
@@ -1770,28 +1873,37 @@ function resetGame() {
 
 
 async function checkScratchProgress() {
-    if (shellState.gameState !== 'playing') return;
-    
+    if (shellState.gameState !== 'playing' && shellState.gameState !== 'idle') return;
+    if (!window.maskCtx || !window.maskCanvas) return;
+
     try {
-        // [FIX] Simple heuristic: Check alpha of the mask texture
-        // Extract pixels is slow, so we only do it sparingly.
-        const pixels = await app.renderer.extract.pixels({
-            target: maskRT,
-            format: 'rgba8unorm'
-        });
+        const mCtx = window.maskCtx;
+        const mCanvas = window.maskCanvas;
         
-        // Count white pixels (unscratched area)
-        let whiteCount = 0;
+        // [REFACTORED] Standard Canvas2D pixel extraction (Parity with Preview)
+        const imageData = mCtx.getImageData(0, 0, mCanvas.width, mCanvas.height);
+        const pixels = imageData.data;
+        
+        // Count pixels with alpha (scratched area)
+        // In destination-out, scratched area has alpha 0
+        let scratchedCount = 0;
         for (let i = 3; i < pixels.length; i += 4) {
-            if (pixels[i] > 128) whiteCount++;
+            if (pixels[i] < 128) scratchedCount++;
         }
         
         const totalPixels = pixels.length / 4;
-        const scratchedPct = 1 - (whiteCount / totalPixels);
+        const scratchedPct = scratchedCount / totalPixels;
         
         if (scratchedPct >= scratchThreshold) {
             shellState.win = currentOutcome.win;
-            shellState.gameState = 'revealed'; // Show "PLAY" button
+            // [FIX] Sync with Preview State Machine (won vs revealed)
+            shellState.gameState = shellState.win > 0 ? 'won' : 'revealed'; 
+            
+            // [FIX] Auto-reveal the rest of the foil (Clarity + Parity)
+            mCtx.clearRect(0, 0, mCanvas.width, mCanvas.height); 
+            // Update the Sprite's texture source to reflect the cleared canvas
+            if (window.maskSprite) window.maskSprite.texture.update();
+
             updateFooterDisplay();
         }
     } catch(e) {
