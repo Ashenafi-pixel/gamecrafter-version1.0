@@ -47,7 +47,7 @@ const StandaloneGameModal: React.FC = () => {
                         className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-4 py-2 rounded-full flex items-center gap-2 transition-all border border-white/10"
                     >
                         <X size={18} />
-                        <span className="font-bold">Close</span>
+                        <span className="font-bold">Close Preview</span>
                     </button>
                 </div>
 

@@ -144,6 +144,23 @@ class ScratchEngineCore {
         this.onProgress?.(0);
     }
 
+    /**
+     * [NEW] Visually clears the entire foil to complete the reveal.
+     */
+    public revealAll() {
+        const { width, height } = this.canvas;
+        this.ctx.resetTransform();
+        this.ctx.globalCompositeOperation = 'destination-out';
+        this.ctx.fillStyle = 'white';
+        this.ctx.fillRect(0, 0, width, height);
+
+        // Restore coordinate system
+        const dpr = window.devicePixelRatio || 1;
+        this.ctx.scale(dpr, dpr);
+
+        this.onProgress?.(1);
+    }
+
     public setImage(source: string) {
         if (!source) return this.reset('#C0C0C0');
 
@@ -287,7 +304,8 @@ class ScratchEngineCore {
             );
         } else {
             // [FIX] Use ellipse to compensate for non-uniform CSS scaling
-            const radius = this.config.brushSize / 2;
+            // [FIX] Apply 0.85 factor to match export parity and ensure brush covers the hole
+            const radius = (this.config.brushSize / 2) * 0.85;
             const normX = this.config.scaleX || 1;
             const normY = this.config.scaleY || 1;
 
@@ -297,9 +315,6 @@ class ScratchEngineCore {
                 this.ctx.arc(x, y, radius, 0, Math.PI * 2);
             } else {
                 // Non-uniform: Inverse stretching for perfect circle on screen
-                // Visual Radius R on screen = CanvasRadius (rc) * Scale (sc)
-                // We want VisualRadiusX = VisualRadiusY = R
-                // So CanvasRadiusX = R / scaleX, CanvasRadiusY = R / scaleY
                 this.ctx.ellipse(x, y, radius / normX, radius / normY, 0, 0, Math.PI * 2);
             }
             this.ctx.fill();
@@ -316,7 +331,7 @@ class ScratchEngineCore {
 
         if (this.config.brushImage || isNonUniform) {
             const dist = Math.hypot(x2 - x1, y2 - y1);
-            const step = Math.max(1, this.config.brushSize * 0.1); // 10% overlap
+            const step = Math.max(1, (this.config.brushSize * 0.85) * 0.1); // 10% overlap
             const angle = Math.atan2(y2 - y1, x2 - x1);
 
             for (let i = 0; i < dist; i += step) {
@@ -331,7 +346,8 @@ class ScratchEngineCore {
         // Standard circular brush optimization
         this.ctx.save();
         this.ctx.globalCompositeOperation = 'destination-out';
-        this.ctx.lineWidth = this.config.brushSize;
+        // Apply 0.85 factor to lineWidth for parity
+        this.ctx.lineWidth = this.config.brushSize * 0.85;
         this.ctx.lineCap = 'round';
         this.ctx.lineJoin = 'round';
         this.ctx.beginPath();
@@ -540,6 +556,10 @@ export const useScratchEngine = (props: {
         engineRef.current?.reset(style);
     }, []);
 
+    const clearCanvas = useCallback(() => {
+        engineRef.current?.revealAll();
+    }, []);
+
     // Input Bridge (Pointer Events + Capture)
     const eventToCanvasXY = (e: React.PointerEvent | PointerEvent, canvas: HTMLCanvasElement) => {
         const rect = canvas.getBoundingClientRect();
@@ -647,6 +667,7 @@ export const useScratchEngine = (props: {
         progress,
         isScratching,
         fillCanvas,
+        clearCanvas,
         isReady, // Exported so consumers know when engine is live
         setImage: useCallback((src: string) => engineRef.current?.setImage(src), [])
     };
