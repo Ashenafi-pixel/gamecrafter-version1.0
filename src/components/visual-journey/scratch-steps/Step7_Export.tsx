@@ -21,6 +21,7 @@ const Step7_Export: React.FC = () => {
     // Publishing State
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDeploying, setIsDeploying] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
     const [certification, setCertification] = useState<{
         ticketId: string;
         hash: string;
@@ -361,9 +362,6 @@ const Step7_Export: React.FC = () => {
 
             console.log('configForHtml.theme.generated.symbols:', Object.keys(configForHtml.theme.generated.symbols));
             console.log('configForHtml.theme.generated.background:', configForHtml.theme.generated.background?.substring(0, 50));
-            console.log('configForHtml.scratch.layout.transform:', configForHtml.scratch?.layout?.transform);
-            console.log('configForHtml.scratch.logo:', configForHtml.scratch?.logo);
-            console.log('configForHtml.scratch.mascot:', configForHtml.scratch?.mascot);
 
             // COMPREHENSIVE ASSET VERIFICATION
             console.log('\n🔍 ========== ASSET VERIFICATION ==========');
@@ -442,6 +440,258 @@ const Step7_Export: React.FC = () => {
         }
     };
 
+    const handleUploadToServer = async () => {
+        console.log('\n🚀 ========== UPLOAD TO SERVER STARTED ==========');
+        setIsUploading(true);
+
+        try {
+            // Lazy load JSZip
+            const JSZip = (await import('jszip')).default;
+            const zip = new JSZip();
+            const assetsFolder = zip.folder("assets");
+            const assetMap = new Map<string, string>(); // Hash -> Filename
+            const assetDataUriMap = new Map<string, string>(); // Path -> Base64 Data URI
+
+            console.log('📁 ZIP initialized for upload, starting asset processing...');
+
+            // Helper: Convert Blob to Base64
+            const blobToBase64 = (blob: Blob): Promise<string> => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result as string);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                });
+            };
+
+            // Recursive helper to extract assets
+            const processValue = async (value: any): Promise<any> => {
+                if (typeof value === 'string') {
+                    // Blob URL or Local Asset Path
+                    if (value.startsWith('blob:') || value.startsWith('/src/assets/') || value.startsWith('/assets/') || (value.includes('/assets/') && (value.endsWith('.png') || value.endsWith('.jpg') || value.endsWith('.mp3') || value.endsWith('.wav')))) {
+                        try {
+                            const response = await fetch(value);
+                            if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
+                            const blob = await response.blob();
+                            const arrayBuffer = await blob.arrayBuffer();
+                            const view = new Uint8Array(arrayBuffer);
+
+                            // Determine Type & Ext
+                            let ext = 'dat';
+                            let prefix = 'asset_';
+                            if (blob.type.includes('image')) {
+                                prefix = 'img_';
+                                ext = blob.type.split('/')[1] || 'png';
+                                if (ext === 'svg+xml') ext = 'svg';
+                            } else if (blob.type.includes('audio')) {
+                                prefix = 'sfx_';
+                                ext = blob.type.split('/')[1] === 'mpeg' ? 'mp3' : 'wav';
+                            }
+
+                            // Hash
+                            let hash = 0;
+                            for (let i = 0; i < Math.min(view.length, 1000); i++) hash = ((hash << 5) - hash) + view[i];
+                            hash = (hash & hash) + view.length;
+
+                            const filename = `${prefix}${Math.abs(hash)}.${ext}`;
+                            const fullPath = `assets/${filename}`;
+
+                            if (assetsFolder && !assetMap.has(filename)) {
+                                assetsFolder.file(filename, arrayBuffer);
+                                assetMap.set(filename, filename);
+
+                                // Capture Base64 for HTML Embedding
+                                const base64 = await blobToBase64(blob);
+                                assetDataUriMap.set(fullPath, base64);
+                            } else if (assetMap.has(filename)) {
+                                // Ensure map has it even if already processed
+                                if (!assetDataUriMap.has(fullPath)) {
+                                    const base64 = await blobToBase64(blob);
+                                    assetDataUriMap.set(fullPath, base64);
+                                }
+                            }
+                            return fullPath;
+                        } catch (e) {
+                            console.warn(`Export Asset Fetch Failed: ${value}`, e);
+                            return value;
+                        }
+                    }
+
+                    // Base64 Image
+                    if (value.startsWith('data:image')) {
+                        const ext = value.split(';')[0].split('/')[1] || 'png';
+                        const base64Data = value.split(',')[1];
+                        let hash = 0;
+                        for (let i = 0; i < value.length; i++) hash = ((hash << 5) - hash) + value.charCodeAt(i);
+                        hash = hash & hash;
+                        const filename = `img_${Math.abs(hash)}.${ext}`;
+                        const fullPath = `assets/${filename}`;
+
+                        if (assetsFolder && !assetMap.has(filename)) {
+                            assetsFolder.file(filename, base64Data, { base64: true });
+                            assetMap.set(filename, filename);
+                            assetDataUriMap.set(fullPath, value);
+                        } else {
+                            assetDataUriMap.set(fullPath, value);
+                        }
+                        return fullPath;
+                    }
+                    // Base64 Audio
+                    if (value.startsWith('data:audio')) {
+                        const ext = value.split(';')[0].split('/')[1] === 'mpeg' ? 'mp3' : 'wav';
+                        const base64Data = value.split(',')[1];
+                        let hash = 0;
+                        for (let i = 0; i < value.length; i++) hash = ((hash << 5) - hash) + value.charCodeAt(i);
+                        hash = hash & hash;
+                        const filename = `sfx_${Math.abs(hash)}.${ext}`;
+                        const fullPath = `assets/${filename}`;
+
+                        if (assetsFolder && !assetMap.has(filename)) {
+                            assetsFolder.file(filename, base64Data, { base64: true });
+                            assetMap.set(filename, filename);
+                            assetDataUriMap.set(fullPath, value);
+                        } else {
+                            assetDataUriMap.set(fullPath, value);
+                        }
+                        return fullPath;
+                    }
+                    return value;
+                } else if (Array.isArray(value)) {
+                    return Promise.all(value.map(item => processValue(item)));
+                } else if (typeof value === 'object' && value !== null) {
+                    const newObj: any = {};
+                    for (const key in value) {
+                        newObj[key] = await processValue(value[key]);
+                    }
+                    return newObj;
+                }
+                return value;
+            };
+
+            // Process config
+            const fullConfig = {
+                ...config,
+                scratch: config.scratch || {},
+                marketing: config.marketing,
+                theme: config.theme,
+                displayName: config.displayName,
+                gameId: config.gameId,
+                rtp: config.rtp,
+                volatility: config.volatility,
+                bet: config.bet,
+                audio: config.audio,
+                splashScreen: config.splashScreen,
+                gameRules: config.gameRules,
+                localization: config.localization
+            };
+            const cleanConfig = await processValue(JSON.parse(JSON.stringify(fullConfig)));
+
+            zip.file("project_scratch.json", JSON.stringify(cleanConfig, null, 2));
+            const mathConfig = getScratchMathConfig(config as any);
+            zip.file("math.json", JSON.stringify(mathConfig, null, 2));
+            const visualExport = {
+                ...cleanConfig,
+                math: undefined,
+                mechanic: undefined
+            };
+            zip.file("visuals.json", JSON.stringify(visualExport, null, 2));
+
+            // Create embedded config for HTML
+            const createEmbeddedConfig = (obj: any): any => {
+                if (typeof obj === 'string') {
+                    if (assetDataUriMap.has(obj)) return assetDataUriMap.get(obj);
+                    return obj;
+                } else if (Array.isArray(obj)) {
+                    return obj.map(item => createEmbeddedConfig(item));
+                } else if (typeof obj === 'object' && obj !== null) {
+                    const newObj: any = {};
+                    for (const key in obj) newObj[key] = createEmbeddedConfig(obj[key]);
+                    return newObj;
+                }
+                return obj;
+            };
+            const embeddedConfig = createEmbeddedConfig(cleanConfig);
+
+            const symbolMap: Record<string, string> = {};
+            const prizes = embeddedConfig.scratch?.prizes || embeddedConfig.prizes || [];
+            prizes.forEach((p: any) => {
+                const symbolId = p?.symbolId;
+                if (p?.id && symbolId) {
+                    symbolMap[p.id] = symbolId;
+                }
+            });
+
+            if (embeddedConfig.scratch?.layers) {
+                if (embeddedConfig.scratch.layers.overlay?.image) {
+                    embeddedConfig.scratch.layers.overlay = {
+                        ...embeddedConfig.scratch.layers.overlay,
+                        image: embeddedConfig.scratch.layers.overlay.image
+                    };
+                }
+                if (!embeddedConfig.scratch.layers.surface) {
+                    embeddedConfig.scratch.layers.surface = {};
+                }
+                embeddedConfig.scratch.layers.surface.value = embeddedConfig.scratch?.layers?.surface?.value || embeddedConfig.scratch?.layers?.foil?.image || embeddedConfig.scratch?.layers?.foil?.texture || 'foil';
+            }
+
+            const configForHtml = {
+                ...embeddedConfig,
+                scratch: embeddedConfig.scratch || embeddedConfig,
+                theme: {
+                    generated: {
+                        background: embeddedConfig.scratch?.layers?.scene?.value || embeddedConfig.layers?.scene?.value || (embeddedConfig as any).background?.image,
+                        symbols: symbolMap,
+                        surface: embeddedConfig.scratch?.layers?.surface?.value,
+                        frame: embeddedConfig.scratch?.layers?.overlay?.image,
+                        mascot: embeddedConfig.scratch?.mascot?.image,
+                        logo: embeddedConfig.scratch?.logo?.image
+                    }
+                }
+            };
+
+            const htmlContent = generateScratchHTML(configForHtml);
+            zip.file("index.html", htmlContent);
+
+            // Generate ZIP blob
+            const blob = await zip.generateAsync({ type: "blob" });
+
+            // Get RGS URL from env
+            const rgsUrl = import.meta.env.VITE_RGS_URL;
+            if (!rgsUrl) {
+                throw new Error('VITE_RGS_URL environment variable is not set');
+            }
+
+            // Upload to server
+            const gameId = config.gameId || 'scratch_demo';
+            const uploadUrl = `${rgsUrl}/rgs/admin/games/import-zip?game_id=${gameId}`;
+
+            console.log('Uploading to:', uploadUrl);
+
+            const response = await fetch(uploadUrl, {
+                method: 'POST',
+                body: blob,
+                headers: {
+                    'Content-Type': 'application/octet-stream'
+                }
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Upload failed: ${response.status} ${response.statusText} - ${errorText}`);
+            }
+
+            const result = await response.json();
+            console.log('Upload response:', result);
+
+            showSuccess('Upload Complete', `Bundle uploaded successfully to RGS server`);
+        } catch (e: any) {
+            console.error('❌ UPLOAD FAILED:', e);
+            showWarning('Upload Failed', e.message);
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
 
     const submitToLab = async () => {
         if (!simStats) return;
@@ -496,13 +746,23 @@ const Step7_Export: React.FC = () => {
                     <h2 className="text-3xl font-black text-gray-900">Final Validation & Export</h2>
                     <p className="text-gray-500">Validate your math model and submit the package.</p>
                 </div>
-                <button
-                    onClick={handleDownloadConfig}
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors"
-                >
-                    <FileJson size={18} />
-                    <span>Download Config</span>
-                </button>
+                <div className="flex gap-4">
+                    <button
+                        onClick={handleDownloadConfig}
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors"
+                    >
+                        <FileJson size={18} />
+                        <span>Download Config</span>
+                    </button>
+                    <button
+                        onClick={handleUploadToServer}
+                        disabled={isUploading}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${isUploading ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+                    >
+                        <Send size={18} />
+                        <span>{isUploading ? 'Uploading...' : 'Upload to Server'}</span>
+                    </button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
