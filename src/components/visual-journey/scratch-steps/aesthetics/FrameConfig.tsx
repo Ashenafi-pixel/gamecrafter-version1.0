@@ -99,14 +99,14 @@ const FrameConfig: React.FC = () => {
             const scaleY = localTransform.scaleY || 100;
             const ratio = scaleX / scaleY;
 
-            let size: '1024x1024' | '1024x1792' | '1792x1024' = '1024x1024';
+            let size: '1024x1024' | '1024x1536' | '1536x1024' = '1024x1024';
             let orientationDesc = "square";
 
             if (ratio < 0.8) {
-                size = '1024x1792'; // Portrait
+                size = '1024x1536'; // Portrait
                 orientationDesc = "vertical portrait aspect ratio";
             } else if (ratio > 1.2) {
-                size = '1792x1024'; // Landscape
+                size = '1536x1024'; // Landscape
                 orientationDesc = "horizontal wide aspect ratio";
             }
 
@@ -144,20 +144,61 @@ const FrameConfig: React.FC = () => {
                     Frame & Layout
                 </h3>
 
-                {/* Compact Base Color Picker */}
-                <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
-                    <span className="text-[9px] font-bold text-gray-400 uppercase">Color</span>
-                    <div className="relative group cursor-pointer hover:scale-105 active:scale-95">
-                        <div
-                            className="w-5 h-5 rounded-full border border-white shadow-sm"
-                            style={{ background: frameColor }}
-                        />
-                        <input
-                            type="color"
-                            value={frameColor.startsWith('#') ? frameColor : '#F2F0EB'}
-                            onChange={(e) => updateOverlay({ color: e.target.value })}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        />
+                <div className="flex items-center gap-2">
+                    {/* Layer Order Toggle */}
+                    <button
+                        onClick={() => updateOverlay({ zIndex: (config.scratch?.layers?.overlay?.zIndex || 120) >= 120 ? 10 : 120 })}
+                        className={`text-[9px] font-bold px-2 py-0.5 rounded border transition-colors flex items-center gap-1 ${(config.scratch?.layers?.overlay?.zIndex || 120) >= 120
+                            ? 'bg-indigo-50 border-indigo-200 text-indigo-600'
+                            : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-slate-600'
+                            }`}
+                        title="Frame Order: Above or Below Foil"
+                    >
+                        {(config.scratch?.layers?.overlay?.zIndex || 120) >= 120 ? '⬆ Top' : '⬇ Btm'}
+                    </button>
+
+                    {/* Eliminate White Toggle */}
+                    <button
+                        onClick={() => updateOverlay({ blendMode: (config.scratch?.layers?.overlay as any)?.blendMode === 'multiply' ? 'normal' : 'multiply' })}
+                        className={`text-[9px] font-bold px-2 py-0.5 rounded border transition-colors flex items-center gap-1 ${(config.scratch?.layers?.overlay as any)?.blendMode === 'multiply'
+                            ? 'bg-indigo-50 border-indigo-200 text-indigo-600'
+                            : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-slate-600'
+                            }`}
+                        title="Eliminate white background (Multiply Blend)"
+                    >
+                        {(config.scratch?.layers?.overlay as any)?.blendMode === 'multiply' ? '⚪ No White' : '⚪ Norm'}
+                    </button>
+
+                    {/* Silhouette Toggle (Transparent Background) */}
+                    <button
+                        onClick={() => updateOverlay({ color: frameColor === 'transparent' ? '#F2F0EB' : 'transparent' })}
+                        className={`text-[9px] font-bold px-2 py-0.5 rounded border transition-colors flex items-center gap-1 ${frameColor === 'transparent'
+                            ? 'bg-indigo-50 border-indigo-200 text-indigo-600'
+                            : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-slate-600'
+                            }`}
+                        title="Make card background transparent (Silhouette Mode)"
+                    >
+                        {frameColor === 'transparent' ? '👻 Silhou' : '⬜ Card'}
+                    </button>
+
+                    {/* Compact Base Color Picker */}
+                    <div className={`flex items-center gap-1.5 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 ${frameColor === 'transparent' ? 'opacity-50 pointer-events-none' : ''}`}>
+                        <span className="text-[9px] font-bold text-gray-400 uppercase">Color</span>
+                        <div className="relative group cursor-pointer hover:scale-105 active:scale-95">
+                            <div
+                                className="w-5 h-5 rounded-full border border-white shadow-sm"
+                                style={{
+                                    background: frameColor === 'transparent' ?
+                                        'repeating-conic-gradient(#ddd 0% 25%, transparent 0% 50%) 50% / 10px 10px' : frameColor
+                                }}
+                            />
+                            <input
+                                type="color"
+                                value={frameColor.startsWith('#') ? frameColor : '#F2F0EB'}
+                                onChange={(e) => updateOverlay({ color: e.target.value })}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
