@@ -20,6 +20,7 @@ import spineAtlasUrl from '../../assets/export_poison_witch/poison_witch.atlas?u
 import spineSkelUrl from '../../assets/export_poison_witch/poison_witch.skel?url';
 import spineTextureUrl from '../../assets/export_poison_witch/poison_witch.webp';
 import type { SymbolSpineAsset } from '../../types';
+import { STEP_EVENTS } from '../../utils/stepTransitionCoordinator';
 
 // Audio volume state type
 type AudioVolumes = {
@@ -236,6 +237,8 @@ export default function SlotMachinePreview(): JSX.Element {
   /** Spine symbol instances currently on a winning line; only these are updated so they animate. */
   const winningSpineInstancesRef = useRef<Set<Spine>>(new Set());
   const winningSpineTickerRef = useRef<((t: { deltaTime: number }) => void) | null>(null);
+  /** When true, we're paused for step transition - don't run renderGrid/resize logic (avoids BatcherPipe geometry null). */
+  const pausedForTeardownRef = useRef<boolean>(false);
 
   // Symbol animation refs for win-based animations
   const activeSymbolAnimationsRef = useRef<Map<string, {
@@ -2165,10 +2168,10 @@ export default function SlotMachinePreview(): JSX.Element {
 
       try {
         const prev = ids[key];
+        // Option 5: Don't unload Spine assets - avoids corrupting shared/cached resources.
+        // Destroy pool instances but leave Assets in cache (they may be referenced elsewhere).
         if (prev) {
-          if (PIXI.Assets.cache.has(prev.skel)) await PIXI.Assets.unload(prev.skel);
-          if (PIXI.Assets.cache.has(prev.atlas)) await PIXI.Assets.unload(prev.atlas);
-          if (prev.texture && PIXI.Assets.cache.has(prev.texture)) await PIXI.Assets.unload(prev.texture);
+          // Only clear our refs; do NOT unload - prevents BatcherPipe geometry null.
         }
         const pool = spineSymbolPoolRef.current.get(key);
         if (pool) {
@@ -3478,6 +3481,7 @@ export default function SlotMachinePreview(): JSX.Element {
 
   useEffect(() => {
     const updateSize = () => {
+      if (pausedForTeardownRef.current) return;
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       setRenderSize({ width: rect.width, height: rect.height });
@@ -3488,6 +3492,7 @@ export default function SlotMachinePreview(): JSX.Element {
     let resizeObserver: ResizeObserver | null = null;
     if (containerRef.current && typeof ResizeObserver !== 'undefined') {
       resizeObserver = new ResizeObserver((entries) => {
+        if (pausedForTeardownRef.current) return; // Don't trigger layout during step transition
         for (const entry of entries) {
           const { width, height } = entry.contentRect;
           if (width > 0 && height > 0) {
@@ -3672,111 +3677,118 @@ export default function SlotMachinePreview(): JSX.Element {
 
     return () => {
       cancelled = true;
-      // Stop Spine ticker first so it never runs during teardown (avoids BatcherPipe on destroyed objects).
-      if (appRef.current && winningSpineTickerRef.current) {
-        appRef.current.ticker.remove(winningSpineTickerRef.current);
-        winningSpineTickerRef.current = null;
+      const app = appRef.current;
+      const container = containerRef.current;
+
+      // CRITICAL: Stop ticker and remove canvas from DOM immediately.
+      // This prevents any render from running during teardown (BatcherPipe geometry null).
+      if (app) {
+        app.ticker.stop();
+        if (winningSpineTickerRef.current) {
+          app.ticker.remove(winningSpineTickerRef.current);
+          winningSpineTickerRef.current = null;
+        }
+        if (container && app.canvas && app.canvas.parentNode) {
+          app.canvas.parentNode.removeChild(app.canvas);
+        }
       }
-      spinTimelinesRef.current.forEach(tl => {
-        if (tl) tl.kill();
-      });
+      appRef.current = null;
+
+      spinTimelinesRef.current.forEach(tl => { if (tl) tl.kill(); });
       spinTimelinesRef.current = [];
       if (rafRef.current) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
-      if (isSpinning) {
-        setIsSpinning(false);
-      }
+      if (isSpinning) setIsSpinning(false);
       spinMetaRef.current = null;
       clearWinLines();
-      if (symbolGridBackgroundRef.current && !symbolGridBackgroundRef.current.destroyed) {
-        const bg = symbolGridBackgroundRef.current;
-        if (bg.parent) {
-          bg.parent.removeChild(bg);
-        }
-        bg.destroy({ children: true });
-      }
-      symbolGridBackgroundRef.current = null;
       gsap.killTweensOf('*');
 
-      blurFiltersRef.current.forEach((filter, container) => {
-        if (container.filters) {
-          container.filters = container.filters.filter(f => f !== filter);
-        }
-      });
-      blurFiltersRef.current.clear();
-
-      glowEffectsRef.current.forEach((glow) => {
-        if (glow && !glow.destroyed && glow.parent) {
-          glow.parent.removeChild(glow);
-          glow.destroy();
-        }
-      });
-      glowEffectsRef.current.clear();
-      if (backgroundSpriteRef.current?.mask) {
-        const mask = backgroundSpriteRef.current.mask as PIXI.Graphics;
-        if (mask.parent) {
-          mask.parent.removeChild(mask);
-        }
-        mask.destroy();
-      }
-
-      if (outerFrameSpriteRef.current) {
-        if (outerFrameSpriteRef.current.parent) {
-          outerFrameSpriteRef.current.parent.removeChild(outerFrameSpriteRef.current);
-        }
-        outerFrameSpriteRef.current.destroy();
-        outerFrameSpriteRef.current = null;
-      }
-
-      reelDividerSpritesRef.current.forEach(divider => {
-        if (divider && !divider.destroyed && divider.parent) {
-          divider.parent.removeChild(divider);
-          divider.destroy();
-        }
-      });
-      reelDividerSpritesRef.current = [];
-      reelMasksRef.current.forEach(mask => {
-        if (mask && mask.parent) {
-          mask.parent.removeChild(mask);
-          mask.destroy();
-        }
-      });
-      reelMasksRef.current = [];
-      // Remove and destroy all Spine instances from reel symbol containers first,
-      // so the renderer never sees partially-destroyed objects (avoids BatcherPipe geometry null).
-      reelContainersRef.current.forEach((rc) => {
-        if (!rc?.children) return;
-        rc.children.forEach((symbolContainer) => {
-          const sc = symbolContainer as PIXI.Container;
-          if (sc.children.length > 1) {
-            const spine = sc.children[1] as Spine;
-            if (spine && spine.parent) {
-              spine.parent.removeChild(spine);
-              if (!(spine as any).destroyed) spine.destroy({ children: true });
-            }
+      // Defer destruction to next frame so we never destroy mid-render.
+      requestAnimationFrame(() => {
+        try {
+          if (symbolGridBackgroundRef.current && !symbolGridBackgroundRef.current.destroyed) {
+            const bg = symbolGridBackgroundRef.current;
+            if (bg.parent) bg.parent.removeChild(bg);
+            bg.destroy({ children: true });
           }
-        });
+          symbolGridBackgroundRef.current = null;
+
+          blurFiltersRef.current.forEach((filter, cont) => {
+            if (cont?.filters) cont.filters = cont.filters.filter(f => f !== filter);
+          });
+          blurFiltersRef.current.clear();
+
+          glowEffectsRef.current.forEach((glow) => {
+            if (glow && !glow.destroyed && glow.parent) {
+              glow.parent.removeChild(glow);
+              glow.destroy();
+            }
+          });
+          glowEffectsRef.current.clear();
+
+          if (backgroundSpriteRef.current?.mask) {
+            const mask = backgroundSpriteRef.current.mask as PIXI.Graphics;
+            backgroundSpriteRef.current.mask = null;
+            if (mask?.parent) mask.parent.removeChild(mask);
+            if (!mask?.destroyed) mask?.destroy();
+          }
+
+          if (outerFrameSpriteRef.current && !outerFrameSpriteRef.current.destroyed) {
+            const ofs = outerFrameSpriteRef.current;
+            if (ofs.parent) ofs.parent.removeChild(ofs);
+            ofs.destroy();
+            outerFrameSpriteRef.current = null;
+          }
+
+          reelDividerSpritesRef.current.forEach((d) => {
+            if (d && !d.destroyed && d.parent) {
+              d.parent.removeChild(d);
+              d.destroy();
+            }
+          });
+          reelDividerSpritesRef.current = [];
+
+          reelContainersRef.current.forEach((rc) => {
+            if (!rc?.destroyed && rc?.mask) rc.mask = null;
+            if (rc?.children) {
+              rc.children.forEach((sc) => {
+                const sym = sc as PIXI.Container;
+                if (sym.children.length > 1) {
+                  const spine = sym.children[1] as Spine;
+                  if (spine?.parent) spine.parent.removeChild(spine);
+                  if (spine && !(spine as any).destroyed) spine.destroy({ children: true });
+                }
+              });
+            }
+          });
+          reelMasksRef.current.forEach((m) => {
+            if (m?.parent) m.parent.removeChild(m);
+            if (m && !m.destroyed) m.destroy();
+          });
+          reelMasksRef.current = [];
+          reelContainersRef.current = [];
+
+          cleanupSymbolAnimations();
+          winningSpineInstancesRef.current.clear();
+
+          spineSymbolPoolRef.current.forEach((pool) => {
+            pool.forEach((s) => {
+              if (s && !(s as any).destroyed) s.destroy({ children: true });
+            });
+          });
+          spineSymbolPoolRef.current.clear();
+
+          if (app) {
+            try { app.destroy(true, { children: true }); } catch (_) { /* already destroyed */ }
+          }
+        } catch (e) {
+          console.warn('[SlotMachine] Teardown error (non-fatal):', e);
+        }
       });
-      reelContainersRef.current = [];
-
-      cleanupSymbolAnimations();
-
-      winningSpineInstancesRef.current.clear();
-      spineSymbolPoolRef.current.forEach((pool) => {
-        pool.forEach((s) => {
-          if (s && !(s as any).destroyed) s.destroy({ children: true });
-        });
-      });
-      spineSymbolPoolRef.current.clear();
-
-      if (appRef.current) {
-        appRef.current.destroy(true, { children: true });
-        appRef.current = null;
-      }
     };
-  }, [symbols, clearWinLines, cleanupSymbolAnimations]);
+  }, [reels, rows, clearWinLines, cleanupSymbolAnimations]);
 
   // Adjust grid size dynamically without destroying the PIXI app
   useEffect(() => {
@@ -3876,7 +3888,7 @@ export default function SlotMachinePreview(): JSX.Element {
       }
     }
 
-    renderGrid();
+    if (!pausedForTeardownRef.current) renderGrid();
   }, [config.reels?.layout?.reels, config.reels?.layout?.rows, computeResponsiveMetrics]);
 
   useEffect(() => {
@@ -3916,7 +3928,7 @@ export default function SlotMachinePreview(): JSX.Element {
           }
 
           const rect = containerRef.current.getBoundingClientRect();
-          if (rect.width > 0 && rect.height > 0) {
+          if (rect.width > 0 && rect.height > 0 && !pausedForTeardownRef.current) {
             setRenderSize({ width: rect.width, height: rect.height });
             appRef.current.renderer.resize(rect.width, rect.height);
             renderGrid();
@@ -3965,6 +3977,7 @@ export default function SlotMachinePreview(): JSX.Element {
   }, [symbols, preloadTextures, loadSpineSymbolAssets]);
 
   useEffect(() => {
+    if (pausedForTeardownRef.current) return; // Don't modify stage during step transition
     if (appRef.current && reelContainersRef.current?.length) renderGrid();
   }, [currentGrid, renderSize, gridAdjustments, frameConfig, maskControls, isSpinning]);
 
@@ -4743,6 +4756,32 @@ export default function SlotMachinePreview(): JSX.Element {
     window.addEventListener('slotSpin', handleSlotSpin as EventListener);
     window.addEventListener('symbolsChanged', handleSymbolsChanged);
 
+    // Option 3: Pause/resume when leaving Step 5 (Symbol Creation) to avoid BatcherPipe errors
+    const handlePauseForTeardown = () => {
+      pausedForTeardownRef.current = true;
+      const app = appRef.current;
+      const container = containerRef.current;
+      if (app && container) {
+        app.ticker.stop();
+        if (app.canvas?.parentNode) app.canvas.parentNode.removeChild(app.canvas);
+      }
+    };
+    const handleResumeAfterTeardown = () => {
+      const app = appRef.current;
+      const container = containerRef.current;
+      if (app && container && app.canvas && !container.contains(app.canvas)) {
+        container.appendChild(app.canvas as HTMLCanvasElement);
+        app.ticker.start();
+      }
+      pausedForTeardownRef.current = false;
+      // Sync grid after resume (layout may have changed during pause)
+      if (appRef.current && reelContainersRef.current?.length && renderGrid) {
+        requestAnimationFrame(() => renderGrid());
+      }
+    };
+    window.addEventListener(STEP_EVENTS.PAUSE_SLOT, handlePauseForTeardown);
+    window.addEventListener(STEP_EVENTS.RESUME_SLOT, handleResumeAfterTeardown);
+
     // Sync with MathWizard reel strips - refresh idle grid when strips are updated
     const handleReelStripsUpdated = (event: CustomEvent<{ reelStrips: Array<{ reelIndex: number; symbols: string[] }> }>) => {
       const latestConfig = useGameStore.getState().config;
@@ -4883,6 +4922,8 @@ export default function SlotMachinePreview(): JSX.Element {
       window.removeEventListener('winDisplayUpdated', handleWinDisplayUpdated as EventListener);
       window.removeEventListener('slotSpin', handleSlotSpin as EventListener);
       window.removeEventListener('symbolsChanged', handleSymbolsChanged);
+      window.removeEventListener(STEP_EVENTS.PAUSE_SLOT, handlePauseForTeardown);
+      window.removeEventListener(STEP_EVENTS.RESUME_SLOT, handleResumeAfterTeardown);
       window.removeEventListener('reelStripsUpdated', handleReelStripsUpdated as EventListener);
     };
   }, [updateBackground, backgroundUrl, backgroundAdjustments, uiButtonAdjustments, isSpinning, preloadTextures, loadSpineSymbolAssets, triggerPickAndClick, triggerWheelBonus, betAmount, balance, config.bonus?.jackpots]);

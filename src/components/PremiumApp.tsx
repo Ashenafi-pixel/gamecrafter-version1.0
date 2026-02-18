@@ -37,7 +37,7 @@ import Step4_GameplayAssets from './visual-journey/scratch-steps/AssetsFlow';
 import Step5_Production from './visual-journey/scratch-steps/ProductionFlow';
 import Step7_Export from './visual-journey/scratch-steps/Step7_Export';
 import StandaloneGameModal from './modals/StandaloneGameModal';
-
+import { prepareStepTransition } from '../utils/stepTransitionCoordinator';
 
 // Single source of truth for all steps
 const SLOT_STEPS = [
@@ -428,7 +428,7 @@ const PremiumApp: React.FC = () => {
 
   const handlePrevStep = useCallback(() => {
     if (currentStep > 0) {
-      setStep(currentStep - 1);
+      prepareStepTransition(currentStep, currentStep - 1, () => setStep(currentStep - 1));
     }
   }, [currentStep, setStep]);
 
@@ -459,7 +459,7 @@ const PremiumApp: React.FC = () => {
     // 2. Normal Transition for all other steps
     if (currentStep < steps.length - 1) {
       saveProgress();
-      setStep(currentStep + 1);
+      prepareStepTransition(currentStep, currentStep + 1, () => setStep(currentStep + 1));
     }
   }, [currentStep, config, saveProgress, setStep, steps.length]);
 

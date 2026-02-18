@@ -13,6 +13,20 @@ export interface SpineSymbolPreviewProps {
 
 const uniqueId = () => `spine_preview_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
+/** Clone blob URLs so we get separate PixiJS Assets cache entries (Option 1: isolate from SlotMachine). */
+async function cloneAssetUrls(asset: SymbolSpineAsset): Promise<{ atlasUrl: string; skelUrl: string; textureUrl: string }> {
+  const [atlasBlob, skelBlob, texBlob] = await Promise.all([
+    fetch(asset.atlasUrl).then((r) => r.blob()),
+    fetch(asset.skelUrl).then((r) => r.blob()),
+    fetch(asset.textureUrl).then((r) => r.blob()),
+  ]);
+  return {
+    atlasUrl: URL.createObjectURL(atlasBlob),
+    skelUrl: URL.createObjectURL(skelBlob),
+    textureUrl: URL.createObjectURL(texBlob),
+  };
+}
+
 function scaleSpineToFit(spine: Spine, pixelSize: number) {
   spine.update(0);
   const b = spine.bounds as { width?: number; height?: number; maxX?: number; minX?: number; maxY?: number; minY?: number };
@@ -36,6 +50,7 @@ export function SpineSymbolPreview({ asset, width, height, playWinRef, idle = tr
   const appRef = useRef<PIXI.Application | null>(null);
   const spineRef = useRef<Spine | null>(null);
   const idsRef = useRef<{ skel: string; atlas: string; texture: string } | null>(null);
+  const clonedUrlsRef = useRef<{ atlasUrl: string; skelUrl: string; textureUrl: string } | null>(null);
 
   const playWin = useCallback(() => {
     const spine = spineRef.current;
@@ -75,6 +90,15 @@ export function SpineSymbolPreview({ asset, width, height, playWinRef, idle = tr
 
     (async () => {
       try {
+        const cloned = await cloneAssetUrls(asset);
+        if (cancelled) {
+          URL.revokeObjectURL(cloned.atlasUrl);
+          URL.revokeObjectURL(cloned.skelUrl);
+          URL.revokeObjectURL(cloned.textureUrl);
+          return;
+        }
+        clonedUrlsRef.current = cloned;
+
         const app = new PIXI.Application();
         await app.init({
           width,
@@ -93,18 +117,19 @@ export function SpineSymbolPreview({ asset, width, height, playWinRef, idle = tr
         (app.canvas as HTMLCanvasElement).style.width = '100%';
         (app.canvas as HTMLCanvasElement).style.height = '100%';
 
-        PIXI.Assets.add({ alias: texId, src: asset.textureUrl, loadParser: 'loadTextures' });
+        // Use cloned URLs so PixiJS cache is separate from SlotMachine (Option 1).
+        PIXI.Assets.add({ alias: texId, src: cloned.textureUrl, loadParser: 'loadTextures' });
         const loadedTex = (await PIXI.Assets.load(texId)) as PIXI.Texture;
         const textureSource = loadedTex?.source ?? null;
         PIXI.Assets.add({
           alias: atlasId,
-          src: asset.atlasUrl,
+          src: cloned.atlasUrl,
           loadParser: 'spineTextureAtlasLoader',
           data: {
-            images: textureSource ? { [asset.textureName]: textureSource } : { [asset.textureName]: asset.textureUrl },
+            images: textureSource ? { [asset.textureName]: textureSource } : { [asset.textureName]: cloned.textureUrl },
           },
         });
-        PIXI.Assets.add({ alias: skelId, src: asset.skelUrl, loadParser: 'spineSkeletonLoader' });
+        PIXI.Assets.add({ alias: skelId, src: cloned.skelUrl, loadParser: 'spineSkeletonLoader' });
         await PIXI.Assets.load([skelId, atlasId]);
         if (cancelled) return;
 
@@ -139,24 +164,55 @@ export function SpineSymbolPreview({ asset, width, height, playWinRef, idle = tr
     return () => {
       cancelled = true;
       const app = appRef.current;
-      if (app?.canvas?.parentNode) app.canvas.parentNode.removeChild(app.canvas);
-      if (spineRef.current) {
-        spineRef.current.destroy({ children: true });
-        spineRef.current = null;
+      const spine = spineRef.current;
+
+      // Stop ticker and remove canvas immediately so no render runs during teardown.
+      if (app) {
+        app.ticker.stop();
+        if (app.canvas?.parentNode) app.canvas.parentNode.removeChild(app.canvas);
       }
       appRef.current = null;
+      spineRef.current = null;
       const ids = idsRef.current;
-      if (ids) {
-        void PIXI.Assets.unload(ids.skel).catch(() => {});
-        void PIXI.Assets.unload(ids.atlas).catch(() => {});
-        void PIXI.Assets.unload(ids.texture).catch(() => {});
-        idsRef.current = null;
-      }
-      if (app) app.destroy(true);
+      idsRef.current = null;
+      const clonedUrls = clonedUrlsRef.current;
+      clonedUrlsRef.current = null;
+
+      // Option 4: Double rAF so we're fully past any render before destroying.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+        try {
+          if (spine?.parent) spine.parent.removeChild(spine);
+          if (spine && !(spine as any).destroyed) spine.destroy({ children: true });
+          if (ids) {
+            void PIXI.Assets.unload(ids.skel).catch(() => {});
+            void PIXI.Assets.unload(ids.atlas).catch(() => {});
+            void PIXI.Assets.unload(ids.texture).catch(() => {});
+          }
+          if (clonedUrls) {
+            URL.revokeObjectURL(clonedUrls.atlasUrl);
+            URL.revokeObjectURL(clonedUrls.skelUrl);
+            URL.revokeObjectURL(clonedUrls.textureUrl);
+          }
+          if (app) {
+            try { app.destroy(true); } catch (_) { /* already destroyed */ }
+          }
+        } catch (e) {
+          console.warn('[SpineSymbolPreview] Teardown error (non-fatal):', e);
+        }
+        });
+      });
     };
   }, [asset?.atlasUrl, asset?.skelUrl, asset?.textureUrl, asset?.textureName, width, height, idle]);
 
-  return <div ref={containerRef} className="spine-symbol-preview bg-gray-100 rounded overflow-hidden flex items-center justify-center" style={{ width, height, minWidth: width, minHeight: height }} />;
+  // Option 6: Use isolation styles to create separate stacking context (avoids parent transform/overflow affecting WebGL).
+  return (
+    <div
+      ref={containerRef}
+      className="spine-symbol-preview bg-gray-100 rounded overflow-hidden flex items-center justify-center"
+      style={{ width, height, minWidth: width, minHeight: height, isolation: 'isolate' }}
+    />
+  );
 }
 
 export default SpineSymbolPreview;
