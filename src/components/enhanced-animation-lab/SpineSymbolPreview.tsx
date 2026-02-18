@@ -7,9 +7,7 @@ export interface SpineSymbolPreviewProps {
   asset: SymbolSpineAsset;
   width: number;
   height: number;
-  /** When provided, parent can call .current?.() to play win animation once. */
   playWinRef?: React.MutableRefObject<(() => void) | null>;
-  /** Start with idle animation (default true). */
   idle?: boolean;
 }
 

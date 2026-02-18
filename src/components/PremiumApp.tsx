@@ -36,6 +36,7 @@ import Step3_CardAesthetics from './visual-journey/scratch-steps/AestheticsFlow'
 import Step4_GameplayAssets from './visual-journey/scratch-steps/AssetsFlow';
 import Step5_Production from './visual-journey/scratch-steps/ProductionFlow';
 import Step7_Export from './visual-journey/scratch-steps/Step7_Export';
+import StandaloneGameModal from './modals/StandaloneGameModal';
 
 
 // Single source of truth for all steps
@@ -288,9 +289,10 @@ const INSTANT_STEPS = [
 
 const PremiumApp: React.FC = () => {
   const navigate = useNavigate();
-  const [showConfig, setShowConfig] = useState(false);
+  const { showStandaloneGameModal } = useGameStore();
   const [showIntro, setShowIntro] = useState(true);
   const [previewFullscreen, setPreviewFullscreen] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
   const [, setForceUpdateCounter] = useState(0);
   const forceUpdate = useCallback(() => setForceUpdateCounter(prev => prev + 1), []);
 
@@ -551,6 +553,10 @@ const PremiumApp: React.FC = () => {
           isOpen={showConfig}
           onClose={() => setShowConfig(false)}
         />
+      )}
+
+      {showStandaloneGameModal && (
+        <StandaloneGameModal />
       )}
     </>
   );

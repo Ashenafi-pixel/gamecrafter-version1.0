@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useGameStore } from '../../../store';
 import { Volume2, VolumeX } from 'lucide-react';
-import { useScratchEngine } from '../../../components/modals/StandaloneGameModal';
+import { useScratchEngine } from '../../../hooks/useScratchEngine';
 import { useScratchSession } from '../../../hooks/useScratchSession';
 import FoilCanvas from './FoilCanvas';
 import { ASSET_MAP } from '../../../utils/scratchAssets';
@@ -37,7 +37,6 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
     // --- Audio System ---
     const [isMuted, setIsMuted] = useState(false);
     const audioRefs = useRef<Record<string, HTMLAudioElement>>({});
-    const isScratchingRef = useRef(false);
 
     // Helper to manage audio instances
     const getAudio = useCallback((id: string) => {
@@ -130,41 +129,115 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
     const wrapperRef = React.useRef<HTMLDivElement>(null!);
     const [fitScale, setFitScale] = useState(1);
 
+    // [NEW] Calculate Total Visual Bounds (Card + Pop-out Mascot/Logo)
+    const visualBounds = useMemo(() => {
+        let minX = 0;
+        let maxX = CARD_WIDTH;
+        let minY = 0;
+        let maxY = CARD_HEIGHT;
+
+        const mascot = config.scratch?.mascot;
+        const logo = config.scratch?.logo;
+
+        // Account for Mascot
+        if (mascot?.type === 'image' && mascot.image) {
+            const mx = (CARD_WIDTH / 2) + (mascot.customPosition?.x || 0);
+            const my = (CARD_HEIGHT / 2) + (mascot.customPosition?.y || 0);
+            const mSize = (CARD_HEIGHT * (mascot.scale || 100)) / 100;
+            // Refined heuristic: Mascots are usually ~0.6 width of height
+            minX = Math.min(minX, mx - (mSize * 0.3));
+            maxX = Math.max(maxX, mx + (mSize * 0.3));
+            minY = Math.min(minY, my - (mSize * 0.5));
+            maxY = Math.max(maxY, my + (mSize * 0.5));
+        }
+
+        // Account for Logo (Pop-out)
+        if (logo?.image && logo.layout !== 'integrated') {
+            const lx = (CARD_WIDTH / 2) + (logo.customPosition?.x || 0);
+            const ly = (logo.customPosition?.y ?? -180);
+            const lScale = (logo.scale || 100) / 100;
+            const lW = 280 * lScale;
+            minX = Math.min(minX, lx - lW / 2);
+            maxX = Math.max(maxX, lx + lW / 2);
+            minY = Math.min(minY, ly);
+        }
+
+        // Calculate "Max Distance" from card center to keep CARD centered visually
+        // Horizontal: dist from 160
+        const maxDistX = Math.max(160 - minX, maxX - 160);
+        // Vertical: dist from 230
+        const maxDistY = Math.max(230 - minY, maxY - 230);
+
+        return {
+            width: maxDistX * 2,
+            height: maxDistY * 2,
+            offsetX: 0, // Keep card centered horizontally
+            offsetY: (minY + maxY) / 2 - (CARD_HEIGHT / 2) // Maintain vertical balance
+        };
+    }, [config.scratch?.mascot, config.scratch?.logo, CARD_WIDTH, CARD_HEIGHT]);
+
     useEffect(() => {
         if (!wrapperRef.current) return;
         const updateScale = () => {
             const { width, height } = wrapperRef.current!.getBoundingClientRect();
             if (width === 0 || height === 0) return;
-            // Pad 40px
-            const s = Math.min((width - 40) / CARD_WIDTH, (height - 40) / CARD_HEIGHT);
+
+            const marginX = width <= 640 ? 40 : 60;
+            const marginY = width <= 640 ? 100 : 180;
+
+            // Use visualBounds.width instead of fixed CARD_WIDTH
+            const s = Math.min(
+                (width - marginX) / visualBounds.width,
+                (height - marginY) / visualBounds.height
+            );
             setFitScale(s > 0 ? s : 1);
         };
         const observer = new ResizeObserver(updateScale);
         observer.observe(wrapperRef.current);
-        // Initial
         updateScale();
         return () => observer.disconnect();
-    }, [CARD_WIDTH, CARD_HEIGHT]);
+    }, [visualBounds]);
+
+    // --- Transform & Layout Extraction (Moved up for Hook Dependency) ---
+    // 1. Card Container (Frame Config) - Controls Frame position on screen
+    const containerScaleX = (config.scratch?.layout?.transform?.scaleX || config.scratch?.layout?.transform?.scale || 100) / 100;
+    const containerScaleY = (config.scratch?.layout?.transform?.scaleY || config.scratch?.layout?.transform?.scale || 100) / 100;
+    const containerX = config.scratch?.layout?.transform?.x ?? 0;
+    const containerY = config.scratch?.layout?.transform?.y ?? 0;
+
+    // 2. Internal Grid (Grid Transform) - Controls Grid position inside Frame
+    const gridScaleX = (config.scratch?.layout?.grid?.scaleX ?? config.scratch?.layout?.grid?.scale ?? 87) / 100;
+    const gridScaleY = (config.scratch?.layout?.grid?.scaleY ?? config.scratch?.layout?.grid?.scale ?? 79) / 100;
+    const gridX = config.scratch?.layout?.grid?.x ?? 0;
+    const gridY = config.scratch?.layout?.grid?.y ?? 42;
+
+    const gridBgColor = config.scratch?.layout?.gridBackgroundColor || '#f3f4f6';
+    const cellStyle = config.scratch?.layout?.cellStyle || 'boxed';
+    const overlayColor = config.scratch?.layers?.overlay?.color || '#F2F0EB';
+    const overlayZIndex = config.scratch?.layers?.overlay?.zIndex ?? 120;
+    const overlayBlendMode = (config.scratch?.layers?.overlay as any)?.blendMode || 'normal';
 
     // Generate dynamic brush image for default types
     const brushUrl = useMemo(() => {
-        const type = config.scratch?.brush?.tipType;
+        const type = config.scratch?.brush?.tipType || 'coin';
+
+
         if (type === 'custom') return config.scratch?.brush?.customTipImage;
 
         // Generate emoji-based brush for default types
-        if (type === 'finger' || type === 'wand' || type === 'eraser') {
+        if (type === 'finger' || type === 'wand' || type === 'eraser' || type === 'coin') {
             const canvas = document.createElement('canvas');
             canvas.width = 128; // Higher res for better scaling
             canvas.height = 128;
             const ctx = canvas.getContext('2d');
             if (ctx) {
                 ctx.clearRect(0, 0, 128, 128);
-                ctx.font = '100px serif'; // Large emoji
+                ctx.font = '115px serif'; // Increased font to fill canvas more
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 // Map type to emoji
-                const emoji = type === 'finger' ? '👆' : type === 'wand' ? '🪄' : '🧼';
-                ctx.fillText(emoji, 64, 64 + 10); // +10 to center vertically better (emojis ride high)
+                const emoji = type === 'finger' ? '👆' : type === 'wand' ? '🪄' : type === 'eraser' ? '🧼' : '🪙';
+                ctx.fillText(emoji, 64, 64 + 6); // Slightly less vertical offset for larger font
                 return canvas.toDataURL();
             }
         }
@@ -176,7 +249,10 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
         containerRef,
         initCanvas,
         fillCanvas,
-        isReady
+        clearCanvas,
+        progress,
+        isReady,
+        isScratching
     } = useScratchEngine({
         brushSize: brushSize,
         enabled: engineEnabled,
@@ -186,13 +262,18 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
             // Engine triggers this on resize. We need to re-generate the gradient!
             foilLogicRef.current.reapply();
         },
+        // [FIX] Only compensate for the distortion (Layout/Grid scale), 
+        // DO NOT include fitScale because the engine's resize already handles the base zoom.
+        scaleX: containerScaleX * gridScaleX,
+        scaleY: containerScaleY * gridScaleY,
         onScratchStart: useCallback(() => {
-            isScratchingRef.current = true;
             const sfx = getAudio('scratch');
             if (sfx) {
                 sfx.loop = true;
-                sfx.currentTime = 0;
-                sfx.play().catch(() => { });
+                // [FIX] Only reset and play if not already playing to avoid "audio gap"
+                if (sfx.paused) {
+                    sfx.play().catch(() => { });
+                }
             }
 
             setGameState((prev: 'idle' | 'playing' | 'revealed' | 'won') => {
@@ -203,23 +284,16 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
             });
         }, [setGameState, getAudio]),
         onScratchEnd: useCallback(() => {
-            isScratchingRef.current = false;
             const sfx = getAudio('scratch');
             if (sfx) {
+                // [FIX] Fade out or pause immediately, but don't reset currentTime here
+                // Resetting currentTime on every stop can cause laggy "re-start" feel
                 sfx.pause();
-                sfx.currentTime = 0;
             }
         }, [getAudio]),
-        onScratchProgress: useCallback((p: number) => {
-            const threshold = config.scratch?.brush?.revealThreshold || 0.95;
-            const isRevealed = p >= threshold;
-            if (isRevealed) {
-                // Trigger win/reveal if threshold met
-                resolveRound(true);
-            }
-        }, [resolveRound, config.scratch?.brush?.revealThreshold]),
+        onScratchProgress: undefined, // Handled by useEffect below to avoid circular dependency
         // Update onScratchMove to handle coordinate mapping
-        onScratchMove: useCallback(({ x, y, speed, isMaskHit }: { x: number, y: number, speed: number, isMaskHit?: boolean }) => {
+        onScratchMove: useCallback(({ x, y }: { x: number, y: number }) => {
             // Helper to get color based on foil
             const getParticleColor = () => {
                 switch (foilTexture) {
@@ -237,7 +311,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                 }
             };
 
-            // Calculate Global Position for Particles (Since canvas is now outside clipped container)
+            // Calculate Global Position for Particles
             let spawnX = x;
             let spawnY = y;
 
@@ -245,46 +319,34 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                 const rect = localContainerRef.current.getBoundingClientRect();
                 const canvasRect = particleCanvasRef.current.getBoundingClientRect();
 
-                // Calculate visual scale of the scratch surface
-                const scaleX = rect.width / CARD_WIDTH;
-                const scaleY = rect.height / CARD_HEIGHT;
-
-                // Map internal scratch coords (logical) via scale to global physical coords
-                spawnX = rect.left + (x * scaleX) - canvasRect.left;
-                spawnY = rect.top + (y * scaleY) - canvasRect.top;
+                // [FIX] Coordinate space parity: 
+                // Since the engine logical unit is already 1:1 with visual pixels, 
+                // we just add the offset of the container relative to the particle canvas.
+                spawnX = rect.left + x - canvasRect.left;
+                spawnY = rect.top + y - canvasRect.top;
             }
 
-            // [FIX] ONLY Spawn particles if we actually hit the mask (isMaskHit === true)
-            if (!isMaskHit) return;
-
-            // Particle System Logic
-            // [FIX] High density debris + Edge Emission
-            // We spawn particles with a random offset to simulate debris coming from the EDGES of the brush.
-            // This ensures visibility even if the brush cursor covers the center.
-            const speedFactor = Math.floor((speed || 0) / 2);
-            const count = 15 + Math.min(30, speedFactor); // Minimum 15 particles per frame!
-
-            const brushRadius = 20; // Default radius (40px brush)
+            // [FIX] Spawn particles more aggressively (parity with export)
+            const count = 8; // Match export i < 8
 
             if (config.scratch?.effects?.particles) {
                 for (let i = 0; i < count; i++) {
-                    // Random offset within brush radius
                     const angle = Math.random() * Math.PI * 2;
-                    const r = Math.random() * brushRadius;
+                    const r = Math.random() * (brushSize / 2);
                     const offsetX = Math.cos(angle) * r;
                     const offsetY = Math.sin(angle) * r;
 
                     particlesRef.current.push({
                         x: spawnX + offsetX,
                         y: spawnY + offsetY,
-                        vx: (Math.random() - 0.5) * 6, // Wider spread
-                        vy: (Math.random() - 0.5) * 6, // More explosive
-                        life: 2.0,
+                        vx: (Math.random() - 0.5) * 6, // Match export vx
+                        vy: (Math.random() - 0.5) * 6, // Match export vy
+                        life: 1.5, // Match export life
                         color: getParticleColor(),
                         type: 'spark',
-                        size: Math.random() * 4 + 2,
-                        rotation: 0,
-                        vRotation: 0
+                        size: Math.random() * 3 + 1, // Match export size
+                        rotation: Math.random() * Math.PI,
+                        vRotation: (Math.random() - 0.5) * 0.1
                     });
                 }
             }
@@ -572,24 +634,6 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
         return assetSet.win[0];
     };
 
-    // Layout Transform: Decoupled Container vs Internal Grid
-
-    // 1. Card Container (Frame Config) - Controls Frame position on screen
-    const containerScaleX = (config.scratch?.layout?.transform?.scaleX || config.scratch?.layout?.transform?.scale || 100) / 100;
-    const containerScaleY = (config.scratch?.layout?.transform?.scaleY || config.scratch?.layout?.transform?.scale || 100) / 100;
-    const containerX = config.scratch?.layout?.transform?.x ?? 0;
-    const containerY = config.scratch?.layout?.transform?.y ?? 0;
-
-    // 2. Internal Grid (Grid Transform) - Controls Grid position inside Frame
-    const gridScaleX = (config.scratch?.layout?.grid?.scaleX ?? config.scratch?.layout?.grid?.scale ?? 87) / 100;
-    const gridScaleY = (config.scratch?.layout?.grid?.scaleY ?? config.scratch?.layout?.grid?.scale ?? 79) / 100;
-    const gridX = config.scratch?.layout?.grid?.x ?? 0;
-    const gridY = config.scratch?.layout?.grid?.y ?? 42;
-
-    const gridBgColor = config.scratch?.layout?.gridBackgroundColor || '#f3f4f6';
-    const cellStyle = config.scratch?.layout?.cellStyle || 'boxed';
-    const overlayColor = config.scratch?.layers?.overlay?.color || '#F2F0EB';
-
     // Heuristic checking for winning symbol (Most frequent in a win)
     const winningSymbol = useMemo(() => {
         if (!currentOutcome?.isWin || !currentOutcome.revealMap) return null;
@@ -600,6 +644,17 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
     }, [currentOutcome]);
 
     // ...
+
+    // [FIX] Auto-reveal completion logic (Moved here to avoid circular dependency with clearCanvas)
+    useEffect(() => {
+        let threshold = config.scratch?.brush?.revealThreshold || 0.95;
+        if (threshold > 1) threshold /= 100; // [FIX] Parity: Handle 65 vs 0.65
+
+        if (progress >= threshold && gameState === 'playing' && isReady) {
+            clearCanvas();
+            resolveRound(true);
+        }
+    }, [progress, clearCanvas, resolveRound, config.scratch?.brush?.revealThreshold, gameState, isReady]);
 
     const mainRef = useRef<HTMLDivElement>(null!);
 
@@ -644,8 +699,8 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                     style={{
                         width: `${CARD_WIDTH}px`,
                         height: `${CARD_HEIGHT}px`,
-                        // [FIX] Apply fitScale here so EVERYTHING (Mascot, Logo, Grid) scales together
-                        transform: `scale(${fitScale})`
+                        // [FIX] Apply fitScale and translate to keep the ENTIRE scene (including side mascots) centered
+                        transform: `scale(${fitScale}) translate(${-visualBounds.offsetX}px, ${-visualBounds.offsetY}px)`
                     }}
                 >
                     {/* --- LAYERS THAT DO NOT MOVE WITH FRAME TRANSFORM (Static/Independent) --- */}
@@ -764,13 +819,25 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                             transform: `translate(${containerX}px, ${containerY}px) scale(${containerScaleX}, ${containerScaleY})`
                         }}
                     >
+                        {/* Card Background Color (Always at bottom) */}
                         <div
-                            className="absolute inset-0 rounded-xl overflow-hidden"
-                            style={{ backgroundColor: overlayColor }}
+                            className="absolute inset-0 z-0 transition-colors duration-300"
+                            style={{
+                                backgroundColor: overlayColor === 'transparent' ? 'transparent' : overlayColor
+                            }}
+                        />
+
+                        {/* Frame/Overlay Image Layer (Dynamic Z-Index) */}
+                        <div
+                            className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none"
+                            style={{
+                                zIndex: overlayZIndex < 50 ? 5 : 120,
+                                mixBlendMode: overlayBlendMode as any
+                            }}
                         >
                             {/* Frame/Background Image */}
                             {overlayImage && (
-                                <div className="absolute inset-0 pointer-events-none z-0 select-none">
+                                <div className="absolute inset-0 z-0 select-none">
                                     <img src={overlayImage} className="w-full h-full object-fill" />
                                 </div>
                             )}
@@ -814,115 +881,110 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                                     )}
                                 </div>
                             )}
+                        </div>
 
-                            {/* The Grid/Card Body -- ADAPTIVE */}
-                            <div
-                                className={`absolute z-10 transition-all duration-300 transform origin-center
+                        {/* The Grid/Card Body -- ADAPTIVE */}
+                        <div
+                            className={`absolute z-10 transition-all duration-300 transform origin-center
                                 ${config.scratch?.mechanic?.type === 'wheel' ? 'rounded-full overflow-hidden shadow-xl' : 'rounded-lg'}
                                 ${cellStyle === 'boxed' ? '' : 'gap-1'}
                             `}
-                                style={{
-                                    width: `${CARD_WIDTH}px`, // Matches Container Width
-                                    height: config.scratch?.mechanic?.type === 'wheel' ? '320px' : '400px', // Fixed internal height
-                                    backgroundColor: config.scratch?.mechanic?.type === 'wheel' ? 'transparent' : gridBgColor,
-                                    left: '50%',
-                                    top: '50%',
-                                    marginLeft: `-${HALF_WIDTH}px`, // Centering
-                                    marginTop: config.scratch?.mechanic?.type === 'wheel' ? '-160px' : '-200px', // Half of 400
-                                    transform: `translate(${gridX}px, ${gridY}px) scale(${gridScaleX}, ${gridScaleY})`,
-                                    display: config.scratch?.mechanic?.type === 'wheel' ? 'flex' : 'grid',
-                                    gridTemplateColumns: config.scratch?.mechanic?.type === 'wheel' ? undefined : `repeat(${cols}, 1fr)`,
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                }}
-                            >
-                                {/* WHEEL RENDERER */}
-                                {config.scratch?.mechanic?.type === 'wheel' && (
-                                    <div className="relative w-full h-full bg-white rounded-full border-4 border-yellow-400 flex items-center justify-center overflow-hidden">
-                                        {/* Simple Spin Wheel Graphic */}
-                                        <div className="absolute inset-0 opacity-20" style={{ background: 'conic-gradient(from 0deg, red, yellow, green, blue, red)' }} />
-                                        <div className="z-10 text-center">
-                                            <div className="text-xs font-bold uppercase mb-1">Prize</div>
-                                            <img src={getSymbolForCell(0)} className="w-16 h-16 object-contain drop-shadow-md animate-pulse" />
-                                            <div className="text-xs font-bold mt-1 text-black bg-white/50 px-2 rounded-full">
-                                                {currentOutcome?.isWin ? 'WIN!' : 'SPIN'}
-                                            </div>
+                            style={{
+                                width: `${CARD_WIDTH}px`, // Matches Container Width
+                                height: config.scratch?.mechanic?.type === 'wheel' ? '320px' : '400px', // Fixed internal height
+                                backgroundColor: config.scratch?.mechanic?.type === 'wheel' ? 'transparent' : gridBgColor,
+                                left: '50%',
+                                top: '50%',
+                                marginLeft: `-${HALF_WIDTH}px`, // Centering
+                                marginTop: config.scratch?.mechanic?.type === 'wheel' ? '-160px' : '-200px', // Half of 400
+                                transform: `translate(${gridX}px, ${gridY}px) scale(${gridScaleX}, ${gridScaleY})`,
+                                display: config.scratch?.mechanic?.type === 'wheel' ? 'flex' : 'grid',
+                                gridTemplateColumns: config.scratch?.mechanic?.type === 'wheel' ? undefined : `repeat(${cols}, 1fr)`,
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                        >
+                            {/* WHEEL RENDERER */}
+                            {config.scratch?.mechanic?.type === 'wheel' && (
+                                <div className="relative w-full h-full bg-white rounded-full border-4 border-yellow-400 flex items-center justify-center overflow-hidden">
+                                    {/* Simple Spin Wheel Graphic */}
+                                    <div className="absolute inset-0 opacity-20" style={{ background: 'conic-gradient(from 0deg, red, yellow, green, blue, red)' }} />
+                                    <div className="z-10 text-center">
+                                        <div className="text-xs font-bold uppercase mb-1">Prize</div>
+                                        <img src={getSymbolForCell(0)} className="w-16 h-16 object-contain drop-shadow-md animate-pulse" />
+                                        <div className="text-xs font-bold mt-1 text-black bg-white/50 px-2 rounded-full">
+                                            {currentOutcome?.isWin ? 'WIN!' : 'SPIN'}
                                         </div>
                                     </div>
-                                )}
+                                </div>
+                            )}
 
-                                {/* GRID / PATH RENDERER */}
-                                {config.scratch?.mechanic?.type !== 'wheel' && Array.from({ length: rows * cols }).map((_, i) => {
-                                    // Determine if we should show numeric preview (Match types in Layout/Category mode)
-                                    const isMatchMechanic = config.scratch?.mechanic?.type?.startsWith('match_');
-                                    const isPreviewMode = mode === 'layout' || mode === 'mechanics';
-                                    const isNumberStyle = config.scratch?.symbols?.style === 'numbers';
-                                    const showNumericPreview = (isMatchMechanic && isPreviewMode) || isNumberStyle;
+                            {/* GRID / PATH RENDERER */}
+                            {config.scratch?.mechanic?.type !== 'wheel' && Array.from({ length: rows * cols }).map((_, i) => {
+                                // Determine if we should show numeric preview (Match types in Layout/Category mode)
+                                const isMatchMechanic = config.scratch?.mechanic?.type?.startsWith('match_');
+                                const isPreviewMode = mode === 'layout' || mode === 'mechanics';
+                                const isNumberStyle = config.scratch?.symbols?.style === 'numbers';
+                                const showNumericPreview = (isMatchMechanic && isPreviewMode) || isNumberStyle;
 
-                                    // Deterministic mock values for preview
-                                    const mockValues = [5, 10, 20, 50, 100, 500, 1000, 5, 10, 50, 100, 2500];
-                                    const mockValue = mockValues[i % mockValues.length];
+                                // Deterministic mock values for preview
+                                const mockValues = [5, 10, 20, 50, 100, 500, 1000, 5, 10, 50, 100, 2500];
+                                const mockValue = mockValues[i % mockValues.length];
 
-                                    // Dynamic font size for dense grids (Match 4 etc)
-                                    const fontSizeClass = cols >= 4 ? 'text-lg' : 'text-2xl';
+                                // Dynamic font size for dense grids (Match 4 etc)
+                                const fontSizeClass = cols >= 4 ? 'text-lg' : 'text-2xl';
 
-                                    return (
-                                        <div
-                                            key={i}
-                                            className={`
+                                return (
+                                    <div
+                                        key={i}
+                                        className={`
                                         flex items-center justify-center relative transition-all overflow-hidden
                                         ${cellStyle === 'boxed'
-                                                    ? 'bg-white rounded-md shadow-inner border border-gray-200 p-2'
-                                                    : 'p-1 rounded-sm'
-                                                }
+                                                ? 'bg-white rounded-md shadow-inner border border-gray-200 p-2'
+                                                : 'p-1 rounded-sm'
+                                            }
                                         ${gameState === 'won' && currentOutcome?.isWin && getSymbolForCell(i) === winningSymbol ? 'ring-2 ring-yellow-400 ring-offset-2 animate-pulse' : ''} 
                                     `}
-                                        >
-                                            {showNumericPreview ? (
-                                                <div className="flex flex-col items-center justify-center w-full h-full">
-                                                    <span className={`${fontSizeClass} font-black text-gray-800 tracking-tight drop-shadow-sm`}>
-                                                        ${mockValue}
-                                                    </span>
-                                                </div>
-                                            ) : (
-                                                <>
-                                                    <img src={getSymbolForCell(i)} alt="sym" className="w-full h-full object-contain" />
-                                                    <span className={`absolute bottom-1 right-1 text-[10px] font-mono font-bold ${cellStyle === 'boxed' ? 'text-gray-400' : 'text-gray-600'}`}>$10</span>
-                                                </>
-                                            )}
-                                        </div>
-                                    )
-                                })}
-
-                                {/* SCRATCH SURFACE with Custom Cursor */}
-                                {mode !== 'layout' && (
-                                    <div
-                                        className={`absolute inset-0 z-[100] pointer-events-auto touch-none ${config.scratch?.mechanic?.type === 'wheel' ? 'rounded-full' : 'cursor-none'}`}
-                                        ref={(el) => {
-                                            if (containerRef) {
-                                                containerRef.current = el;
-                                            }
-                                            localContainerRef.current = el;
-                                        }}
-                                        onMouseEnter={() => setShowCursor(true)}
-                                        onMouseLeave={() => setShowCursor(false)}
-                                        onMouseMove={(e) => {
-                                            if (mainRef.current) {
-                                                const rect = mainRef.current.getBoundingClientRect();
-                                                setCursorPos({
-                                                    x: e.clientX - rect.left,
-                                                    y: e.clientY - rect.top
-                                                });
-                                            }
-                                        }}
                                     >
-                                        <FoilCanvas
-                                            ref={canvasRef}
-                                            className={`w-full h-full transition-opacity duration-1000 ease-out ${gameState === 'won' || gameState === 'revealed' ? 'opacity-0' : 'opacity-100'}`}
-                                        />
+                                        {showNumericPreview ? (
+                                            <div className="flex flex-col items-center justify-center w-full h-full">
+                                                <span className={`${fontSizeClass} font-black text-gray-800 tracking-tight drop-shadow-sm`}>
+                                                    ${mockValue}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <img src={getSymbolForCell(i)} alt="sym" className="w-full h-full object-contain" />
+                                                <span className={`absolute bottom-1 right-1 text-[10px] font-mono font-bold ${cellStyle === 'boxed' ? 'text-gray-400' : 'text-gray-600'}`}>$10</span>
+                                            </>
+                                        )}
                                     </div>
-                                )}
-                            </div>
+                                )
+                            })}
+
+                            {/* SCRATCH SURFACE with Custom Cursor - Constrained to Grid Area */}
+                            {mode !== 'layout' && (
+                                <div
+                                    className={`absolute inset-0 z-[100] pointer-events-auto touch-none ${config.scratch?.mechanic?.type === 'wheel' ? 'rounded-full' : 'cursor-none'}`}
+                                    ref={(el) => {
+                                        if (containerRef) (containerRef as any).current = el;
+                                        localContainerRef.current = el;
+                                    }}
+                                    onMouseEnter={() => setShowCursor(true)}
+                                    onMouseLeave={() => setShowCursor(false)}
+                                    onMouseMove={(e) => {
+                                        setCursorPos({
+                                            x: e.clientX,
+                                            y: e.clientY
+                                        });
+                                    }}
+                                >
+                                    <FoilCanvas
+                                        ref={canvasRef}
+                                        className={`w-full h-full transition-opacity duration-1000 ease-out ${gameState === 'won' || gameState === 'revealed' ? 'opacity-0' : 'opacity-100'}`}
+                                    />
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -952,29 +1014,23 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                 className="absolute inset-0 z-[40] pointer-events-none w-full h-full"
             />
 
-            {/* Custom Software Cursor - Global Layer (Z-50) above Particles (Z-40) */}
-            {showCursor && (config.scratch?.brush?.tipType || 'coin') && mode !== 'layout' && (
+            {/* Custom Cursor (Visual Only) */}
+            {showCursor && (
                 <div
-                    className="absolute pointer-events-none z-[50] drop-shadow-2xl flex items-center justify-center transition-[width,height] duration-75 ease-out"
+                    className="fixed pointer-events-none z-[9999] flex items-center justify-center transition-transform duration-75"
                     style={{
                         left: cursorPos.x,
                         top: cursorPos.y,
-                        width: `${config.scratch?.brush?.size || 40}px`,
-                        height: `${config.scratch?.brush?.size || 40}px`,
-                        fontSize: `${(config.scratch?.brush?.size || 40) * 0.9}px`,
-                        transform: 'translate(-50%, -50%)' // Center on mouse
+                        width: `${brushSize * fitScale}px`,
+                        height: `${brushSize * fitScale}px`,
+                        transformOrigin: 'center center',
+                        transform: `translate(-50%, -50%) ${isScratching ? 'scale(0.95)' : 'scale(1)'}`
                     }}
                 >
-                    {/* Cursor Icon Logic */}
-                    {config.scratch?.brush?.customTipImage ? (
-                        <img src={config.scratch.brush.customTipImage} className="w-full h-full object-contain" />
+                    {brushUrl ? (
+                        <img src={brushUrl} className="w-full h-full object-contain drop-shadow-lg" />
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center drop-shadow-md">
-                            {config.scratch?.brush?.tipType === 'finger' ? '👆' :
-                                config.scratch?.brush?.tipType === 'wand' ? '🪄' :
-                                    config.scratch?.brush?.tipType === 'eraser' ? '🧼' :
-                                        '🪙'}
-                        </div>
+                        <div className="w-full h-full rounded-full border-2 border-white/50 bg-black/20 backdrop-blur-sm" />
                     )}
                 </div>
             )}
