@@ -525,9 +525,22 @@ export const generateScratchHTML = (cleanConfig: any): string => {
     <script src="https://pixijs.download/v8.1.0/pixi.min.js"></script>
     <style>
         body { margin: 0; background: #0f172a; overflow: hidden; touch-action: none; display: flex; flex-direction: column; height: 100vh; font-family: system-ui, sans-serif; }
-        #loading { position: absolute; color: white; font-weight: bold; font-size: 24px; text-align: center; pointer-events: none; z-index: 10; }
-        .spinner { width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #loading { position: absolute; color: white; font-weight: bold; font-size: 24px; text-align: center; pointer-events: none; z-index: 10; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        .loading-container { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+        .loading-animation { position: relative; width: 80px; height: 80px; }
+        .loading-card { position: absolute; width: 60px; height: 80px; background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); border-radius: 8px; box-shadow: 0 4px 20px rgba(34, 197, 94, 0.4); animation: cardFlip 2s ease-in-out infinite; }
+        .loading-card::before { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; background: rgba(255, 255, 255, 0.2); border-radius: 50%; }
+        .loading-sparkles { position: absolute; width: 100%; height: 100%; }
+        .sparkle { position: absolute; width: 4px; height: 4px; background: #ffd700; border-radius: 50%; animation: sparkle 1.5s ease-in-out infinite; }
+        .sparkle:nth-child(1) { top: 20%; left: 20%; animation-delay: 0s; }
+        .sparkle:nth-child(2) { top: 20%; right: 20%; animation-delay: 0.3s; }
+        .sparkle:nth-child(3) { bottom: 20%; left: 20%; animation-delay: 0.6s; }
+        .sparkle:nth-child(4) { bottom: 20%; right: 20%; animation-delay: 0.9s; }
+        .loading-text { font-size: 18px; font-weight: 600; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .loading-progress { font-size: 14px; color: #94a3b8; margin-top: -10px; }
+        .loading-dots { display: inline-block; width: 20px; text-align: left; }
+        @keyframes cardFlip { 0%, 100% { transform: rotateY(0deg) scale(1); } 50% { transform: rotateY(180deg) scale(1.1); } }
+        @keyframes sparkle { 0%, 100% { opacity: 0; transform: scale(0); } 50% { opacity: 1; transform: scale(1); } }
         #game-container { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; position: relative; width: 100%; height: 100%; }
         canvas { display: block; width: 100%; height: 100%; }
         /* Casino Shell Footer */
@@ -622,9 +635,21 @@ export const generateScratchHTML = (cleanConfig: any): string => {
 </head>
 <body>
     <div id="loading">
-        <div class="spinner"></div>
-        <div>Loading Assets...</div>
-        <div id="loading-status" style="font-size:14px; margin-top:10px; opacity:0.7"></div>
+        <div class="loading-container">
+            <div class="loading-animation">
+                <div class="loading-card"></div>
+                <div class="loading-sparkles">
+                    <div class="sparkle"></div>
+                    <div class="sparkle"></div>
+                    <div class="sparkle"></div>
+                    <div class="sparkle"></div>
+                </div>
+            </div>
+            <div class="loading-text">
+                Initializing Game<span class="loading-dots"></span>
+            </div>
+            <div id="loading-status" class="loading-progress">Preparing your experience...</div>
+        </div>
     </div>
     <div id="game-container"></div>
 
@@ -753,6 +778,46 @@ export const generateScratchHTML = (cleanConfig: any): string => {
         window.onerror = (msg, url, line) => {
             log(\`ERROR: \${msg} (\${line})\`, 'error');
         };
+
+        // --- Enhanced Loading Animation ---
+        function initLoadingAnimation() {
+            const dotsEl = document.querySelector('.loading-dots');
+            const statusEl = document.getElementById('loading-status');
+            const textEl = document.querySelector('.loading-text');
+            
+            if (!dotsEl || !statusEl || !textEl) return;
+            
+            let dotCount = 0;
+            let messageIndex = 0;
+            const messages = [
+                'Preparing your experience...',
+                'Loading game assets...',
+                'Setting up the scratch card...',
+                'Almost ready...',
+                'Initializing game engine...'
+            ];
+            
+            // Animated dots
+            setInterval(() => {
+                dotCount = (dotCount + 1) % 4;
+                dotsEl.textContent = '.'.repeat(dotCount || 1);
+            }, 500);
+            
+            // Progress messages
+            const messageInterval = setInterval(() => {
+                if (messageIndex < messages.length) {
+                    statusEl.textContent = messages[messageIndex];
+                    messageIndex++;
+                } else {
+                    clearInterval(messageInterval);
+                }
+            }, 800);
+            
+            return messageInterval;
+        }
+        
+        // Initialize loading animation immediately
+        const loadingInterval = initLoadingAnimation();
 
         // --- Standalone Scratch Mini-Engine ---
         let app, container, scratchMask, brushTexture;
@@ -1223,7 +1288,14 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                 function updateStatus() {
                     const statusEl = document.getElementById('loading-status');
                     if(statusEl) {
-                        statusEl.innerText = loadedCount + " / " + assetUrls.size;
+                        const total = assetUrls.size;
+                        const loaded = loadedCount;
+                        if (total > 0) {
+                            const progress = Math.round((loaded / total) * 100);
+                            statusEl.textContent = \`Loading assets: \${loaded} / \${total} (\${progress}%)\`;
+                        } else {
+                            statusEl.textContent = 'Finalizing setup...';
+                        }
                     }
                 }
 
@@ -1249,6 +1321,11 @@ export const generateScratchHTML = (cleanConfig: any): string => {
         }
 
         function startGame() {
+             // Clean up loading animation
+             if (typeof loadingInterval !== 'undefined') {
+                 clearInterval(loadingInterval);
+             }
+             
              // Monkey-patch PIXI.Sprite.from to check our cache first
              const originalFrom = PIXI.Sprite.from;
              PIXI.Sprite.from = (source) => {
