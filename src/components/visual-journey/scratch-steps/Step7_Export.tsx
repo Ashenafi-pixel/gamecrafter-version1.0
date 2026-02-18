@@ -686,7 +686,29 @@ const Step7_Export: React.FC = () => {
             showSuccess('Upload Complete', `Bundle uploaded successfully to RGS server`);
         } catch (e: any) {
             console.error('❌ UPLOAD FAILED:', e);
-            showWarning('Upload Failed', e.message);
+            
+            // Extract user-friendly error message
+            let userMessage = 'Upload failed. Please try again.';
+            
+            if (e.message) {
+                // Check for specific error patterns and provide user-friendly messages
+                if (e.message.includes('prepared statement') && e.message.includes('already exists')) {
+                    userMessage = 'Game already exists on server. Try using a different game ID or delete the existing game first.';
+                } else if (e.message.includes('500')) {
+                    userMessage = 'Server error occurred. Please try again in a few moments.';
+                } else if (e.message.includes('404')) {
+                    userMessage = 'Server endpoint not found. Please check your server configuration.';
+                } else if (e.message.includes('network') || e.message.includes('fetch')) {
+                    userMessage = 'Network error. Please check your connection and try again.';
+                } else if (e.message.includes('timeout')) {
+                    userMessage = 'Upload timed out. The file might be too large or server is busy. Try again.';
+                } else {
+                    // For other errors, show a generic message but log the details
+                    userMessage = 'Upload failed. Please check the console for details.';
+                }
+            }
+            
+            showWarning('Upload Failed', userMessage);
         } finally {
             setIsUploading(false);
         }
