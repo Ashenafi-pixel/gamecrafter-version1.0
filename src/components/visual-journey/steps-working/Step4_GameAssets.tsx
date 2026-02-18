@@ -5,13 +5,14 @@ import { adaptiveButtonDetector } from '../../../utils/adaptiveButtonDetection';
 import {
   Image, Wand2, RefreshCw, CheckCircle, AlertCircle, Loader, Sparkles, Upload, Settings,
   Move, ArrowUpDown, ArrowLeftRight, ZoomIn, Volume2, Info, Play, Menu, Grid3X3,
-  Maximize, Copy, Sun, Moon, RotateCcw, Layers
+  Maximize, Copy, Sun, Moon, RotateCcw, Layers, Type, User
 } from 'lucide-react';
 import { enhancedOpenaiClient } from '../../../utils/enhancedOpenaiClient';
 import { detectDeviceType, onDeviceTypeChange, getDefaultLogoPosition, getDefaultLogoScale, DeviceType } from '../../../utils/deviceDetection';
 import { Button } from '../../Button';
 import { slotApiClient } from '../../../utils/apiClient';
 import { useSuccessPopup, useWarningPopup } from '../../popups';
+import JSZip from 'jszip';
 
 
 interface AssetConfig {
@@ -165,6 +166,29 @@ interface AssetConfig {
     mobilePortrait: number;
     mobileLandscape: number;
   };
+  winDisplayTextPositions: {
+    desktop: { x: number; y: number };
+    mobilePortrait: { x: number; y: number };
+    mobileLandscape: { x: number; y: number };
+  };
+  winDisplayTextScales: {
+    desktop: number;
+    mobilePortrait: number;
+    mobileLandscape: number;
+  };
+  /** When true (default), show "Win: " prefix before amount. When false, show only the amount. */
+  showWinText: boolean;
+
+  // Sprite character (Spine) – zip upload and positioning
+  /** When true, show the Spine character in the slot preview; off by default */
+  showSpineCharacter: boolean;
+  spineCharacterAtlasUrl: string | null;
+  spineCharacterSkelUrl: string | null;
+  spineCharacterTextureUrl: string | null;
+  /** Atlas page name for the texture (e.g. "poison_witch.webp") */
+  spineCharacterTextureName: string | null;
+  spineCharacterPosition: { x: number; y: number };
+  spineCharacterScale: number;
 }
 
 // Main component
@@ -175,7 +199,6 @@ const Step6_GameAssets: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'preset' | 'advanced'>('preset');
   const [backgroundPreviewDevice, setBackgroundPreviewDevice] = useState<'desktop' | 'mobile-portrait' | 'mobile-landscape'>('desktop');
   const [gridOptimize, setGridOptimize] = useState<String>('minimal');
-  const [symbolGridClicked, setSymbolGridClicked] = useState(true);
 
 
 
@@ -185,12 +208,13 @@ const Step6_GameAssets: React.FC = () => {
   const uiButtonsFileInputRef = useRef<HTMLInputElement>(null);
   const logoFileInputRef = useRef<HTMLInputElement>(null);
   const winDisplayFileInputRef = useRef<HTMLInputElement>(null);
+  const spineCharacterZipInputRef = useRef<HTMLInputElement>(null);
 
   // --- Add at the top of Step6_GameAssets, after the other useState/useRef ---
   const [selectedUIButton, setSelectedUIButton] = useState<keyof typeof assetConfig.uiElements | null>(null);
   const [singleUIButtonPrompt, setSingleUIButtonPrompt] = useState('');
   const singleUIButtonFileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Ref to track previous assetConfig values to prevent infinite loops
   const prevAssetConfigRef = useRef<AssetConfig | null>(null);
 
@@ -311,7 +335,26 @@ const Step6_GameAssets: React.FC = () => {
       desktop: 80,
       mobilePortrait: 80,
       mobileLandscape: 80
-    }
+    },
+    winDisplayTextPositions: (config as any).winDisplayTextPositions || {
+      desktop: { x: 50, y: 50 },
+      mobilePortrait: { x: 50, y: 50 },
+      mobileLandscape: { x: 50, y: 50 }
+    },
+    winDisplayTextScales: (config as any).winDisplayTextScales || {
+      desktop: 100,
+      mobilePortrait: 100,
+      mobileLandscape: 100
+    },
+    showWinText: (config as any).showWinText !== undefined ? (config as any).showWinText : true,
+
+    showSpineCharacter: (config as any).showSpineCharacter === true,
+    spineCharacterAtlasUrl: (config as any).spineCharacterAtlasUrl || null,
+    spineCharacterSkelUrl: (config as any).spineCharacterSkelUrl || null,
+    spineCharacterTextureUrl: (config as any).spineCharacterTextureUrl || null,
+    spineCharacterTextureName: (config as any).spineCharacterTextureName || null,
+    spineCharacterPosition: (config as any).spineCharacterPosition || { x: 0, y: 0 },
+    spineCharacterScale: (config as any).spineCharacterScale ?? 40
   });
 
   // Sync assetConfig from store when component mounts
@@ -358,10 +401,24 @@ const Step6_GameAssets: React.FC = () => {
       mobilePortrait: 80,
       mobileLandscape: 80
     };
+    const storeWinDisplayTextPositions = (config as any).winDisplayTextPositions || {
+      desktop: { x: 50, y: 50 },
+      mobilePortrait: { x: 50, y: 50 },
+      mobileLandscape: { x: 50, y: 50 }
+    };
+    const storeWinDisplayTextScales = (config as any).winDisplayTextScales || {
+      desktop: 100,
+      mobilePortrait: 100,
+      mobileLandscape: 100
+    };
+    const storeShowWinText = (config as any).showWinText !== undefined ? (config as any).showWinText : true;
+    const storeShowSpineCharacter = (config as any).showSpineCharacter === true;
+    const storeSpineCharacterPosition = (config as any).spineCharacterPosition || { x: 0, y: 0 };
+    const storeSpineCharacterScale = (config as any).spineCharacterScale ?? 40;
 
     setAssetConfig(prev => {
       // Check if store values are different from current local values
-      const needsUpdate = 
+      const needsUpdate =
         JSON.stringify(prev.backgroundPosition) !== JSON.stringify(storeBackgroundPosition) ||
         prev.backgroundScale !== storeBackgroundScale ||
         prev.backgroundFit !== storeBackgroundFit ||
@@ -380,7 +437,13 @@ const Step6_GameAssets: React.FC = () => {
         prev.gridScale !== storeGridScale ||
         JSON.stringify(prev.gridStretch) !== JSON.stringify(storeGridStretch) ||
         JSON.stringify(prev.winDisplayPositions) !== JSON.stringify(storeWinDisplayPositions) ||
-        JSON.stringify(prev.winDisplayScales) !== JSON.stringify(storeWinDisplayScales);
+        JSON.stringify(prev.winDisplayScales) !== JSON.stringify(storeWinDisplayScales) ||
+        JSON.stringify(prev.winDisplayTextPositions) !== JSON.stringify(storeWinDisplayTextPositions) ||
+        JSON.stringify(prev.winDisplayTextScales) !== JSON.stringify(storeWinDisplayTextScales) ||
+        prev.showWinText !== storeShowWinText ||
+        prev.showSpineCharacter !== storeShowSpineCharacter ||
+        JSON.stringify(prev.spineCharacterPosition) !== JSON.stringify(storeSpineCharacterPosition) ||
+        prev.spineCharacterScale !== storeSpineCharacterScale;
 
       if (!needsUpdate) {
         return prev; // No changes needed
@@ -407,7 +470,13 @@ const Step6_GameAssets: React.FC = () => {
         gridScale: storeGridScale,
         gridStretch: storeGridStretch,
         winDisplayPositions: storeWinDisplayPositions,
-        winDisplayScales: storeWinDisplayScales
+        winDisplayScales: storeWinDisplayScales,
+        winDisplayTextPositions: storeWinDisplayTextPositions,
+        winDisplayTextScales: storeWinDisplayTextScales,
+        showWinText: storeShowWinText,
+        showSpineCharacter: storeShowSpineCharacter,
+        spineCharacterPosition: storeSpineCharacterPosition,
+        spineCharacterScale: storeSpineCharacterScale
       };
     });
   }, []); // Only run on mount
@@ -553,9 +622,9 @@ const Step6_GameAssets: React.FC = () => {
 
     // Only update config if relevant values actually changed
     const prev = prevAssetConfigRef.current;
-    
+
     // Check UI button related changes (most common)
-    const uiButtonChanges = 
+    const uiButtonChanges =
       JSON.stringify(prev.uiButtonsPosition) !== JSON.stringify(assetConfig.uiButtonsPosition) ||
       prev.uiButtonsScale !== assetConfig.uiButtonsScale ||
       JSON.stringify(prev.uiButtonScales) !== JSON.stringify(assetConfig.uiButtonScales) ||
@@ -568,7 +637,7 @@ const Step6_GameAssets: React.FC = () => {
       prev.uiButtonsPath !== assetConfig.uiButtonsPath;
 
     // Check other changes
-    const otherChanges = 
+    const otherChanges =
       prev.framePath !== assetConfig.framePath ||
       prev.frameStyle !== assetConfig.frameStyle ||
       JSON.stringify(prev.framePosition) !== JSON.stringify(assetConfig.framePosition) ||
@@ -594,7 +663,17 @@ const Step6_GameAssets: React.FC = () => {
       JSON.stringify(prev.gridStretch) !== JSON.stringify(assetConfig.gridStretch) ||
       prev.winDisplayImage !== assetConfig.winDisplayImage ||
       JSON.stringify(prev.winDisplayPositions) !== JSON.stringify(assetConfig.winDisplayPositions) ||
-      JSON.stringify(prev.winDisplayScales) !== JSON.stringify(assetConfig.winDisplayScales);
+      JSON.stringify(prev.winDisplayScales) !== JSON.stringify(assetConfig.winDisplayScales) ||
+      JSON.stringify(prev.winDisplayTextPositions) !== JSON.stringify(assetConfig.winDisplayTextPositions) ||
+      JSON.stringify(prev.winDisplayTextScales) !== JSON.stringify(assetConfig.winDisplayTextScales) ||
+      prev.showWinText !== assetConfig.showWinText ||
+      prev.showSpineCharacter !== assetConfig.showSpineCharacter ||
+      prev.spineCharacterAtlasUrl !== assetConfig.spineCharacterAtlasUrl ||
+      prev.spineCharacterSkelUrl !== assetConfig.spineCharacterSkelUrl ||
+      prev.spineCharacterTextureUrl !== assetConfig.spineCharacterTextureUrl ||
+      prev.spineCharacterTextureName !== assetConfig.spineCharacterTextureName ||
+      JSON.stringify(prev.spineCharacterPosition) !== JSON.stringify(assetConfig.spineCharacterPosition) ||
+      prev.spineCharacterScale !== assetConfig.spineCharacterScale;
 
     if (!uiButtonChanges && !otherChanges) {
       // No changes, update ref and return
@@ -640,6 +719,16 @@ const Step6_GameAssets: React.FC = () => {
       winDisplayImage: assetConfig.winDisplayImage,
       winDisplayPositions: assetConfig.winDisplayPositions,
       winDisplayScales: assetConfig.winDisplayScales,
+      winDisplayTextPositions: assetConfig.winDisplayTextPositions,
+      winDisplayTextScales: assetConfig.winDisplayTextScales,
+      showWinText: assetConfig.showWinText,
+      showSpineCharacter: assetConfig.showSpineCharacter,
+      spineCharacterAtlasUrl: assetConfig.spineCharacterAtlasUrl,
+      spineCharacterSkelUrl: assetConfig.spineCharacterSkelUrl,
+      spineCharacterTextureUrl: assetConfig.spineCharacterTextureUrl,
+      spineCharacterTextureName: assetConfig.spineCharacterTextureName,
+      spineCharacterPosition: assetConfig.spineCharacterPosition,
+      spineCharacterScale: assetConfig.spineCharacterScale,
       logo: assetConfig.logoPath,
       logoPositions: assetConfig.logoPositions,
       logoScales: assetConfig.logoScales,
@@ -680,6 +769,19 @@ const Step6_GameAssets: React.FC = () => {
         }
       }));
     }
+
+    // Emit event for win display real-time updates
+    window.dispatchEvent(new CustomEvent('winDisplayConfigUpdated', {
+      detail: {
+        winDisplayImage: assetConfig.winDisplayImage,
+        winDisplayPositions: assetConfig.winDisplayPositions,
+        winDisplayScales: assetConfig.winDisplayScales,
+        winDisplayTextPositions: assetConfig.winDisplayTextPositions,
+        winDisplayTextScales: assetConfig.winDisplayTextScales,
+        showWinText: assetConfig.showWinText,
+        currentDevice: assetConfig.currentDevice
+      }
+    }));
   }, [assetConfig]);
 
   // Listen for logo position changes from preview
@@ -828,37 +930,6 @@ const Step6_GameAssets: React.FC = () => {
       }
     }
 
-    // Dispatch grid adjustment events
-    if (property === 'gridPosition' || property === 'gridScale' || property === 'gridStretch' || property === 'showSymbolGrid') {
-      // Get the current state to build the complete grid adjustments object
-      const currentConfig = assetConfig;
-      const gridAdjustments = {
-        position: property === 'gridPosition' ? value : currentConfig.gridPosition,
-        scale: property === 'gridScale' ? value : currentConfig.gridScale,
-        stretch: property === 'gridStretch' ? value : currentConfig.gridStretch,
-        showSymbolGrid: property === 'showSymbolGrid' ? value : currentConfig.showSymbolGrid
-      };
-
-      window.dispatchEvent(new CustomEvent('gridAdjustmentsUpdated', {
-        detail: gridAdjustments
-      }));
-    }
-
-    // Dispatch frame adjustment events
-    if (property === 'framePosition' || property === 'frameScale' || property === 'frameStretch') {
-      // Get the current state to build the complete frame adjustments object
-      const currentConfig = assetConfig;
-      const frameAdjustments = {
-        position: property === 'framePosition' ? value : currentConfig.framePosition,
-        scale: property === 'frameScale' ? value : currentConfig.frameScale,
-        stretch: property === 'frameStretch' ? value : currentConfig.frameStretch
-      };
-
-      window.dispatchEvent(new CustomEvent('frameAdjustmentsUpdated', {
-        detail: frameAdjustments
-      }));
-    }
-
     // Dispatch reel gap adjustment events
     if (property === 'reelGap' || property === 'reelDividerPosition' || property === 'reelDividerStretch') {
       const currentConfig = assetConfig;
@@ -898,49 +969,22 @@ const Step6_GameAssets: React.FC = () => {
       }));
     }
 
-    // Dispatch background positioning events for PixiJS integration
-    if (property === 'backgroundPosition' || property === 'backgroundScale' || property === 'backgroundFit') {
-      const currentConfig = assetConfig;
-      const backgroundAdjustments = {
-        position: property === 'backgroundPosition' ? value : currentConfig.backgroundPosition,
-        scale: property === 'backgroundScale' ? value : currentConfig.backgroundScale,
-        fit: property === 'backgroundFit' ? value : currentConfig.backgroundFit,
-        backgroundUrl: currentConfig.backgroundPath
-      };
-
-
-      window.dispatchEvent(new CustomEvent('backgroundAdjustmentsUpdated', {
-        detail: backgroundAdjustments
-      }));
-
-      // Also update the game store for persistence
-      updateConfig({
-        backgroundPosition: backgroundAdjustments.position,
-        backgroundScale: backgroundAdjustments.scale,
-        backgroundFit: backgroundAdjustments.fit
-      });
-    }
-
-    // Dispatch logo positioning and scaling events
+    // Dispatch logo positioning and scaling events immediately for responsive preview
     if (property === 'logoPositions' || property === 'logoScales') {
-      const currentConfig = assetConfig;
+      const device = assetConfig.currentDevice;
       if (property === 'logoPositions') {
         window.dispatchEvent(new CustomEvent('logoPositionChanged', {
-          detail: {
-            position: value[currentConfig.currentDevice],
-            device: currentConfig.currentDevice
-          }
+          detail: { position: value[device], device }
         }));
       } else if (property === 'logoScales') {
         window.dispatchEvent(new CustomEvent('logoScaleChanged', {
-          detail: {
-            scale: value[currentConfig.currentDevice],
-            device: currentConfig.currentDevice
-          }
+          detail: { scale: value[device], device }
         }));
       }
     }
   };
+
+
 
   // Generate background using AI
   const generateBackground = async () => {
@@ -1134,6 +1178,80 @@ const Step6_GameAssets: React.FC = () => {
     };
 
     reader.readAsDataURL(file);
+  };
+
+  // Handle sprite character (Spine) ZIP upload – expects .atlas, .skel or .json, and texture image
+  const handleSpineCharacterZipUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+      showWarning('Invalid file', 'Please select a ZIP file containing Spine assets (.atlas, .skel or .json, and texture image).');
+      return;
+    }
+    try {
+      const zip = await JSZip.loadAsync(file);
+      const names = Object.keys(zip.files).filter(n => !n.startsWith('__MACOSX'));
+      const atlasEntry = names.find(n => n.toLowerCase().endsWith('.atlas'));
+      const skelEntry = names.find(n => n.toLowerCase().endsWith('.skel'));
+      const jsonEntry = names.find(n => n.toLowerCase().endsWith('.json'));
+      const imageEntries = names.filter(n => {
+        const entry = zip.files[n];
+        if (entry?.dir) return false;
+        const lower = n.toLowerCase();
+        return lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp');
+      });
+      if (!atlasEntry) {
+        showWarning('Missing atlas', 'ZIP must contain a .atlas file.');
+        return;
+      }
+      if (!skelEntry && !jsonEntry) {
+        showWarning('Missing skeleton', 'ZIP must contain a .skel or .json skeleton file.');
+        return;
+      }
+      if (imageEntries.length === 0) {
+        showWarning('Missing texture', 'ZIP must contain at least one image (e.g. .png, .webp).');
+        return;
+      }
+      // Parse atlas to get the exact texture page name (first line of atlas = image filename)
+      const atlasText = await zip.files[atlasEntry].async('text');
+      const firstLine = atlasText.trim().split(/[\r\n]+/)[0]?.trim() || '';
+      const atlasPageName = firstLine || undefined;
+      const matchingImage = atlasPageName
+        ? imageEntries.find(entry => entry.replace(/^.*[/\\]/, '') === atlasPageName)
+        : null;
+      const imageEntry = matchingImage || imageEntries[0];
+      const textureName = atlasPageName || imageEntry.split(/[/\\]/).pop() || imageEntry;
+
+      const atlasBlob = await zip.files[atlasEntry].async('blob');
+      const atlasUrl = URL.createObjectURL(atlasBlob);
+      const skelOrJsonEntry = skelEntry || jsonEntry!;
+      const skelBlob = await zip.files[skelOrJsonEntry].async('blob');
+      const skelUrl = URL.createObjectURL(skelBlob);
+      const imgBlob = await zip.files[imageEntry].async('blob');
+      const textureUrl = URL.createObjectURL(imgBlob);
+
+      updateAssetConfig('spineCharacterAtlasUrl', atlasUrl);
+      updateAssetConfig('spineCharacterSkelUrl', skelUrl);
+      updateAssetConfig('spineCharacterTextureUrl', textureUrl);
+      updateAssetConfig('spineCharacterTextureName', textureName);
+      updateConfig({
+        spineCharacterAtlasUrl: atlasUrl,
+        spineCharacterSkelUrl: skelUrl,
+        spineCharacterTextureUrl: textureUrl,
+        spineCharacterTextureName: textureName
+      });
+      showSuccess('Sprite character loaded', 'ZIP extracted. Adjust position and scale below.');
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('spineCharacterUpdated', {
+          detail: { atlasUrl, skelUrl, textureUrl, textureName }
+        }));
+      }, 0);
+    } catch (err) {
+      console.error('Spine ZIP upload error:', err);
+      showWarning('Upload failed', err instanceof Error ? err.message : 'Failed to read ZIP.');
+    }
+    e.target.value = '';
   };
 
   // Set background variation in PixiJS preview (preview only, don't change main background)
@@ -2770,7 +2888,7 @@ DO NOT create a new button design. ONLY desaturate and fade the existing button'
             {assetConfig.backgroundPath && (
               <div className="mt-4 p-3 bg-gray-50 rounded-md">
                 <h4 className="text-sm uw:text-2xl font-medium text-gray-700 mb-2">Current Background</h4>
-                <div 
+                <div
                   className="relative aspect-video bg-gray-200 rounded-md overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all duration-200 group"
                   onClick={() => setBackgroundInPreview(assetConfig.backgroundPath!, 'main')}
                   title="Click to set as background in preview"
@@ -2988,7 +3106,7 @@ DO NOT create a new button design. ONLY desaturate and fade the existing button'
                         )}
                         <span className="uw:text-xl">Generate Night version</span>
                       </button>
-                      
+
                       {/* Right side - Upload */}
                       <label className="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 px-2 h-full text-white cursor-pointer">
                         <Upload className="w-4 h-4 uw:w-5 uw:h-5" />
@@ -3027,7 +3145,7 @@ DO NOT create a new button design. ONLY desaturate and fade the existing button'
                         )}
                         <span className="uw:text-xl">Generate Day version</span>
                       </button>
-                      
+
                       {/* Right side - Upload */}
                       <label className="flex items-center gap-1 text-white cursor-pointer p-2 bg-yellow-600 hover:bg-yellow-700">
                         <Upload className="w-4 h-4 uw:w-5 uw:h-5" />
@@ -3666,167 +3784,137 @@ DO NOT create a new button design. ONLY desaturate and fade the existing button'
               </div>
             </div>
 
-            {/* Layout guide
-            <div className="mt-4 p-3 bg-gray-50 rounded-md border border-gray-200">
-              <h4 className="text-sm uw:text-4xl font-medium text-gray-800 mb-2 flex items-center">
-                <Info className="w-6 h-7 uw:w-8  uw:h-9  mr-2" />
-                Button Layout Guide
-              </h4>
-              <div className="flex items-center justify-center">
-                <div className="flex bg-white border-2 border-gray-300 rounded-md overflow-hidden items-center gap-2 p-2 uw:text-3xl uw:p-4 uw:gap-4">
-                  {[
-                    { name: 'spinButton', label: 'SPIN', color: 'blue-700 uw:text-2xl' },
-                    { name: 'autoplayButton', label: 'AUTO', color: 'green-700 uw:text-2xl' },
-                    { name: 'menuButton', label: 'MENU', color: 'purple-700 uw:text-2xl' },
-                    { name: 'soundButton', label: 'SOUND', color: 'orange-700 uw:text-2xl' },
-                    { name: 'settingsButton', label: 'SETTINGS', color: 'gray-700 uw:text-2xl' },
-                  ].map(({ name, label, color }) => (
-                    <div
-                      key={name}
-                      className={`w-14 h-14 uw:w-28  uw:h-28 border-2 rounded-full flex flex-col items-center justify-center bg-gray-50 cursor-pointer m-1 ${selectedUIButton === name ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
-                      onClick={() => {
-                        setSelectedUIButton(name as keyof typeof assetConfig.uiElements);
-                        setSingleUIButtonPrompt('');
-                      }}
-                    >
-                      <span className={`text-xs uw:text-xl font-bold text-${color}`}>{label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <p className="text-xs uw:text-2xl text-gray-600 mt-2 text-center">
-                Click a button above to select it, then generate or upload a replacement below
-              </p>
-            </div> */}
-
-            
-
             {/* UI elements preview */}
-              <div className="mt-4 space-y-4 p-3 bg-gray-50 rounded-md border border-gray-200">
-                <div className='flex items-center justify-center gap-2'>
+            <div className="mt-4 space-y-4 p-3 bg-gray-50 rounded-md border border-gray-200">
+              <div className='flex items-center justify-center gap-2'>
 
                 <h4 className="text-sm uw:text-3xl font-medium text-gray-700">UI Elements Preview</h4>
                 <p className="text-xs uw:text-xl text-gray-500">
                   (Click any button below to select it for individual generation or upload)
                 </p>
-                </div>
+              </div>
 
-                {/* Interactive button preview */}
-                <div className="p-4 bg-gray-50 rounded-md">
-                  <div className="flex items-center justify-center gap-3">
-                    {[
-                      { name: 'spinButton', label: 'Spin', size: 'w-14 h-14 uw:w-28 uw:h-28', icon: Play },
-                      { name: 'autoplayButton', label: 'Autoplay', size: 'w-14 h-14 uw:w-28 uw:h-28', icon: RefreshCw },
-                      { name: 'menuButton', label: 'Menu', size: 'w-14 h-14 uw:w-28 uw:h-28', icon: Menu },
-                      { name: 'soundButton', label: 'Sound', size: 'w-14 h-14 uw:w-28 uw:h-28', icon: Volume2 },
-                      { name: 'settingsButton', label: 'Settings', size: 'w-14 h-14 uw:w-28 uw:h-28', icon: Settings }
-                    ].map(({ name, label, size, icon: Icon }) => {
-                      const normalImage = (assetConfig.uiElements as any)[name];
-                      const isSelected = selectedUIButton === name;
+              {/* Interactive button preview */}
+              <div className="p-4 bg-gray-50 rounded-md">
+                <div className="flex items-center justify-center gap-3">
+                  {[
+                    { name: 'spinButton', label: 'Spin', size: 'w-14 h-14 uw:w-28 uw:h-28', icon: Play },
+                    { name: 'autoplayButton', label: 'Autoplay', size: 'w-14 h-14 uw:w-28 uw:h-28', icon: RefreshCw },
+                    { name: 'menuButton', label: 'Menu', size: 'w-14 h-14 uw:w-28 uw:h-28', icon: Menu },
+                    { name: 'soundButton', label: 'Sound', size: 'w-14 h-14 uw:w-28 uw:h-28', icon: Volume2 },
+                    { name: 'settingsButton', label: 'Settings', size: 'w-14 h-14 uw:w-28 uw:h-28', icon: Settings }
+                  ].map(({ name, label, size, icon: Icon }) => {
+                    const normalImage = (assetConfig.uiElements as any)[name];
+                    const isSelected = selectedUIButton === name;
 
-                      return (
-                        <div 
-                          key={name} 
-                          className="flex flex-col items-center cursor-pointer transition-all"
-                          onClick={() => {
-                            setSelectedUIButton(name as keyof typeof assetConfig.uiElements);
-                            setSingleUIButtonPrompt('');
-                          }}
-                        >
-                          <div
-                            className={`${size} relative transition-all ${
-                              isSelected 
-                                ? 'ring-2 ring-blue-500 ring-offset-2 scale-105' 
-                                : 'hover:ring-2 hover:ring-blue-300 hover:scale-105'
+                    return (
+                      <div
+                        key={name}
+                        className="flex flex-col items-center cursor-pointer transition-all"
+                        onClick={() => {
+                          setSelectedUIButton(name as keyof typeof assetConfig.uiElements);
+                          setSingleUIButtonPrompt('');
+                        }}
+                      >
+                        <div
+                          className={`${size} relative transition-all ${isSelected
+                            ? 'ring-2 ring-blue-500 ring-offset-2 scale-105'
+                            : 'hover:ring-2 hover:ring-blue-300 hover:scale-105'
                             } rounded-full`}
-                          >
-                            {normalImage ? (
-                              <img
-                                src={normalImage}
-                                alt={label}
-                                className="w-full h-full object-contain rounded-full"
-                                style={{
-                                  filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3))'
-                                }}
-                              />
-                            ) : (
-                              <div className={`w-full h-full rounded-full flex items-center justify-center transition-colors ${
-                                isSelected ? 'bg-blue-200' : 'bg-gray-200 hover:bg-gray-300'
+                        >
+                          {normalImage ? (
+                            <img
+                              src={normalImage}
+                              alt={label}
+                              className="w-full h-full object-contain rounded-full"
+                              style={{
+                                filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3))'
+                              }}
+                            />
+                          ) : (
+                            <div className={`w-full h-full rounded-full flex items-center justify-center transition-colors ${isSelected ? 'bg-blue-200' : 'bg-gray-200 hover:bg-gray-300'
                               }`}>
-                                <Icon className={name === 'spinButton' ? 'w-10 h-10 uw:w-20 uw:h-20' : 'w-6 h-6 uw:w-9 uw:h-10'} />
-                              </div>
-                            )}
-                            
-                          </div>
-                          <span className={`text-xs uw:text-xl mt-1 transition-colors ${
-                            isSelected 
-                              ? 'text-blue-600 font-bold' 
-                              : name === 'spinButton' 
-                                ? 'text-gray-700 font-semibold' 
-                                : 'text-gray-600'
-                          }`}>
-                            {label}
-                          </span>
+                              <Icon className={name === 'spinButton' ? 'w-10 h-10 uw:w-20 uw:h-20' : 'w-6 h-6 uw:w-9 uw:h-10'} />
+                            </div>
+                          )}
+
                         </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* UI Bar Preview */}
-                  {assetConfig.uiBar && (
-                    <div className="mt-4">
-                      <h5 className="text-xs uw:text-2xl font-medium text-gray-600 mb-2">UI Bar</h5>
-                      <div className="w-full h-16 rounded overflow-hidden">
-                        <img
-                          src={assetConfig.uiBar}
-                          alt="UI Bar"
-                          className="w-full h-full object-cover"
-                        />
+                        <span className={`text-xs uw:text-xl mt-1 transition-colors ${isSelected
+                          ? 'text-blue-600 font-bold'
+                          : name === 'spinButton'
+                            ? 'text-gray-700 font-semibold'
+                            : 'text-gray-600'
+                          }`}>
+                          {label}
+                        </span>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })}
                 </div>
-                {/* Individual Button Generation/Upload */}
-            {selectedUIButton && (
-              <div className="mt-4 p-4 bg-blue-50 rounded-md border border-blue-300">
-                <h4 className="text-sm uw:text-3xl font-semibold text-blue-800 mb-3 flex items-center">
-                  <Sparkles className="w-4 h-4 mr-2 uw:w-7 uw:h-8" />
-                  Generate/Upload Individual Button: {selectedUIButton.replace('Button', '').toUpperCase()}
-                </h4>
 
-                <div className="space-y-3">
-                  <textarea
-                    className="w-full h-20 p-2 border border-blue-300 rounded-md resize-none text-sm uw:text-xl"
-                    placeholder={`Describe the ${selectedUIButton.replace('Button', '')} button style...`}
-                    value={singleUIButtonPrompt}
-                    onChange={(e) => setSingleUIButtonPrompt(e.target.value)}
-                  />
+                {/* UI Bar Preview */}
+                {assetConfig.uiBar && (
+                  <div className="mt-4">
+                    <h5 className="text-xs uw:text-2xl font-medium text-gray-600 mb-2">UI Bar</h5>
+                    <div className="w-full h-16 rounded overflow-hidden">
+                      <img
+                        src={assetConfig.uiBar}
+                        alt="UI Bar"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+              {/* Individual Button Generation/Upload */}
+              {selectedUIButton && (
+                <div className="mt-4 p-4 bg-blue-50 rounded-md border border-blue-300">
+                  <h4 className="text-sm uw:text-3xl font-semibold text-blue-800 mb-3 flex items-center">
+                    <Sparkles className="w-4 h-4 mr-2 uw:w-7 uw:h-8" />
+                    Generate/Upload Individual Button: {selectedUIButton.replace('Button', '').toUpperCase()}
+                  </h4>
 
-                  <div className="flex gap-2">
-                    <Button
-                      variant="generate"
-                      className="py-2 w-[50%]"
-                      onClick={async () => {
-                        if (!selectedUIButton) return;
+                  <div className="space-y-3">
+                    <textarea
+                      className="w-full h-20 p-2 border border-blue-300 rounded-md resize-none text-sm uw:text-xl"
+                      placeholder={`Describe the ${selectedUIButton.replace('Button', '')} button style...`}
+                      value={singleUIButtonPrompt}
+                      onChange={(e) => setSingleUIButtonPrompt(e.target.value)}
+                    />
 
-                        updateAssetConfig('isGeneratingUIButtons', true);
-                        try {
-                          const themeName = typeof config.theme === 'string'
-                            ? config.theme
-                            : (config.theme?.mainTheme || config.theme?.name || 'casino');
+                    <div className="flex gap-2">
+                      <Button
+                        variant="generate"
+                        className="py-2 w-[50%]"
+                        onClick={async () => {
+                          if (!selectedUIButton) return;
 
-                          const buttonLabels = {
-                            spinButton: 'SPIN',
-                            autoplayButton: 'AUTO',
-                            menuButton: 'MENU',
-                            soundButton: 'SOUND',
-                            settingsButton: 'SETTINGS'
-                          };
+                          updateAssetConfig('isGeneratingUIButtons', true);
+                          try {
+                            const themeName = typeof config.theme === 'string'
+                              ? config.theme
+                              : (config.theme?.mainTheme || config.theme?.name || 'casino');
 
-                          const customPrompt = singleUIButtonPrompt.trim();
-                          const basePrompt = customPrompt || `${themeName} themed ${selectedUIButton.replace('Button', '')} button`;
+                            const buttonLabels = {
+                              spinButton: 'SPIN',
+                              autoplayButton: 'AUTO',
+                              menuButton: 'MENU',
+                              soundButton: 'SOUND',
+                              settingsButton: 'SETTINGS'
+                            };
 
-                          const enhancedPrompt = `Create a premium casino ${buttonLabels[selectedUIButton]} button for slot machine games.
+                            const customPrompt = singleUIButtonPrompt.trim();
+
+                            let finalPrompt = "";
+
+                            if (customPrompt) {
+                              // If user provided a prompt, use it directly without any enhancements
+                              finalPrompt = customPrompt;
+                            } else {
+                              // If no prompt provided, use the enhanced generation logic
+                              const basePrompt = `${themeName} themed ${selectedUIButton.replace('Button', '')} button`;
+
+                              finalPrompt = `Create a premium casino ${buttonLabels[selectedUIButton]} button for slot machine games.
                             DESIGN REQUIREMENTS:
                             - ${selectedUIButton === 'spinButton' ? 'Medium circular' : 'Rounded rectangle'} button centered on 1024x1024 canvas
                             - "${buttonLabels[selectedUIButton]}" text clearly visible
@@ -3838,194 +3926,195 @@ DO NOT create a new button design. ONLY desaturate and fade the existing button'
                             - Size: approximately ${selectedUIButton === 'spinButton' ? '200-250' : '150-180'}px on the canvas
                             STYLE: ${basePrompt}
                             Create a beautiful button that matches the theme!`;
+                            }
 
-                          const result = await enhancedOpenaiClient.generateImageWithConfig({
-                            prompt: enhancedPrompt,
-                            targetSymbolId: `ui_${selectedUIButton}_normal`,
-                            gameId: config.gameId,
-                            count: 1
-                          });
+                            const result = await enhancedOpenaiClient.generateImageWithConfig({
+                              prompt: finalPrompt,
+                              targetSymbolId: `ui_${selectedUIButton}_normal`,
+                              gameId: config.gameId,
+                              count: 1
+                            });
 
-                          if (result?.success && result.images && result.images.length > 0) {
-                            const newElements = { ...assetConfig.uiElements, [selectedUIButton]: result.images[0] };
-                            const newExtracted = { ...assetConfig.extractedUIButtons, [selectedUIButton]: result.images[0] };
-                            const newImageIds = { ...assetConfig.uiButtonImageIds, [selectedUIButton]: `ui_${selectedUIButton}_normal` };
+                            if (result?.success && result.images && result.images.length > 0) {
+                              const newElements = { ...assetConfig.uiElements, [selectedUIButton]: result.images[0] };
+                              const newExtracted = { ...assetConfig.extractedUIButtons, [selectedUIButton]: result.images[0] };
+                              const newImageIds = { ...assetConfig.uiButtonImageIds, [selectedUIButton]: `ui_${selectedUIButton}_normal` };
 
-                            updateAssetConfig('uiElements', newElements);
-                            updateAssetConfig('extractedUIButtons', newExtracted);
-                            updateAssetConfig('uiButtonImageIds', newImageIds);
+                              updateAssetConfig('uiElements', newElements);
+                              updateAssetConfig('extractedUIButtons', newExtracted);
+                              updateAssetConfig('uiButtonImageIds', newImageIds);
 
-                            updateConfig({ uiElements: newElements, extractedUIButtons: newExtracted, uiButtonImageIds: newImageIds } as any);
+                              updateConfig({ uiElements: newElements, extractedUIButtons: newExtracted, uiButtonImageIds: newImageIds } as any);
 
-                            window.dispatchEvent(new CustomEvent('individualButtonsUpdated', { detail: { buttons: newElements } }));
-                            showSuccess('Success', `${buttonLabels[selectedUIButton]} button generated successfully!`);
+                              window.dispatchEvent(new CustomEvent('individualButtonsUpdated', { detail: { buttons: newElements } }));
+                              showSuccess('Success', `${buttonLabels[selectedUIButton]} button generated successfully!`);
+                            }
+                          } catch (error) {
+                            console.error('Error generating button:', error);
+                            showWarning('Error', 'Failed to generate button. Please try again.');
+                          } finally {
+                            updateAssetConfig('isGeneratingUIButtons', false);
                           }
-                        } catch (error) {
-                          console.error('Error generating button:', error);
-                          showWarning('Error', 'Failed to generate button. Please try again.');
-                        } finally {
-                          updateAssetConfig('isGeneratingUIButtons', false);
-                        }
-                      }}
-                      disabled={assetConfig.isGeneratingUIButtons}
-                    >
-                      {assetConfig.isGeneratingUIButtons ? (
-                        <><Loader className="w-5 h-5 animate-spin" />Generating...</>
-                      ) : (
-                        <><Sparkles className="w-5 h-5" />Generate</>
-                      )}
-                    </Button>
+                        }}
+                        disabled={assetConfig.isGeneratingUIButtons}
+                      >
+                        {assetConfig.isGeneratingUIButtons ? (
+                          <><Loader className="w-5 h-5 animate-spin" />Generating...</>
+                        ) : (
+                          <><Sparkles className="w-5 h-5" />Generate</>
+                        )}
+                      </Button>
 
-                    <Button
-                      variant="uploadImage"
-                      className="py-2 w-[50%]"
-                      onClick={() => singleUIButtonFileInputRef.current?.click()}
-                    >
-                      <Upload className="w-5 h-5" />
-                      Upload
-                    </Button>
-                    <input
-                      type="file"
-                      ref={singleUIButtonFileInputRef}
-                      className="hidden"
-                      accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
-                      onChange={(e) => {
-                        const files = e.target.files;
-                        if (!files || files.length === 0 || !selectedUIButton) return;
+                      <Button
+                        variant="uploadImage"
+                        className="py-2 w-[50%]"
+                        onClick={() => singleUIButtonFileInputRef.current?.click()}
+                      >
+                        <Upload className="w-5 h-5" />
+                        Upload
+                      </Button>
+                      <input
+                        type="file"
+                        ref={singleUIButtonFileInputRef}
+                        className="hidden"
+                        accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+                        onChange={(e) => {
+                          const files = e.target.files;
+                          if (!files || files.length === 0 || !selectedUIButton) return;
 
-                        const file = files[0];
-                        if (!file.type.startsWith('image/')) {
-                          alert('Please select an image file');
-                          return;
-                        }
-
-                        const reader = new FileReader();
-                        reader.onload = (event) => {
-                          if (event.target && typeof event.target.result === 'string') {
-                            const newElements = { ...assetConfig.uiElements, [selectedUIButton]: event.target.result };
-                            const newExtracted = { ...assetConfig.extractedUIButtons, [selectedUIButton]: event.target.result };
-
-                            updateAssetConfig('uiElements', newElements);
-                            updateAssetConfig('extractedUIButtons', newExtracted);
-                            updateConfig({ uiElements: newElements, extractedUIButtons: newExtracted } as any);
-
-                            window.dispatchEvent(new CustomEvent('individualButtonsUpdated', { detail: { buttons: newElements } }));
-                            showSuccess('Success', 'Button uploaded successfully!');
+                          const file = files[0];
+                          if (!file.type.startsWith('image/')) {
+                            alert('Please select an image file');
+                            return;
                           }
-                        };
-                        reader.readAsDataURL(file);
-                      }}
-                      key={`single-button-upload-${selectedUIButton}`}
-                    />
+
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            if (event.target && typeof event.target.result === 'string') {
+                              const newElements = { ...assetConfig.uiElements, [selectedUIButton]: event.target.result };
+                              const newExtracted = { ...assetConfig.extractedUIButtons, [selectedUIButton]: event.target.result };
+
+                              updateAssetConfig('uiElements', newElements);
+                              updateAssetConfig('extractedUIButtons', newExtracted);
+                              updateConfig({ uiElements: newElements, extractedUIButtons: newExtracted } as any);
+
+                              window.dispatchEvent(new CustomEvent('individualButtonsUpdated', { detail: { buttons: newElements } }));
+                              showSuccess('Success', 'Button uploaded successfully!');
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                        key={`single-button-upload-${selectedUIButton}`}
+                      />
+                    </div>
+
+                    <p className="text-xs uw:text-xl text-blue-700">
+                      This will only replace the {selectedUIButton.replace('Button', '').toUpperCase()} button. All other buttons will remain unchanged.
+                    </p>
                   </div>
-
-                  <p className="text-xs uw:text-xl text-blue-700">
-                    This will only replace the {selectedUIButton.replace('Button', '').toUpperCase()} button. All other buttons will remain unchanged.
-                  </p>
                 </div>
-              </div>
-            )}
+              )}
 
-                {/* Advanced Button State Management */}
-                {assetConfig.uiElements.spinButton && (
-                  <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-md border border-green-200">
-                    <h4 className="text-sm uw:text-3xl font-semibold text-green-800 mb-4 flex items-center">
-                      <Settings className="w-4 h-4 uw:w-6 uw:h-7 mr-2" />
-                      Advanced Button Controls
-                    </h4>
+              {/* Advanced Button State Management */}
+              {assetConfig.uiElements.spinButton && (
+                <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-md border border-green-200">
+                  <h4 className="text-sm uw:text-3xl font-semibold text-green-800 mb-4 flex items-center">
+                    <Settings className="w-4 h-4 uw:w-6 uw:h-7 mr-2" />
+                    Advanced Button Controls
+                  </h4>
 
-                    {/* Button State Manager */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      <div>
-                        <h5 className="text-sm uw:text-2xl font-medium text-green-700 mb-3">Button States</h5>
-                        <div className="space-y-3">
-                          {['spinButton', 'autoplayButton', 'menuButton', 'soundButton', 'settingsButton'].map((buttonName) => (
-                            <div key={buttonName} className="p-3 bg-white rounded border border-green-200">
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs uw:text-xl font-medium text-green-800 capitalize">
-                                  {buttonName.replace('Button', '')}
-                                </span>
-                                <div className="flex gap-1">
-                                  <span className={`w-2 h-2 rounded-full ${assetConfig.uiElements[buttonName] ? 'bg-green-500' : 'bg-gray-300'}`} title="Normal"></span>
-                                  <span className={`w-2 h-2 rounded-full ${assetConfig.uiElementsPressed?.[buttonName] ? 'bg-blue-500' : 'bg-gray-300'}`} title="Pressed"></span>
-                                  <span className={`w-2 h-2 rounded-full ${assetConfig.uiElementsDisabled?.[buttonName] ? 'bg-red-500' : 'bg-gray-300'}`} title="Disabled"></span>
-                                </div>
-                              </div>
-                              <div className="grid grid-cols-3 gap-2 text-xs uw:text-xl">
-                                <div className="text-center">
-                                  <div className="w-8 h-8 mx-auto mb-1 border rounded overflow-hidden uw:h-20 uw:w-20">
-                                    {assetConfig.uiElements[buttonName] ? (
-                                      <img src={assetConfig.uiElements[buttonName]} alt="Normal" className="w-full h-full object-cover" />
-                                    ) : (
-                                      <div className="w-full h-full bg-gray-100"></div>
-                                    )}
-                                  </div>
-                                  <span className="text-green-600">Normal</span>
-                                </div>
-                                <div className="text-center">
-                                  <div className="w-8 h-8 mx-auto mb-1 border rounded overflow-hidden uw:h-20 uw:w-20">
-                                    {assetConfig.uiElementsPressed?.[buttonName] ? (
-                                      <img src={assetConfig.uiElementsPressed[buttonName]} alt="Pressed" className="w-full h-full object-cover" />
-                                    ) : (
-                                      <div className="w-full h-full bg-gray-100"></div>
-                                    )}
-                                  </div>
-                                  <span className="text-blue-600">Pressed</span>
-                                </div>
-                                <div className="text-center">
-                                  <div className="w-8 h-8 mx-auto mb-1 border rounded overflow-hidden uw:h-20 uw:w-20">
-                                    {assetConfig.uiElementsDisabled?.[buttonName] ? (
-                                      <img src={assetConfig.uiElementsDisabled[buttonName]} alt="Disabled" className="w-full h-full object-cover" />
-                                    ) : (
-                                      <div className="w-full h-full bg-gray-100"></div>
-                                    )}
-                                  </div>
-                                  <span className="text-red-600">Disabled</span>
-                                </div>
+                  {/* Button State Manager */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div>
+                      <h5 className="text-sm uw:text-2xl font-medium text-green-700 mb-3">Button States</h5>
+                      <div className="space-y-3">
+                        {['spinButton', 'autoplayButton', 'menuButton', 'soundButton', 'settingsButton'].map((buttonName) => (
+                          <div key={buttonName} className="p-3 bg-white rounded border border-green-200">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs uw:text-xl font-medium text-green-800 capitalize">
+                                {buttonName.replace('Button', '')}
+                              </span>
+                              <div className="flex gap-1">
+                                <span className={`w-2 h-2 rounded-full ${assetConfig.uiElements[buttonName] ? 'bg-green-500' : 'bg-gray-300'}`} title="Normal"></span>
+                                <span className={`w-2 h-2 rounded-full ${assetConfig.uiElementsPressed?.[buttonName] ? 'bg-blue-500' : 'bg-gray-300'}`} title="Pressed"></span>
+                                <span className={`w-2 h-2 rounded-full ${assetConfig.uiElementsDisabled?.[buttonName] ? 'bg-red-500' : 'bg-gray-300'}`} title="Disabled"></span>
                               </div>
                             </div>
-                          ))}
+                            <div className="grid grid-cols-3 gap-2 text-xs uw:text-xl">
+                              <div className="text-center">
+                                <div className="w-8 h-8 mx-auto mb-1 border rounded overflow-hidden uw:h-20 uw:w-20">
+                                  {assetConfig.uiElements[buttonName] ? (
+                                    <img src={assetConfig.uiElements[buttonName]} alt="Normal" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <div className="w-full h-full bg-gray-100"></div>
+                                  )}
+                                </div>
+                                <span className="text-green-600">Normal</span>
+                              </div>
+                              <div className="text-center">
+                                <div className="w-8 h-8 mx-auto mb-1 border rounded overflow-hidden uw:h-20 uw:w-20">
+                                  {assetConfig.uiElementsPressed?.[buttonName] ? (
+                                    <img src={assetConfig.uiElementsPressed[buttonName]} alt="Pressed" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <div className="w-full h-full bg-gray-100"></div>
+                                  )}
+                                </div>
+                                <span className="text-blue-600">Pressed</span>
+                              </div>
+                              <div className="text-center">
+                                <div className="w-8 h-8 mx-auto mb-1 border rounded overflow-hidden uw:h-20 uw:w-20">
+                                  {assetConfig.uiElementsDisabled?.[buttonName] ? (
+                                    <img src={assetConfig.uiElementsDisabled[buttonName]} alt="Disabled" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <div className="w-full h-full bg-gray-100"></div>
+                                  )}
+                                </div>
+                                <span className="text-red-600">Disabled</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <h5 className="text-sm uw:text-3xl font-medium text-green-700 mb-3">Button Layout & Positioning</h5>
+                      <div className="p- bg-white rounded border border-green-200">
+                        <div className="space-y-">
+                          <button
+                            className={`w-full text-xs uw:text-xl py-2 px-3 rounded transition-colors flex items-center justify-center gap-2 ${assetConfig.isGeneratingButtonStates
+                              ? 'bg-green-400 text-white cursor-not-allowed'
+                              : 'bg-green-600 hover:bg-green-700 text-white'
+                              }`}
+                            onClick={() => regenerateButtonStates()}
+                            disabled={assetConfig.isGeneratingButtonStates}
+                          >
+                            {assetConfig.isGeneratingButtonStates ? (
+                              <>
+                                <Loader className="w-3 h-3 animate-spin" />
+                                Generating States...
+                              </>
+                            ) : (
+                              'Generate Missing States'
+                            )}
+                          </button>
                         </div>
                       </div>
-                      <div>
-                        <h5 className="text-sm uw:text-3xl font-medium text-green-700 mb-3">Button Layout & Positioning</h5>
-                        <div className="p- bg-white rounded border border-green-200">
-                          <div className="space-y-">
-                            <button
-                              className={`w-full text-xs uw:text-xl py-2 px-3 rounded transition-colors flex items-center justify-center gap-2 ${assetConfig.isGeneratingButtonStates
-                                ? 'bg-green-400 text-white cursor-not-allowed'
-                                : 'bg-green-600 hover:bg-green-700 text-white'
-                                }`}
-                              onClick={() => regenerateButtonStates()}
-                              disabled={assetConfig.isGeneratingButtonStates}
-                            >
-                              {assetConfig.isGeneratingButtonStates ? (
-                                <>
-                                  <Loader className="w-3 h-3 animate-spin" />
-                                  Generating States...
-                                </>
-                              ) : (
-                                'Generate Missing States'
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                        {/* UI Button Positioning & Visibility Controls */}
-                        <div className="mt-4 p-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-md border border-blue-200">
-                          <h5 className="text-sm uw:text-3xl font-medium text-blue-700 mb-3 flex items-center">
-                            UI Button Adjustments
-                          </h5>
+                      {/* UI Button Positioning & Visibility Controls */}
+                      <div className="mt-4 p-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-md border border-blue-200">
+                        <h5 className="text-sm uw:text-3xl font-medium text-blue-700 mb-3 flex items-center">
+                          UI Button Adjustments
+                        </h5>
 
-                          <div className="flex flex-col gap-2">
-                            {/* Position Controls - Only shown when a button is selected */}
-                            {selectedUIButton ? (
-                              <div className="space-y-1">
-                                <div className="flex items-center justify-between pl-2">
-                                  <h6 className="text-xs uw:text-xl font-medium text-gray-800">
-                                    Position: {selectedUIButton.replace('Button', '').toUpperCase()}
-                                  </h6>
-                                  {((assetConfig.uiButtonPositions as any)?.[selectedUIButton]?.x !== 0 || 
-                                    (assetConfig.uiButtonPositions as any)?.[selectedUIButton]?.y !== 0) && (
+                        <div className="flex flex-col gap-2">
+                          {/* Position Controls - Only shown when a button is selected */}
+                          {selectedUIButton ? (
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between pl-2">
+                                <h6 className="text-xs uw:text-xl font-medium text-gray-800">
+                                  Position: {selectedUIButton.replace('Button', '').toUpperCase()}
+                                </h6>
+                                {((assetConfig.uiButtonPositions as any)?.[selectedUIButton]?.x !== 0 ||
+                                  (assetConfig.uiButtonPositions as any)?.[selectedUIButton]?.y !== 0) && (
                                     <button
                                       onClick={() => {
                                         const newPositions = {
@@ -4040,360 +4129,366 @@ DO NOT create a new button design. ONLY desaturate and fade the existing button'
                                       <RotateCcw className="w-4 h-4 uw:w-5 uw:h-5" />
                                     </button>
                                   )}
-                                </div>
-                                <div className='p-2 border rounded-md bg-gray-50'>
-                                  <label className="text-xs uw:text-xl text-blue-700 block">Horizontal Offset</label>
-                                  <input
-                                    type="range"
-                                    min="-200"
-                                    max="200"
-                                    value={(assetConfig.uiButtonPositions as any)?.[selectedUIButton]?.x || 0}
-                                    onChange={(e) => {
-                                      const newPositions = {
-                                        ...(assetConfig.uiButtonPositions || {}),
-                                        [selectedUIButton]: {
-                                          x: parseInt(e.target.value),
-                                          y: (assetConfig.uiButtonPositions as any)?.[selectedUIButton]?.y || 0
-                                        }
-                                      };
-                                      updateAssetConfig('uiButtonPositions', newPositions);
-                                    }}
-                                    className="w-full h-1.5 accent-blue-500"
-                                  />
-                                  <div className="flex justify-between text-xs uw:text-xl text-blue-600">
-                                    <span>Left</span>
-                                    <span>{(assetConfig.uiButtonPositions as any)?.[selectedUIButton]?.x || 0}px</span>
-                                    <span>Right</span>
-                                  </div>
-                                </div>
-
-                                <div className='p-2 border rounded-md bg-gray-50'>
-                                  <label className="text-xs uw:text-xl text-blue-700 mb- block">Vertical Offset</label>
-                                  <input
-                                    type="range"
-                                    min="-100"
-                                    max="100"
-                                    value={(assetConfig.uiButtonPositions as any)?.[selectedUIButton]?.y || 0}
-                                    onChange={(e) => {
-                                      const newPositions = {
-                                        ...(assetConfig.uiButtonPositions || {}),
-                                        [selectedUIButton]: {
-                                          x: (assetConfig.uiButtonPositions as any)?.[selectedUIButton]?.x || 0,
-                                          y: parseInt(e.target.value)
-                                        }
-                                      };
-                                      updateAssetConfig('uiButtonPositions', newPositions);
-                                    }}
-                                    className="w-full h-1.5 accent-blue-500"
-                                  />
-                                  <div className="flex justify-between text-xs uw:text-xl text-blue-600">
-                                    <span>Up</span>
-                                    <span>{(assetConfig.uiButtonPositions as any)?.[selectedUIButton]?.y || 0}px</span>
-                                    <span>Down</span>
-                                  </div>
-                                  <p className="text-xs uw:text-xl text-blue-600 mt-1 text-center">
-                                    Only affects the selected button
-                                  </p>
+                              </div>
+                              <div className='p-2 border rounded-md bg-gray-50'>
+                                <label className="text-xs uw:text-xl text-blue-700 block">Horizontal Offset</label>
+                                <input
+                                  type="range"
+                                  min="-200"
+                                  max="200"
+                                  value={(assetConfig.uiButtonPositions as any)?.[selectedUIButton]?.x || 0}
+                                  onChange={(e) => {
+                                    const newPositions = {
+                                      ...(assetConfig.uiButtonPositions || {}),
+                                      [selectedUIButton]: {
+                                        x: parseInt(e.target.value),
+                                        y: (assetConfig.uiButtonPositions as any)?.[selectedUIButton]?.y || 0
+                                      }
+                                    };
+                                    updateAssetConfig('uiButtonPositions', newPositions);
+                                  }}
+                                  className="w-full h-1.5 accent-blue-500"
+                                />
+                                <div className="flex justify-between text-xs uw:text-xl text-blue-600">
+                                  <span>Left</span>
+                                  <span>{(assetConfig.uiButtonPositions as any)?.[selectedUIButton]?.x || 0}px</span>
+                                  <span>Right</span>
                                 </div>
                               </div>
-                            ) : (
-                              <div className="space-y-1">
-                                <h6 className="text-xs uw:text-2xl pl-2 font-medium text-gray-800">Position</h6>
-                                <div className='p-2 border rounded-md bg-gray-50'>
-                                  <label className="text-xs uw:text-xl text-blue-700 block">Horizontal Offset</label>
-                                  <input
-                                    type="range"
-                                    min="-200"
-                                    max="200"
-                                    value={assetConfig.uiButtonsPosition.x}
-                                    onChange={(e) => updateAssetConfig('uiButtonsPosition', {
-                                      ...assetConfig.uiButtonsPosition,
-                                      x: parseInt(e.target.value)
-                                    })}
-                                    className="w-full h-1.5 accent-blue-500"
-                                  />
-                                  <div className="flex justify-between text-xs uw:text-xl text-blue-600">
-                                    <span>Left</span>
-                                    <span>{assetConfig.uiButtonsPosition.x}px</span>
-                                    <span>Right</span>
-                                  </div>
-                                </div>
 
-                                <div className='p-2 border rounded-md bg-gray-50'>
-                                  <label className="text-xs uw:text-xl text-blue-700 mb- block">Vertical Offset</label>
-                                  <input
-                                    type="range"
-                                    min="-100"
-                                    max="100"
-                                    value={assetConfig.uiButtonsPosition.y}
-                                    onChange={(e) => updateAssetConfig('uiButtonsPosition', {
-                                      ...assetConfig.uiButtonsPosition,
-                                      y: parseInt(e.target.value)
-                                    })}
-                                    className="w-full h-1.5 accent-blue-500"
-                                  />
-                                  <div className="flex justify-between text-xs uw:text-xl text-blue-600">
-                                    <span>Up</span>
-                                    <span>{assetConfig.uiButtonsPosition.y}px</span>
-                                    <span>Down</span>
-                                  </div>
-                                  <p className="text-xs uw:text-xl text-blue-600 mt-1 text-center">
-                                    Select a button above to position individually
-                                  </p>
+                              <div className='p-2 border rounded-md bg-gray-50'>
+                                <label className="text-xs uw:text-xl text-blue-700 mb- block">Vertical Offset</label>
+                                <input
+                                  type="range"
+                                  min="-100"
+                                  max="100"
+                                  value={(assetConfig.uiButtonPositions as any)?.[selectedUIButton]?.y || 0}
+                                  onChange={(e) => {
+                                    const newPositions = {
+                                      ...(assetConfig.uiButtonPositions || {}),
+                                      [selectedUIButton]: {
+                                        x: (assetConfig.uiButtonPositions as any)?.[selectedUIButton]?.x || 0,
+                                        y: parseInt(e.target.value)
+                                      }
+                                    };
+                                    updateAssetConfig('uiButtonPositions', newPositions);
+                                  }}
+                                  className="w-full h-1.5 accent-blue-500"
+                                />
+                                <div className="flex justify-between text-xs uw:text-xl text-blue-600">
+                                  <span>Up</span>
+                                  <span>{(assetConfig.uiButtonPositions as any)?.[selectedUIButton]?.y || 0}px</span>
+                                  <span>Down</span>
+                                </div>
+                                <p className="text-xs uw:text-xl text-blue-600 mt-1 text-center">
+                                  Only affects the selected button
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <h6 className="text-xs uw:text-2xl pl-2 font-medium text-gray-800">Position</h6>
+                              <div className='p-2 border rounded-md bg-gray-50'>
+                                <label className="text-xs uw:text-xl text-blue-700 block">Horizontal Offset</label>
+                                <input
+                                  type="range"
+                                  min="-200"
+                                  max="200"
+                                  value={assetConfig.uiButtonsPosition.x}
+                                  onChange={(e) => updateAssetConfig('uiButtonsPosition', {
+                                    ...assetConfig.uiButtonsPosition,
+                                    x: parseInt(e.target.value)
+                                  })}
+                                  className="w-full h-1.5 accent-blue-500"
+                                />
+                                <div className="flex justify-between text-xs uw:text-xl text-blue-600">
+                                  <span>Left</span>
+                                  <span>{assetConfig.uiButtonsPosition.x}px</span>
+                                  <span>Right</span>
                                 </div>
                               </div>
-                            )}
 
-                            {/* Scale Control - Only shown when a button is selected */}
-                            {selectedUIButton && (
-                              <div className="space-y-1">
-                                <div className="flex items-center justify-between pl-2">
-                                  <h6 className="text-xs uw:text-xl font-medium text-gray-800">
-                                    Scale: {selectedUIButton.replace('Button', '').toUpperCase()}
-                                  </h6>
-                                  {(assetConfig.uiButtonScales as any)?.[selectedUIButton] !== 100 && (assetConfig.uiButtonScales as any)?.[selectedUIButton] !== undefined && (
-                                    <button
-                                      onClick={() => {
-                                        const newScales = {
-                                          ...(assetConfig.uiButtonScales || {}),
-                                          [selectedUIButton]: 100
-                                        };
-                                        updateAssetConfig('uiButtonScales', newScales);
-                                      }}
-                                      className="text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded p-1 transition-colors"
-                                      title="Reset to 100%"
-                                    >
-                                      <RotateCcw className="w-4 h-4 uw:w-5 uw:h-5" />
-                                    </button>
-                                  )}
+                              <div className='p-2 border rounded-md bg-gray-50'>
+                                <label className="text-xs uw:text-xl text-blue-700 mb- block">Vertical Offset</label>
+                                <input
+                                  type="range"
+                                  min="-100"
+                                  max="100"
+                                  value={assetConfig.uiButtonsPosition.y}
+                                  onChange={(e) => updateAssetConfig('uiButtonsPosition', {
+                                    ...assetConfig.uiButtonsPosition,
+                                    y: parseInt(e.target.value)
+                                  })}
+                                  className="w-full h-1.5 accent-blue-500"
+                                />
+                                <div className="flex justify-between text-xs uw:text-xl text-blue-600">
+                                  <span>Up</span>
+                                  <span>{assetConfig.uiButtonsPosition.y}px</span>
+                                  <span>Down</span>
                                 </div>
-                                <div className='p-2 border rounded-md bg-gray-50'>
-                                  <label className="text-xs uw:text-xl text-blue-700 block">
-                                    {selectedUIButton.replace('Button', '').toUpperCase()} Button Size
-                                  </label>
-                                  <input
-                                    type="range"
-                                    min="50"
-                                    max="200"
-                                    value={(assetConfig.uiButtonScales as any)?.[selectedUIButton] || 100}
-                                    onChange={(e) => {
+                                <p className="text-xs uw:text-xl text-blue-600 mt-1 text-center">
+                                  Select a button above to position individually
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Scale Control - Only shown when a button is selected */}
+                          {selectedUIButton && (
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between pl-2">
+                                <h6 className="text-xs uw:text-xl font-medium text-gray-800">
+                                  Scale: {selectedUIButton.replace('Button', '').toUpperCase()}
+                                </h6>
+                                {(assetConfig.uiButtonScales as any)?.[selectedUIButton] !== 100 && (assetConfig.uiButtonScales as any)?.[selectedUIButton] !== undefined && (
+                                  <button
+                                    onClick={() => {
                                       const newScales = {
                                         ...(assetConfig.uiButtonScales || {}),
-                                        [selectedUIButton]: parseInt(e.target.value)
+                                        [selectedUIButton]: 100
                                       };
                                       updateAssetConfig('uiButtonScales', newScales);
                                     }}
-                                    className="w-full h-1.5 accent-blue-500"
-                                  />
-                                  <div className="flex justify-between text-xs uw:text-xl text-blue-600">
-                                    <span>50%</span>
-                                    <span>{(assetConfig.uiButtonScales as any)?.[selectedUIButton] || 100}%</span>
-                                    <span>200%</span>
-                                  </div>
-                                  <p className="text-xs uw:text-xl text-blue-600 mt-1 text-center">
-                                    Only affects the selected button
-                                  </p>
-                                </div>
+                                    className="text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded p-1 transition-colors"
+                                    title="Reset to 100%"
+                                  >
+                                    <RotateCcw className="w-4 h-4 uw:w-5 uw:h-5" />
+                                  </button>
+                                )}
                               </div>
-                            )}
-
-                            {/* Global Scale Control */}
-                            {!selectedUIButton && (
-                              <div className="space-y-1">
-                                <div className="flex items-center justify-between pl-2">
-                                  <h6 className="text-xs uw:text-xl font-medium text-gray-800">Global Scale</h6>
-                                  {assetConfig.uiButtonsScale !== 100 && (
-                                    <button
-                                      onClick={() => updateAssetConfig('uiButtonsScale', 100)}
-                                      className="text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded p-1 transition-colors"
-                                      title="Reset to 100%"
-                                    >
-                                      <RotateCcw className="w-4 h-4 uw:w-5 uw:h-5" />
-                                    </button>
-                                  )}
+                              <div className='p-2 border rounded-md bg-gray-50'>
+                                <label className="text-xs uw:text-xl text-blue-700 block">
+                                  {selectedUIButton.replace('Button', '').toUpperCase()} Button Size
+                                </label>
+                                <input
+                                  type="range"
+                                  min="50"
+                                  max="200"
+                                  value={(assetConfig.uiButtonScales as any)?.[selectedUIButton] || 100}
+                                  onChange={(e) => {
+                                    const newScales = {
+                                      ...(assetConfig.uiButtonScales || {}),
+                                      [selectedUIButton]: parseInt(e.target.value)
+                                    };
+                                    updateAssetConfig('uiButtonScales', newScales);
+                                  }}
+                                  className="w-full h-1.5 accent-blue-500"
+                                />
+                                <div className="flex justify-between text-xs uw:text-xl text-blue-600">
+                                  <span>50%</span>
+                                  <span>{(assetConfig.uiButtonScales as any)?.[selectedUIButton] || 100}%</span>
+                                  <span>200%</span>
                                 </div>
-                                <div className='p-2 border rounded-md bg-gray-50'>
-                                  <label className="text-xs uw:text-xl text-blue-700 block">All Buttons Size</label>
-                                  <input
-                                    type="range"
-                                    min="50"
-                                    max="200"
-                                    value={assetConfig.uiButtonsScale}
-                                    onChange={(e) => updateAssetConfig('uiButtonsScale', parseInt(e.target.value))}
-                                    className="w-full h-1.5 accent-blue-500"
-                                  />
-                                  <div className="flex justify-between text-xs uw:text-xl text-blue-600">
-                                    <span>50%</span>
-                                    <span>{assetConfig.uiButtonsScale}%</span>
-                                    <span>200%</span>
-                                  </div>
-                                  <p className="text-xs uw:text-xl text-blue-600 mt-1 text-center">
-                                    Select a button above to scale individually
-                                  </p>
-                                </div>
+                                <p className="text-xs uw:text-xl text-blue-600 mt-1 text-center">
+                                  Only affects the selected button
+                                </p>
                               </div>
-                            )}
-
-                            {/* Visibility Control */}
-                            <div className="space-y-1">
-                              <button
-                                className="w-full text-xs uw:text-xl bg-blue-600 text-white py-2 px-3 rounded hover:bg-blue-700 transition-colors"
-                                onClick={() => {
-                                  // Reset UI button controls
-                                  updateAssetConfig('uiButtonsPosition', { x: 0, y: 0 });
-                                  updateAssetConfig('uiButtonsScale', 100);
-                                  updateAssetConfig('uiButtonScales', {
-                                    spinButton: 100,
-                                    autoplayButton: 100,
-                                    menuButton: 100,
-                                    soundButton: 100,
-                                    settingsButton: 100
-                                  });
-                                  updateAssetConfig('uiButtonPositions', {
-                                    spinButton: { x: 0, y: 0 },
-                                    autoplayButton: { x: 0, y: 0 },
-                                    menuButton: { x: 0, y: 0 },
-                                    soundButton: { x: 0, y: 0 },
-                                    settingsButton: { x: 0, y: 0 }
-                                  });
-                                  updateAssetConfig('uiButtonsVisibility', true);
-                                  
-                                  // Dispatch event to update SlotMachine immediately
-                                  window.dispatchEvent(new CustomEvent('uiButtonAdjustmentsUpdated', {
-                                    detail: {
-                                      position: { x: 0, y: 0 },
-                                      scale: 100,
-                                      buttonScales: {
-                                        spinButton: 100,
-                                        autoplayButton: 100,
-                                        menuButton: 100,
-                                        soundButton: 100,
-                                        settingsButton: 100
-                                      },
-                                      buttonPositions: {
-                                        spinButton: { x: 0, y: 0 },
-                                        autoplayButton: { x: 0, y: 0 },
-                                        menuButton: { x: 0, y: 0 },
-                                        soundButton: { x: 0, y: 0 },
-                                        settingsButton: { x: 0, y: 0 }
-                                      },
-                                      visibility: true
-                                    }
-                                  }));
-                                }}
-                              >
-                                Reset to Default
-                              </button>
                             </div>
+                          )}
+
+                          {/* Global Scale Control */}
+                          {!selectedUIButton && (
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between pl-2">
+                                <h6 className="text-xs uw:text-xl font-medium text-gray-800">Global Scale</h6>
+                                {assetConfig.uiButtonsScale !== 100 && (
+                                  <button
+                                    onClick={() => updateAssetConfig('uiButtonsScale', 100)}
+                                    className="text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded p-1 transition-colors"
+                                    title="Reset to 100%"
+                                  >
+                                    <RotateCcw className="w-4 h-4 uw:w-5 uw:h-5" />
+                                  </button>
+                                )}
+                              </div>
+                              <div className='p-2 border rounded-md bg-gray-50'>
+                                <label className="text-xs uw:text-xl text-blue-700 block">All Buttons Size</label>
+                                <input
+                                  type="range"
+                                  min="50"
+                                  max="200"
+                                  value={assetConfig.uiButtonsScale}
+                                  onChange={(e) => updateAssetConfig('uiButtonsScale', parseInt(e.target.value))}
+                                  className="w-full h-1.5 accent-blue-500"
+                                />
+                                <div className="flex justify-between text-xs uw:text-xl text-blue-600">
+                                  <span>50%</span>
+                                  <span>{assetConfig.uiButtonsScale}%</span>
+                                  <span>200%</span>
+                                </div>
+                                <p className="text-xs uw:text-xl text-blue-600 mt-1 text-center">
+                                  Select a button above to scale individually
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Visibility Control */}
+                          <div className="space-y-1">
+                            <button
+                              className="w-full text-xs uw:text-xl bg-blue-600 text-white py-2 px-3 rounded hover:bg-blue-700 transition-colors"
+                              onClick={() => {
+                                // Reset UI button controls
+                                updateAssetConfig('uiButtonsPosition', { x: 0, y: 0 });
+                                updateAssetConfig('uiButtonsScale', 100);
+                                updateAssetConfig('uiButtonScales', {
+                                  spinButton: 100,
+                                  autoplayButton: 100,
+                                  menuButton: 100,
+                                  soundButton: 100,
+                                  settingsButton: 100
+                                });
+                                updateAssetConfig('uiButtonPositions', {
+                                  spinButton: { x: 0, y: 0 },
+                                  autoplayButton: { x: 0, y: 0 },
+                                  menuButton: { x: 0, y: 0 },
+                                  soundButton: { x: 0, y: 0 },
+                                  settingsButton: { x: 0, y: 0 }
+                                });
+                                updateAssetConfig('uiButtonsVisibility', true);
+
+                                // Dispatch event to update SlotMachine immediately
+                                window.dispatchEvent(new CustomEvent('uiButtonAdjustmentsUpdated', {
+                                  detail: {
+                                    position: { x: 0, y: 0 },
+                                    scale: 100,
+                                    buttonScales: {
+                                      spinButton: 100,
+                                      autoplayButton: 100,
+                                      menuButton: 100,
+                                      soundButton: 100,
+                                      settingsButton: 100
+                                    },
+                                    buttonPositions: {
+                                      spinButton: { x: 0, y: 0 },
+                                      autoplayButton: { x: 0, y: 0 },
+                                      menuButton: { x: 0, y: 0 },
+                                      soundButton: { x: 0, y: 0 },
+                                      settingsButton: { x: 0, y: 0 }
+                                    },
+                                    visibility: true
+                                  }
+                                }));
+                              }}
+                            >
+                              Reset to Default
+                            </button>
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+            </div>
 
           </div>
         </div>
 
         {/* winDisplayImage */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-           {/* Win Display generation / upload */}
-                <div className="mt-4 border-t pt-4">
-                  <h4 className="text-lg uw:text-3xl font-medium text-gray-700 mb-2">Win Display</h4>
-                  <textarea
-                    className="w-full h-20 p-3 border border-gray-300 rounded-md resize-none uw:text-xl mb-2"
-                    placeholder="Describe the win display image (e.g., 'golden confetti burst with animated sparkles')"
-                    value={assetConfig.winDisplayPrompt}
-                    onChange={(e) => updateAssetConfig('winDisplayPrompt', e.target.value)}
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      variant="generate"
-                      onClick={generateWinDisplay}
-                      className='py-2 w-[50%]'
-                      disabled={assetConfig.isGeneratingWinDisplay}
-                    >
-                      {assetConfig.isGeneratingWinDisplay ? (
-                        <>
-                          <Loader className="w-5 h-5 animate-spin" />
-                          Generating...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-5 h-5" />
-                          Generate Win Display
-                        </>
-                      )}
-                    </Button>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 ">
+          {/* Win Display generation / upload */}
+          <h4 className="text-lg uw:text-3xl p-3 bg-gray-50 border-l-4 border-l-red-600 border font-medium text-gray-700 mb-2">Win Display</h4>
+          <div className="p-4">
+            <textarea
+              className="w-full h-20 p-3 border border-gray-300 rounded-md resize-none uw:text-xl mb-2"
+              placeholder="Describe the win display image (e.g., 'golden confetti burst with animated sparkles')"
+              value={assetConfig.winDisplayPrompt}
+              onChange={(e) => updateAssetConfig('winDisplayPrompt', e.target.value)}
+            />
+            <div className="flex gap-2">
+              <Button
+                variant="generate"
+                onClick={generateWinDisplay}
+                className='py-2 w-[50%]'
+                disabled={assetConfig.isGeneratingWinDisplay}
+              >
+                {assetConfig.isGeneratingWinDisplay ? (
+                  <>
+                    <Loader className="w-5 h-5 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5" />
+                    Generate Win Display
+                  </>
+                )}
+              </Button>
 
-                    <Button
-                      variant="uploadImage"
-                      className='py-2 w-[50%]'
-                      onClick={() => winDisplayFileInputRef.current?.click()}
-                    >
-                      <Upload className="w-5 h-5" />
-                      Upload Win Image
-                    </Button>
-                    <input
-                      type="file"
-                      ref={winDisplayFileInputRef}
-                      className="hidden"
-                      accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
-                      onChange={handleWinDisplayUpload}
-                      key="windisplay-upload"
-                    />
-                  </div>
-                </div>
-             {/* Preview win display image */}
-            {assetConfig.winDisplayImage && (
-              <div className="mt-4 p-3 bg-gray-50 rounded-md">
+              <Button
+                variant="uploadImage"
+                className='py-2 w-[50%]'
+                onClick={() => winDisplayFileInputRef.current?.click()}
+              >
+                <Upload className="w-5 h-5" />
+                Upload Win Image
+              </Button>
+              <input
+                type="file"
+                ref={winDisplayFileInputRef}
+                className="hidden"
+                accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+                onChange={handleWinDisplayUpload}
+                key="windisplay-upload"
+              />
+            </div>
+          </div>
+          {/* Preview win display image */}
+          {assetConfig.winDisplayImage && (
+            <div className="mt-4 p-3 bg-gray-50 rounded-md">
+              <div className='flex justify-between items-center mb-2'>
                 <h4 className="text-sm uw:text-2xl font-medium text-gray-700 mb-2">Current Win Display</h4>
-                <div 
-                  className="relative bg-gray-200 rounded-md overflow-hidden h-36 flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-yellow-400 transition-all duration-200"
+                <button
+                  className='border items-center flex justify-center px-2'
                   onClick={() => window.dispatchEvent(new CustomEvent('winDisplayUpdated', { detail: { winDisplayUrl: assetConfig.winDisplayImage } }))}
-                  title="Click to preview win display"
                 >
-                  <img
-                    src={assetConfig.winDisplayImage}
-                    alt="Win Display"
-                    className="max-w-full max-h-full object-contain"
+                  Show
+                </button>
+              </div>
+              <div
+                className="relative bg-gray-200 rounded-md overflow-hidden h-36 flex items-center justify-center"
+              >
+                <img
+                  src={assetConfig.winDisplayImage}
+                  alt="Win Display"
+                  className="max-w-full max-h-full object-contain"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Win Display Positioning Controls */}
+          {assetConfig.winDisplayImage && (
+            <div className="p-4 bg-gray-50 border border-gray-200 rounde">
+              <h4 className="text-sm uw:text-3xl font-medium text-yellow-800 mb-3 flex items-center">
+                <Move className="w-4 h-4 uw:w-6 uw:h-6 mr-2" />
+                Interactive Win Display Positioning
+              </h4>
+
+              {/* Manual controls as backup */}
+              <div className="flex flex-col items-center justify-center w-full">
+                <div className='w-full p-3'>
+                  <label className="text-xs uw:text-xl text-gray-600 flex items-center mb-1">
+                    <ZoomIn className="w-3 h-3 uw:w-6 uw:h-6 mr-2" />
+                    Size: {assetConfig.winDisplayScales[assetConfig.currentDevice]}%
+                  </label>
+                  <input
+                    type="range"
+                    min="50"
+                    max="150"
+                    value={assetConfig.winDisplayScales[assetConfig.currentDevice]}
+                    onChange={(e) => {
+                      const newScales = {
+                        ...assetConfig.winDisplayScales,
+                        [assetConfig.currentDevice]: parseInt(e.target.value)
+                      };
+                      updateAssetConfig('winDisplayScales', newScales);
+                    }}
+                    className="w-full"
                   />
                 </div>
-              </div>
-            )}
-
-            {/* Win Display Positioning Controls */}
-            {assetConfig.winDisplayImage && (
-              <div className="p-4 bg-gray-50 border border-gray-200 rounde">
-                <h4 className="text-sm uw:text-3xl font-medium text-yellow-800 mb-3 flex items-center">
-                  <Move className="w-4 h-4 uw:w-6 uw:h-6 mr-2" />
-                  Interactive Win Display Positioning
-                </h4>
-
-                {/* Manual controls as backup */}
-                <div className="flex flex-col items-center justify-center w-full">
-                  <div className='w-full p-3'>
-                    <label className="text-xs uw:text-xl text-gray-600 flex items-center mb-1">
-                      <ZoomIn className="w-3 h-3 uw:w-6 uw:h-6 mr-2" />
-                      Size: {assetConfig.winDisplayScales[assetConfig.currentDevice]}%
-                    </label>
-                    <input
-                      type="range"
-                      min="50"
-                      max="150"
-                      value={assetConfig.winDisplayScales[assetConfig.currentDevice]}
-                      onChange={(e) => {
-                        const newScales = {
-                          ...assetConfig.winDisplayScales,
-                          [assetConfig.currentDevice]: parseInt(e.target.value)
-                        };
-                        updateAssetConfig('winDisplayScales', newScales);
-                      }}
-                      className="w-full"
-                    />
-                  </div>
-<div className='grid grid-cols-2 gap-3 p-3 w-full'>
+                <div className='grid grid-cols-2 gap-3 p-3 w-full'>
                   <div>
                     <label className="text-xs uw:text-xl text-gray-600 flex items-center mb-1">
                       <ArrowLeftRight className="w-3 h-3 uw:w-6 uw:h-6 mr-2" />
@@ -4451,31 +4546,264 @@ DO NOT create a new button design. ONLY desaturate and fade the existing button'
                     </div>
                   </div>
                 </div>
-</div>
-                <div className="mt-3 flex items-center justify-end text-xs uw:text-2xl">
-                  <button
-                    onClick={() => {
-                      const defaultPos = { x: 50, y: 20 };
-                      const defaultScale = 80;
-                      const newPositions = {
-                        ...assetConfig.winDisplayPositions,
-                        [assetConfig.currentDevice]: defaultPos
-                      };
+              </div>
+              <div className="mt-3 flex items-center justify-end text-xs uw:text-2xl">
+                <button
+                  onClick={() => {
+                    const defaultPos = { x: 50, y: 20 };
+                    const defaultScale = 80;
+                    const newPositions = {
+                      ...assetConfig.winDisplayPositions,
+                      [assetConfig.currentDevice]: defaultPos
+                    };
+                    const newScales = {
+                      ...assetConfig.winDisplayScales,
+                      [assetConfig.currentDevice]: defaultScale
+                    };
+                    updateAssetConfig('winDisplayPositions', newPositions);
+                    updateAssetConfig('winDisplayScales', newScales);
+                  }}
+                  className="text-yellow-600 hover:text-yellow-800 flex items-center gap-1"
+                >
+                  <RotateCcw className="w-3 h-3 uw:w-6 uw:h-6 mr-1" />
+                  Reset {assetConfig.currentDevice}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Win Display Text Positioning Controls */}
+          {assetConfig.winDisplayImage && (
+            <div className="p-4 bg-gray-50 border border-gray-200 rounde mt-4">
+              <h4 className="text-sm uw:text-3xl font-medium text-blue-800 mb-3 flex items-center">
+                <Type className="w-4 h-4 uw:w-6 uw:h-6 mr-2" />
+                Win Amount Text Positioning
+              </h4>
+
+              {/* WIN text checkbox - when checked, show "Win: " prefix. When unchecked, show only amount. Default checked. */}
+              <label className="flex items-center gap-2 mb-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={assetConfig.showWinText}
+                  onChange={(e) => updateAssetConfig('showWinText', e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300"
+                />
+                <span className="text-sm uw:text-xl text-gray-700">WIN text</span>
+              </label>
+
+              {/* Manual controls as backup */}
+              <div className="flex flex-col items-center justify-center w-full">
+                <div className='w-full p-3'>
+                  <label className="text-xs uw:text-xl text-gray-600 flex items-center mb-1">
+                    <ZoomIn className="w-3 h-3 uw:w-6 uw:h-6 mr-2" />
+                    Text Size: {assetConfig.winDisplayTextScales[assetConfig.currentDevice]}%
+                  </label>
+                  <input
+                    type="range"
+                    min="50"
+                    max="200"
+                    value={assetConfig.winDisplayTextScales[assetConfig.currentDevice]}
+                    onChange={(e) => {
                       const newScales = {
-                        ...assetConfig.winDisplayScales,
-                        [assetConfig.currentDevice]: defaultScale
+                        ...assetConfig.winDisplayTextScales,
+                        [assetConfig.currentDevice]: parseInt(e.target.value)
                       };
-                      updateAssetConfig('winDisplayPositions', newPositions);
-                      updateAssetConfig('winDisplayScales', newScales);
+                      updateAssetConfig('winDisplayTextScales', newScales);
                     }}
-                    className="text-yellow-600 hover:text-yellow-800 flex items-center gap-1"
-                  >
-                    <RotateCcw className="w-3 h-3 uw:w-6 uw:h-6 mr-1" />
-                    Reset {assetConfig.currentDevice}
-                  </button>
+                    className="w-full"
+                  />
+                </div>
+                <div className='grid grid-cols-2 gap-3 p-3 w-full'>
+                  <div>
+                    <label className="text-xs uw:text-xl text-gray-600 flex items-center mb-1">
+                      <ArrowLeftRight className="w-3 h-3 uw:w-6 uw:h-6 mr-2" />
+                      X: {assetConfig.winDisplayTextPositions[assetConfig.currentDevice].x}% (50% = center)
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={assetConfig.winDisplayTextPositions[assetConfig.currentDevice].x}
+                      onChange={(e) => {
+                        const newPositions = {
+                          ...assetConfig.winDisplayTextPositions,
+                          [assetConfig.currentDevice]: {
+                            ...assetConfig.winDisplayTextPositions[assetConfig.currentDevice],
+                            x: parseInt(e.target.value)
+                          }
+                        };
+                        updateAssetConfig('winDisplayTextPositions', newPositions);
+                      }}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs uw:text-xl text-gray-500 mt-1">
+                      <span>(0%)</span>
+                      <span>(50%)</span>
+                      <span>(100%)</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs uw:text-xl text-gray-600 flex items-center mb-1">
+                      <ArrowUpDown className="w-3 h-3 uw:w-6 uw:h-6 mr-2" />
+                      Y: {assetConfig.winDisplayTextPositions[assetConfig.currentDevice].y}% (50% = center)
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={assetConfig.winDisplayTextPositions[assetConfig.currentDevice].y}
+                      onChange={(e) => {
+                        const newPositions = {
+                          ...assetConfig.winDisplayTextPositions,
+                          [assetConfig.currentDevice]: {
+                            ...assetConfig.winDisplayTextPositions[assetConfig.currentDevice],
+                            y: parseInt(e.target.value)
+                          }
+                        };
+                        updateAssetConfig('winDisplayTextPositions', newPositions);
+                      }}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs uw:text-xl text-gray-500 mt-1">
+                      <span>(0%)</span>
+                      <span>(50%)</span>
+                      <span>(100%)</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-            )}
+              <div className="mt-3 flex items-center justify-end text-xs uw:text-2xl">
+                <button
+                  onClick={() => {
+                    const defaultPos = { x: 50, y: 50 };
+                    const defaultScale = 100;
+                    const newPositions = {
+                      ...assetConfig.winDisplayTextPositions,
+                      [assetConfig.currentDevice]: defaultPos
+                    };
+                    const newScales = {
+                      ...assetConfig.winDisplayTextScales,
+                      [assetConfig.currentDevice]: defaultScale
+                    };
+                    updateAssetConfig('winDisplayTextPositions', newPositions);
+                    updateAssetConfig('winDisplayTextScales', newScales);
+                  }}
+                  className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                >
+                  <RotateCcw className="w-3 h-3 uw:w-6 uw:h-6 mr-1" />
+                  Reset Text {assetConfig.currentDevice}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Sprite character (Spine) – ZIP upload and positioning */}
+          <div className="mt-6 bg-gray-50 border border-gray-200 rounded-lg">
+            <div className="px-4 py-3 uw:px-8 flex items-center justify-between border-b border-gray-200 border-l-4 border-l-red-500 bg-gray-50">
+              <h3 className="text-lg uw:text-3xl font-semibold text-gray-800 flex items-center">
+                <User className="w-4 h-4 uw:w-6 uw:h-6 mr-2" />
+                Sprite character (Spine)
+              </h3>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={assetConfig.showSpineCharacter}
+                  onChange={(e) => updateAssetConfig('showSpineCharacter', e.target.checked)}
+                  className="w-4 h-4 uw:w-5 uw:h-5 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                />
+                <span className="text-sm uw:text-xl text-gray-700">Show character</span>
+              </label>
+            </div>
+            <div className="p-4">
+              <p className="text-xs uw:text-xl text-gray-600 mb-3">
+                Upload a ZIP with Spine export: <code className="bg-gray-200 px-1 rounded">.atlas</code>, <code className="bg-gray-200 px-1 rounded">.skel</code> or <code className="bg-gray-200 px-1 rounded">.json</code>, and texture image (e.g. .png, .webp).
+              </p>
+              <div className="flex flex-wrap gap-2 mb-4">
+                <Button
+                  variant="uploadImage"
+                  className="py-2"
+                  onClick={() => spineCharacterZipInputRef.current?.click()}
+                >
+                  <Upload className="w-5 h-5" />
+                  Upload Spine ZIP
+                </Button>
+                <input
+                  type="file"
+                  ref={spineCharacterZipInputRef}
+                  className="hidden"
+                  accept=".zip"
+                  onChange={handleSpineCharacterZipUpload}
+                />
+              </div>
+              <h5 className="text-xs uw:text-2xl font-medium text-gray-700 mb-2 mt-3 flex items-center">
+                <Move className="w-3 h-3 uw:w-5 uw:h-5 mr-1" />
+                Position &amp; scale
+              </h5>
+              <div className="grid grid-cols-1 gap-3">
+                <div>
+                  <label className="text-xs uw:text-xl text-gray-600 flex items-center mb-1">
+                    <ArrowLeftRight className="w-3 h-3 uw:w-5 uw:h-5 mr-1" />
+                    Position X: {assetConfig.spineCharacterPosition.x}
+                  </label>
+                  <input
+                    type="range"
+                    min="-200"
+                    max="200"
+                    value={assetConfig.spineCharacterPosition.x}
+                    onChange={(e) => {
+                      const pos = { ...assetConfig.spineCharacterPosition, x: parseInt(e.target.value, 10) };
+                      updateAssetConfig('spineCharacterPosition', pos);
+                    }}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs uw:text-xl text-gray-600 flex items-center mb-1">
+                    <ArrowUpDown className="w-3 h-3 uw:w-5 uw:h-5 mr-1" />
+                    Position Y: {assetConfig.spineCharacterPosition.y}
+                  </label>
+                  <input
+                    type="range"
+                    min="-200"
+                    max="200"
+                    value={assetConfig.spineCharacterPosition.y}
+                    onChange={(e) => {
+                      const pos = { ...assetConfig.spineCharacterPosition, y: parseInt(e.target.value, 10) };
+                      updateAssetConfig('spineCharacterPosition', pos);
+                    }}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs uw:text-xl text-gray-600 flex items-center mb-1">
+                    <ZoomIn className="w-3 h-3 uw:w-5 uw:h-5 mr-1" />
+                    Scale: {assetConfig.spineCharacterScale}%
+                  </label>
+                  <input
+                    type="range"
+                    min="10"
+                    max="150"
+                    value={assetConfig.spineCharacterScale}
+                    onChange={(e) => updateAssetConfig('spineCharacterScale', parseInt(e.target.value, 10))}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+              <div className="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateAssetConfig('spineCharacterPosition', { x: 0, y: 0 });
+                    updateAssetConfig('spineCharacterScale', 40);
+                  }}
+                  className="text-xs uw:text-xl text-gray-600 hover:text-gray-800 flex items-center gap-1"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Reset position &amp; scale
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
         {/* Logo section */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-4">
@@ -4697,7 +5025,7 @@ DO NOT create a new button design. ONLY desaturate and fade the existing button'
             </div>
           </div>
         </div>
-     </div>
+      </div>
     );
   };
 
@@ -4724,26 +5052,21 @@ DO NOT create a new button design. ONLY desaturate and fade the existing button'
               </p>
             </div>
             <button
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                assetConfig.showSymbolGrid ? 'bg-blue-600' : 'bg-gray-300'
-              }`}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${assetConfig.showSymbolGrid ? 'bg-blue-600' : 'bg-gray-300'
+                }`}
               onClick={() => {
                 const currentState = assetConfig.showSymbolGrid;
                 const newState = !currentState;
-                
+
                 // Update all states immediately
                 updateAssetConfig('showSymbolGrid', newState);
-                setSymbolGridClicked(true);
-                localStorage.setItem('symbolGridActive', JSON.stringify(newState));
-                
                 // Update global config (inverted because showSymbolBackgrounds is opposite)
                 updateConfig({ showSymbolBackgrounds: !newState });
               }}
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  assetConfig.showSymbolGrid ? 'translate-x-6' : 'translate-x-1'
-                }`}
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${assetConfig.showSymbolGrid ? 'translate-x-6' : 'translate-x-1'
+                  }`}
               />
               <span className="sr-only">Toggle symbol grid</span>
             </button>

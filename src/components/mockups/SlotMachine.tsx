@@ -1,18 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as PIXI from "pixi.js";
-import { BlurFilter } from "pixi.js";
+import { Assets, FillGradient } from "pixi.js";
+import { GlowFilter } from "pixi-filters/glow";
 import { gsap } from "gsap";
 import { useGameStore } from "../../store";
 import { useSidebarStore } from "../../stores/sidebarStore";
 import { getBetlinePatterns } from "../../utils/betlinePatterns";
-import SymbolPreloader from "../../utils/symbolPreloader";
 import { NormalDesign } from "../visual-journey/slot-animation/uiDesigns/NormalDesign";
 import { ModernUI } from "../visual-journey/slot-animation/uiDesigns/ModernDesign";
 import { UltimateDesign } from "../visual-journey/slot-animation/uiDesigns/UltimateDesign";
+import SymbolPreloader from "../../utils/symbolPreloader";
+import { DEFAULT_CLASSIC_SYMBOLS } from "../../utils/predefinedSymbols";
 import { SimpleDesign } from "../visual-journey/slot-animation/uiDesigns/simple";
 import { NumberImageRenderer } from "../shared/NumberImageRenderer";
-import { detectDeviceType } from "../../utils/deviceDetection";
 import { Monitor, Smartphone, Plus } from "lucide-react";
+import { detectDeviceType } from "../../utils/deviceDetection";
+import { Spine } from '@esotericsoftware/spine-pixi-v8';
+import spineAtlasUrl from '../../assets/export_poison_witch/poison_witch.atlas?url';
+import spineSkelUrl from '../../assets/export_poison_witch/poison_witch.skel?url';
+import spineTextureUrl from '../../assets/export_poison_witch/poison_witch.webp';
+import type { SymbolSpineAsset } from '../../types';
 
 // Audio volume state type
 type AudioVolumes = {
@@ -107,6 +114,24 @@ if (typeof document !== 'undefined' && !document.getElementById('win-display-sty
       100% { transform: translate(-50%, -50%); opacity: 0; filter: blur(20px); }
     }
     
+    /* Background transition keyframes (full-bleed, for normal <-> freespin bg change) */
+    @keyframes bgFadeTransition {
+      0% { opacity: 0; }
+      100% { opacity: 1; }
+    }
+    @keyframes bgSlideInRight {
+      0% { transform: translateX(100%); opacity: 1; }
+      100% { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes bgZoomIn {
+      0% { transform: scale(0.1); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes bgDissolveTransition {
+      0% { opacity: 0; filter: blur(20px); }
+      100% { opacity: 1; filter: blur(0); }
+    }
+    
     @keyframes winTitleScaleIn {
       0% {
         opacity: 0;
@@ -155,13 +180,15 @@ if (typeof document !== 'undefined' && !document.getElementById('win-display-sty
 export default function SlotMachinePreview(): JSX.Element {
   const { config, balance, betAmount, isSpinning, winAmount, isAutoplayActive, isSoundEnabled, showMenu, showSettings, uiType,
     setBalance, setBetAmount, setIsSpinning, setWinAmount, setIsAutoplayActive, setIsSoundEnabled, setShowMenu, setShowSettings,
-    audioFiles
+    audioFiles,
+    audioChannelVolumes
   } = useGameStore();
   const { isSidebarCollapsed } = useSidebarStore();
   const symbolsRaw = config.theme?.generated?.symbols;
-  const symbols: Record<string, string> = (typeof symbolsRaw === 'object' && !Array.isArray(symbolsRaw))
+  const symbols: Record<string, string> = (typeof symbolsRaw === 'object' && !Array.isArray(symbolsRaw) && Object.keys(symbolsRaw).length > 0)
     ? symbolsRaw
-    : {};
+    : (DEFAULT_CLASSIC_SYMBOLS as Record<string, string>);
+  const symbolSpineAssets: Record<string, SymbolSpineAsset> = (config.theme?.generated?.symbolSpineAssets as Record<string, SymbolSpineAsset>) || {};
   const rows = config.reels?.layout?.rows ?? 3;
   const reels = config.reels?.layout?.reels ?? 5;
 
@@ -176,10 +203,10 @@ export default function SlotMachinePreview(): JSX.Element {
   const spinMetaRef = useRef<any>(null);
   const spinTimelinesRef = useRef<gsap.core.Timeline[]>([]);
   const backgroundSpriteRef = useRef<PIXI.Sprite | null>(null);
-  const winLinesRef = useRef<Array<{ shadowLine: PIXI.Graphics, lineGraphics: PIXI.Graphics, mask?: PIXI.Graphics }>>([]);
+  const winLinesRef = useRef<Array<{ shadowLine: PIXI.Graphics; lineGraphics: PIXI.Graphics; mask?: PIXI.Graphics; gradient?: unknown }>>([]);
   const symbolSizeRef = useRef<number>(0);
   const reelSymbolSequencesRef = useRef<string[][]>([]);
-  const blurFiltersRef = useRef<Map<PIXI.Container, BlurFilter>>(new Map());
+  const blurFiltersRef = useRef<Map<PIXI.Container, PIXI.BlurFilter>>(new Map());
   const winHighlightsRef = useRef<PIXI.Graphics[]>([]);
   const winAnimationCompleteCallbackRef = useRef<(() => void) | null>(null);
   const freeSpinModeRef = useRef<boolean>(false);
@@ -189,11 +216,31 @@ export default function SlotMachinePreview(): JSX.Element {
   const quickStopRef = useRef<(() => void) | null>(null);
   const winAmountAnimationRef = useRef<gsap.core.Tween | null>(null);
   const particleOverlayRef = useRef<HTMLDivElement | null>(null);
+  const logoContainerRef = useRef<HTMLDivElement | null>(null);
+  const logoPositionsRef = useRef<Record<string, { x: number; y: number }> | null>(null);
+  const logoScalesRef = useRef<Record<string, number> | null>(null);
+  const currentDeviceRef = useRef<'desktop' | 'mobilePortrait' | 'mobileLandscape'>('desktop');
+  const logoSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Spine character refs
+  const spineCharacterRef = useRef<Spine | null>(null);
+  /** Custom Spine asset ids from last load; unload before re-adding to avoid resolver "already has key" */
+  const lastCustomSpineAssetIdsRef = useRef<{ skel: string; atlas: string; texture?: string } | null>(null);
+  const spineAnimationStateRef = useRef<'idle' | 'win'>('idle');
+  const computeResponsiveMetricsRef = useRef<(() => { size: number; spacingX: number; spacingY: number; offsetX: number; offsetY: number }) | null>(null);
+
+  // Animated (Spine) symbol refs: asset IDs per symbol key, pool per key, last-loaded URLs for cleanup
+  const spineSymbolAssetIdsRef = useRef<Record<string, { skel: string; atlas: string; texture?: string }>>({});
+  const spineSymbolPoolRef = useRef<Map<string, Spine[]>>(new Map());
+  const lastSpineSymbolUrlsRef = useRef<Record<string, string>>({});
+  /** Spine symbol instances currently on a winning line; only these are updated so they animate. */
+  const winningSpineInstancesRef = useRef<Set<Spine>>(new Set());
+  const winningSpineTickerRef = useRef<((t: { deltaTime: number }) => void) | null>(null);
 
   // Symbol animation refs for win-based animations
   const activeSymbolAnimationsRef = useRef<Map<string, {
     timeline: gsap.core.Timeline;
-    sprite: PIXI.Sprite;
+    sprite: PIXI.Sprite | Spine;
     container: PIXI.Container;
     originalTransform: {
       x: number;
@@ -208,15 +255,6 @@ export default function SlotMachinePreview(): JSX.Element {
     filters?: PIXI.Filter[];
   }>>(new Map());
 
-  const [audioVolumes, setAudioVolumes] = useState<AudioVolumes>({
-    background: 0.5,
-    reels: 0.6,
-    ui: 0.7,
-    wins: 0.8,
-    bonus: 0.8,
-    features: 0.7,
-    ambience: 0.3
-  });
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const loopingAudioRef = useRef<Map<string, HTMLAudioElement>>(new Map());
 
@@ -226,7 +264,6 @@ export default function SlotMachinePreview(): JSX.Element {
       return null;
     }
 
-    // Get latest audioFiles from store to ensure we have the most recent files
     const latestAudioFiles = useGameStore.getState().audioFiles;
     const audioFile = latestAudioFiles[category]?.[name];
 
@@ -241,7 +278,6 @@ export default function SlotMachinePreview(): JSX.Element {
 
     const audioKey = `${category}_${name}`;
 
-    // Stop previous audio if requested
     if (options?.stopPrevious) {
       const previousAudio = audioElementsRef.current.get(audioKey);
       if (previousAudio) {
@@ -256,42 +292,35 @@ export default function SlotMachinePreview(): JSX.Element {
       }
     }
 
-    // Create or reuse audio element, but reload if URL changed
     let audio = audioElementsRef.current.get(audioKey);
     if (!audio || audio.src !== audioFile.url) {
-      // If audio exists but URL changed, clean up old one
       if (audio) {
         audio.pause();
         audio.src = '';
         audio.load();
       }
-      // Create new audio element with updated URL
       audio = new Audio(audioFile.url);
       audio.preload = 'auto';
       audioElementsRef.current.set(audioKey, audio);
       console.log(`[Audio] Loaded audio: ${audioKey} from ${audioFile.url}`);
     }
 
-    // Set volume
-    const categoryVolume = audioVolumes[category];
+    const categoryVolume = audioChannelVolumes[category] ?? 0.5;
     const finalVolume = (options?.volume ?? categoryVolume) * (isSoundEnabled ? 1 : 0);
     audio.volume = Math.max(0, Math.min(1, finalVolume));
 
-    // Set loop
     audio.loop = options?.loop ?? false;
 
-    // Play audio
     audio.play().catch(error => {
       console.warn(`[Audio] Failed to play ${audioKey}:`, error);
     });
 
-    // Handle looping audio
     if (options?.loop) {
       loopingAudioRef.current.set(audioKey, audio);
     }
 
     return audio;
-  }, [isSoundEnabled, audioVolumes]);
+  }, [isSoundEnabled, audioChannelVolumes]);
 
   const stopAudio = useCallback((category: keyof AudioVolumes, name: string) => {
     const audioKey = `${category}_${name}`;
@@ -321,84 +350,285 @@ export default function SlotMachinePreview(): JSX.Element {
   }, []);
 
   const updateAudioVolumes = useCallback(() => {
-    // Update volumes for all active audio elements
     audioElementsRef.current.forEach((audio, key) => {
       const [category] = key.split('_') as [keyof AudioVolumes];
-      if (category && audioVolumes[category] !== undefined) {
-        audio.volume = audioVolumes[category] * (isSoundEnabled ? 1 : 0);
+      const vol = audioChannelVolumes[category];
+      if (category && vol !== undefined) {
+        audio.volume = vol * (isSoundEnabled ? 1 : 0);
       }
     });
     loopingAudioRef.current.forEach((audio, key) => {
       const [category] = key.split('_') as [keyof AudioVolumes];
-      if (category && audioVolumes[category] !== undefined) {
-        audio.volume = audioVolumes[category] * (isSoundEnabled ? 1 : 0);
+      const vol = audioChannelVolumes[category];
+      if (category && vol !== undefined) {
+        audio.volume = vol * (isSoundEnabled ? 1 : 0);
       }
     });
-  }, [audioVolumes, isSoundEnabled]);
+  }, [audioChannelVolumes, isSoundEnabled]);
 
-  // Update audio volumes when they change
+
+  const playSpineAnimation = useCallback((animationName: 'idle' | 'win') => {
+    const spine = spineCharacterRef.current;
+    if (!spine || !spine.state) {
+      console.warn('[Spine] Cannot play animation: spine not initialized');
+      return;
+    }
+
+    try {
+      const skeleton = spine.skeleton;
+      if (!skeleton || !skeleton.data) {
+        console.warn('[Spine] Skeleton data not available');
+        return;
+      }
+
+      // Get available animations
+      const availableAnimations = skeleton.data.animations.map((a: any) => a.name);
+      console.log('[Spine] Available animations:', availableAnimations);
+
+      // Map our animation states to actual animation names in the Spine file
+      let actualAnimationName: string | null = null;
+
+      if (animationName === 'idle') {
+        // Try common idle animation names
+        const idleNames = ['idle', 'breathing', 'stand', 'loop', 'default'];
+        actualAnimationName = idleNames.find(name => availableAnimations.includes(name)) || availableAnimations[0] || null;
+      } else if (animationName === 'win') {
+        // Try common win/celebration animation names
+        const winNames = ['win', 'celebrate', 'action', 'victory', 'happy', 'cheer'];
+        actualAnimationName = winNames.find(name => availableAnimations.includes(name)) || availableAnimations[0] || null;
+      }
+
+      if (!actualAnimationName) {
+        console.warn(`[Spine] No suitable animation found for ${animationName}`);
+        return;
+      }
+
+      console.log(`[Spine] Playing animation: ${actualAnimationName} (requested: ${animationName})`);
+
+      if (animationName === 'idle') {
+        // Loop idle animation
+        spine.state.setAnimation(0, actualAnimationName, true);
+        spineAnimationStateRef.current = 'idle';
+      } else if (animationName === 'win') {
+        // Play win animation once, then return to idle
+        spine.state.setAnimation(0, actualAnimationName, false);
+        spineAnimationStateRef.current = 'win';
+
+        // Set up listener for when win animation completes
+        spine.state.addListener({
+          complete: (trackEntry: any) => {
+            if (trackEntry.animation.name === actualAnimationName) {
+              // Return to idle animation
+              setTimeout(() => {
+                playSpineAnimation('idle');
+              }, 100);
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.error('[Spine] Error playing animation:', error);
+    }
+  }, []);
+
+  // Update Spine character position/scale to match current preview dimensions and layout + config overrides
+  const updateSpinePosition = useCallback(() => {
+    const app = appRef.current;
+    const spine = spineCharacterRef.current;
+    if (!app || !spine || spine.destroyed) return;
+
+    const metrics = computeResponsiveMetricsRef.current?.();
+    if (!metrics) return;
+    const w = renderSizeRef.current.width;
+    const h = renderSizeRef.current.height;
+    const cfg = useGameStore.getState().config as { spineCharacterPosition?: { x: number; y: number }; spineCharacterScale?: number } | undefined;
+    const posOffset = cfg?.spineCharacterPosition ?? { x: 0, y: 0 };
+    const scalePercent = cfg?.spineCharacterScale ?? 40;
+
+    // Slider range -200..200 maps to full preview width/height: -200 = left/top edge, 0 = center, +200 = right/bottom edge
+    const margin = 24;
+    const centerX = w / 2;
+    const centerY = h / 2;
+    const halfRangeX = Math.max(0, w / 2 - margin);
+    const halfRangeY = Math.max(0, h / 2 - margin);
+    spine.x = centerX + (posOffset.x / 200) * halfRangeX;
+    spine.y = centerY + (posOffset.y / 200) * halfRangeY;
+    const baseScale = 0.4;
+    const scaleByHeight = Math.min(1.2, Math.max(0.25, h / 500));
+    const scale = (baseScale * scaleByHeight * scalePercent) / 100;
+    spine.scale.set(scale);
+  }, []);
+
+  // Load and initialize Spine character animation
+  const loadSpineCharacter = useCallback(async () => {
+    const app = appRef.current;
+    if (!app || !app.stage) {
+      console.warn('[Spine] Cannot load Spine: app or stage not ready');
+      return;
+    }
+
+    // Clean up existing Spine character if it exists
+    if (spineCharacterRef.current) {
+      if (spineCharacterRef.current.parent) {
+        spineCharacterRef.current.parent.removeChild(spineCharacterRef.current);
+      }
+      spineCharacterRef.current.destroy({ children: true });
+      spineCharacterRef.current = null;
+    }
+
+    try {
+      const cfg = useGameStore.getState().config as {
+        spineCharacterAtlasUrl?: string | null;
+        spineCharacterSkelUrl?: string | null;
+        spineCharacterTextureUrl?: string | null;
+        spineCharacterTextureName?: string | null;
+      } | undefined;
+      const useCustom = cfg?.spineCharacterAtlasUrl && cfg?.spineCharacterSkelUrl && cfg?.spineCharacterTextureUrl && cfg?.spineCharacterTextureName;
+
+      let skelAssetId: string;
+      let atlasAssetId: string;
+
+      if (useCustom) {
+        const textureName = cfg.spineCharacterTextureName!;
+        const textureUrl = cfg.spineCharacterTextureUrl!;
+        // Unload previous custom assets so resolver doesn't warn "already has key"
+        const prev = lastCustomSpineAssetIdsRef.current;
+        if (prev) {
+          if (PIXI.Assets.cache.has(prev.skel)) await PIXI.Assets.unload(prev.skel);
+          if (PIXI.Assets.cache.has(prev.atlas)) await PIXI.Assets.unload(prev.atlas);
+          if (prev.texture && PIXI.Assets.cache.has(prev.texture)) await PIXI.Assets.unload(prev.texture);
+          lastCustomSpineAssetIdsRef.current = null;
+        }
+        const unique = `${Date.now()}`;
+        skelAssetId = `spine_custom_skel_${unique}`;
+        atlasAssetId = `spine_custom_atlas_${unique}`;
+        const textureAssetId = `spine_custom_tex_${unique}`;
+        // Blob URLs have no extension; force loaders so PIXI knows how to parse them
+        PIXI.Assets.add({
+          alias: skelAssetId,
+          src: cfg.spineCharacterSkelUrl!,
+          loadParser: 'spineSkeletonLoader'
+        });
+        // Pre-load texture blob with explicit parser so atlas gets a TextureSource (blob URLs don't match .png)
+        PIXI.Assets.add({
+          alias: textureAssetId,
+          src: textureUrl,
+          loadParser: 'loadTextures'
+        });
+        const loadedTexture = await PIXI.Assets.load(textureAssetId) as import('pixi.js').Texture;
+        const textureSource = loadedTexture?.source ?? null;
+        PIXI.Assets.add({
+          alias: atlasAssetId,
+          src: cfg.spineCharacterAtlasUrl!,
+          loadParser: 'spineTextureAtlasLoader',
+          data: { images: textureSource ? { [textureName]: textureSource } : { [textureName]: textureUrl } }
+        });
+        lastCustomSpineAssetIdsRef.current = { skel: skelAssetId, atlas: atlasAssetId, texture: textureAssetId };
+        console.log('[Spine] Loading custom Spine assets...', { textureName, atlasUrl: cfg.spineCharacterAtlasUrl?.slice(0, 50) });
+      } else {
+        skelAssetId = 'poison_witch_skel';
+        atlasAssetId = 'poison_witch_atlas';
+        if (!PIXI.Assets.cache.has(skelAssetId)) {
+          PIXI.Assets.add({ alias: skelAssetId, src: spineSkelUrl });
+        }
+        if (!PIXI.Assets.cache.has(atlasAssetId)) {
+          PIXI.Assets.add({
+            alias: atlasAssetId,
+            src: spineAtlasUrl,
+            data: { images: { 'poison_witch.webp': spineTextureUrl } }
+          });
+        }
+        console.log('[Spine] Loading default Spine animation assets...');
+      }
+
+      await PIXI.Assets.load([skelAssetId, atlasAssetId]);
+      console.log('[Spine] Assets loaded successfully');
+
+      const spine = Spine.from({ skeleton: skelAssetId, atlas: atlasAssetId });
+
+      // Store reference before positioning so updateSpinePosition can find it
+      spineCharacterRef.current = spine;
+
+      // Add to stage (above background, below UI)
+      app.stage.addChild(spine);
+
+      // Position using current layout metrics so it displays correctly in the preview
+      updateSpinePosition();
+
+      // Log available animations
+      if (spine.skeleton && spine.skeleton.data && spine.skeleton.data.animations) {
+        const animations = spine.skeleton.data.animations.map((a: any) => a.name);
+        console.log('[Spine] Available animations:', animations);
+      }
+
+      // Start with idle animation
+      playSpineAnimation('idle');
+
+      console.log('[Spine] Character loaded and initialized successfully');
+    } catch (error) {
+      console.error('[Spine] Failed to load Spine character:', error);
+    }
+  }, [playSpineAnimation, updateSpinePosition]);
+
+  // Cleanup Spine character on unmount
+  const cleanupSpineCharacter = useCallback(() => {
+    if (spineCharacterRef.current) {
+      if (spineCharacterRef.current.parent) {
+        spineCharacterRef.current.parent.removeChild(spineCharacterRef.current);
+      }
+      spineCharacterRef.current.destroy({ children: true });
+      spineCharacterRef.current = null;
+    }
+  }, []);
+
+  const showSpineCharacter = (config as { showSpineCharacter?: boolean })?.showSpineCharacter === true;
+
+  // Load Spine character when app is ready and "Show character" is enabled; otherwise keep it hidden
+  useEffect(() => {
+    if (!showSpineCharacter) {
+      cleanupSpineCharacter();
+      return;
+    }
+    let isMounted = true;
+    let retryCount = 0;
+    const maxRetries = 50; // Try for about 5 seconds (50 * 100ms)
+
+    const loadSpineWithRetry = () => {
+      if (appRef.current && appRef.current.stage) {
+        console.log('[Spine] App is ready, loading Spine character...');
+        loadSpineCharacter().then(() => {
+          console.log('[Spine] Spine character loaded successfully');
+        }).catch(error => {
+          console.error('[Spine] Failed to load Spine character:', error);
+        });
+      } else {
+        retryCount++;
+        if (retryCount < maxRetries && isMounted) {
+          setTimeout(loadSpineWithRetry, 100);
+        } else if (retryCount >= maxRetries) {
+          console.warn('[Spine] Max retries reached, app may not be initialized yet');
+        }
+      }
+    };
+
+    loadSpineWithRetry();
+
+    return () => {
+      isMounted = false;
+      cleanupSpineCharacter();
+    };
+  }, [showSpineCharacter, loadSpineCharacter, cleanupSpineCharacter]);
+
   useEffect(() => {
     updateAudioVolumes();
   }, [updateAudioVolumes]);
 
-  // Stop all audio when sound is disabled
   useEffect(() => {
     if (!isSoundEnabled) {
       stopAllAudio();
     }
   }, [isSoundEnabled, stopAllAudio]);
 
-  // Listen for volume update events
-  useEffect(() => {
-    const handleVolumeUpdate = (event: CustomEvent) => {
-      const { category, volume } = event.detail;
-      if (category && volume !== undefined && category in audioVolumes) {
-        setAudioVolumes(prev => ({
-          ...prev,
-          [category]: Math.max(0, Math.min(1, volume))
-        }));
-      }
-    };
-
-    const handleVolumeUpdateAll = (event: CustomEvent) => {
-      const { volumes } = event.detail;
-      if (volumes && typeof volumes === 'object') {
-        setAudioVolumes(prev => {
-          const updated = { ...prev };
-          Object.keys(volumes).forEach(category => {
-            if (category in updated) {
-              updated[category as keyof AudioVolumes] = Math.max(0, Math.min(1, volumes[category]));
-            }
-          });
-          return updated;
-        });
-      }
-    };
-
-    window.addEventListener('updateAudioVolume', handleVolumeUpdate as EventListener);
-    window.addEventListener('updateAllAudioVolumes', handleVolumeUpdateAll as EventListener);
-    return () => {
-      window.removeEventListener('updateAudioVolume', handleVolumeUpdate as EventListener);
-      window.removeEventListener('updateAllAudioVolumes', handleVolumeUpdateAll as EventListener);
-    };
-  }, [audioVolumes]);
-
-  // Expose volume getter via custom event
-  useEffect(() => {
-    const handleGetVolumes = (event: CustomEvent) => {
-      const detail = event.detail;
-      if (detail && typeof detail === 'object' && 'callback' in detail) {
-        (detail.callback as (volumes: AudioVolumes) => void)(audioVolumes);
-      }
-    };
-
-    window.addEventListener('getAudioVolumes', handleGetVolumes as EventListener);
-    return () => {
-      window.removeEventListener('getAudioVolumes', handleGetVolumes as EventListener);
-    };
-  }, [audioVolumes]);
-
-  // Debug: Log available audio files
   useEffect(() => {
     const latestAudioFiles = useGameStore.getState().audioFiles;
     console.log('[Audio] Available audio files:', {
@@ -412,7 +642,6 @@ export default function SlotMachinePreview(): JSX.Element {
     });
   }, [audioFiles]);
 
-  // Update current device type on resize/orientation change
   useEffect(() => {
     const updateDeviceType = () => {
       setCurrentDevice(detectDeviceType());
@@ -427,7 +656,6 @@ export default function SlotMachinePreview(): JSX.Element {
     };
   }, []);
 
-  // Listen for audio file updates and reload audio elements
   useEffect(() => {
     const handleAudioFileUpdated = (event: CustomEvent) => {
       const { category, name, url } = event.detail;
@@ -439,30 +667,25 @@ export default function SlotMachinePreview(): JSX.Element {
       const existingAudio = audioElementsRef.current.get(audioKey);
 
       if (existingAudio) {
-        // If audio is currently playing, reload it
         const wasPlaying = !existingAudio.paused;
         const wasLooping = existingAudio.loop;
         const volume = existingAudio.volume;
 
-        // Create new audio element with updated URL
         const newAudio = new Audio(url);
         newAudio.preload = 'auto';
         newAudio.volume = volume;
         newAudio.loop = wasLooping;
 
-        // If it was playing, start playing the new one
         if (wasPlaying) {
           newAudio.play().catch(error => {
             console.warn(`[Audio] Failed to play updated audio ${audioKey}:`, error);
           });
         }
 
-        // Replace old audio element
         existingAudio.pause();
         existingAudio.src = '';
         audioElementsRef.current.set(audioKey, newAudio);
 
-        // Update looping reference if needed
         if (wasLooping) {
           loopingAudioRef.current.set(audioKey, newAudio);
         }
@@ -475,11 +698,9 @@ export default function SlotMachinePreview(): JSX.Element {
     };
   }, []);
 
-  // Cleanup audio on unmount
   useEffect(() => {
     return () => {
       stopAllAudio();
-      // Clean up all audio elements
       audioElementsRef.current.forEach(audio => {
         audio.pause();
         audio.src = '';
@@ -504,9 +725,11 @@ export default function SlotMachinePreview(): JSX.Element {
   const [isInFreeSpinMode, setIsInFreeSpinMode] = useState(false);
   const [freeSpinsRemaining, setFreeSpinsRemaining] = useState(0);
   const [showFreeSpinAnnouncement, setShowFreeSpinAnnouncement] = useState(false);
+  /** When false, incoming bg layer uses "start" state; we flip to true after one frame to run CSS transition. */
+  const [bgTransitionRevealed, setBgTransitionRevealed] = useState(true);
   const [freeSpinAwardedCount, setFreeSpinAwardedCount] = useState(0);
-  const [announcementTransitionStyle, setAnnouncementTransitionStyle] = useState<'fade' | 'slide' | 'zoom' | 'dissolve'>('fade');
-  const [announcementTransitionDuration, setAnnouncementTransitionDuration] = useState<number>(3);
+  const [_announcementTransitionStyle, setAnnouncementTransitionStyle] = useState<'fade' | 'slide' | 'zoom' | 'dissolve'>('fade');
+  const [_announcementTransitionDuration, setAnnouncementTransitionDuration] = useState<number>(3);
   const [showFreeSpinSummary, setShowFreeSpinSummary] = useState(false);
   const [totalFreeSpinWins, setTotalFreeSpinWins] = useState(0);
   // Wheel Bonus state
@@ -547,13 +770,10 @@ export default function SlotMachinePreview(): JSX.Element {
   // Logo state
   const [logoUrl, setLogoUrl] = useState<string | null>((config as any).logo || null);
   const [logoPositions, setLogoPositions] = useState(() => {
-    // Use percentage-based positioning: 50% = center, 0% = left, 100% = right
-    // If config has old pixel values (negative or > 100), convert them to percentages
     const convertToPercentage = (pos: { x: number; y: number } | undefined, defaultPos: { x: number; y: number }) => {
       if (!pos) return defaultPos;
-      // If values are in pixel range (negative or > 100), they're old pixel values - convert to center
       if (pos.x < 0 || pos.x > 100 || pos.y < 0 || pos.y > 100) {
-        return defaultPos; // Return default percentage position
+        return defaultPos;
       }
       return pos;
     };
@@ -573,7 +793,6 @@ export default function SlotMachinePreview(): JSX.Element {
     mobilePortrait: (config as any).logoScales?.mobilePortrait || 100,
     mobileLandscape: (config as any).logoScales?.mobileLandscape || 100
   });
-  // Win display config state
   const [winDisplayConfig, setWinDisplayConfig] = useState({
     positions: (config as any).winDisplayPositions || {
       desktop: { x: 50, y: 20 },
@@ -586,15 +805,62 @@ export default function SlotMachinePreview(): JSX.Element {
       mobileLandscape: 80
     }
   });
-  // Grid adjustments state (from advanced tab)
+
+  const [winDisplayTextConfig, setWinDisplayTextConfig] = useState({
+    positions: (config as any).winDisplayTextPositions || {
+      desktop: { x: 50, y: 50 },
+      mobilePortrait: { x: 50, y: 50 },
+      mobileLandscape: { x: 50, y: 50 }
+    },
+    scales: (config as any).winDisplayTextScales || {
+      desktop: 100,
+      mobilePortrait: 100,
+      mobileLandscape: 100
+    },
+    showWinText: (config as any).showWinText !== undefined ? (config as any).showWinText : true
+  });
+
+  useEffect(() => {
+    setWinDisplayConfig({
+      positions: (config as any).winDisplayPositions || {
+        desktop: { x: 50, y: 20 },
+        mobilePortrait: { x: 50, y: 20 },
+        mobileLandscape: { x: 50, y: 20 }
+      },
+      scales: (config as any).winDisplayScales || {
+        desktop: 80,
+        mobilePortrait: 80,
+        mobileLandscape: 80
+      }
+    });
+
+    setWinDisplayTextConfig(() => ({
+      positions: (config as any).winDisplayTextPositions || {
+        desktop: { x: 50, y: 50 },
+        mobilePortrait: { x: 50, y: 50 },
+        mobileLandscape: { x: 50, y: 50 }
+      },
+      scales: (config as any).winDisplayTextScales || {
+        desktop: 100,
+        mobilePortrait: 100,
+        mobileLandscape: 100
+      },
+      showWinText: (config as any).showWinText !== undefined ? (config as any).showWinText : true
+    }));
+  }, [
+    (config as any).winDisplayPositions,
+    (config as any).winDisplayScales,
+    (config as any).winDisplayTextPositions,
+    (config as any).winDisplayTextScales,
+    (config as any).showWinText
+  ]);
   const [gridAdjustments, setGridAdjustments] = useState({
     position: (config as any).gridPosition || { x: 0, y: 0 },
     scale: (config as any).gridScale || 120,
     stretch: (config as any).gridStretch || { x: 100, y: 100 },
     showSymbolGrid: (config as any).showSymbolBackgrounds !== true
   });
-  const symbolGridBackgroundsRef = useRef<PIXI.Graphics[]>([]);
-  // Frame state (from Step4_GameAssets)
+  const symbolGridBackgroundRef = useRef<PIXI.Graphics | null>(null);
   const [frameConfig, setFrameConfig] = useState({
     framePath: (config as any).frame || null,
     frameStyle: (config as any).frameStyle || 'reel',
@@ -606,10 +872,19 @@ export default function SlotMachinePreview(): JSX.Element {
     reelDividerStretch: (config as any).reelDividerStretch || { x: 100, y: 100 },
     aiReelImage: (config as any).aiReelImage || null
   });
-  // References for frame sprites
+  const reelsRef = useRef(reels);
+  const rowsRef = useRef(rows);
+  const renderSizeRef = useRef(renderSize);
+  const gridAdjustmentsRef = useRef(gridAdjustments);
+  const frameConfigRef = useRef(frameConfig);
+
+  reelsRef.current = reels;
+  rowsRef.current = rows;
+  renderSizeRef.current = renderSize;
+  gridAdjustmentsRef.current = gridAdjustments;
+  frameConfigRef.current = frameConfig;
   const outerFrameSpriteRef = useRef<PIXI.Sprite | null>(null);
   const reelDividerSpritesRef = useRef<PIXI.Sprite[]>([]);
-  // Animation settings state (from Step7_AnimationStudio)
   const [animationSettings, setAnimationSettings] = useState({
     speed: 2.0,
     blurIntensity: 8,
@@ -626,14 +901,10 @@ export default function SlotMachinePreview(): JSX.Element {
     debugVisible: false,
     perReelEnabled: Array(reels).fill(true) as boolean[]
   });
-  // Screen shake effect refs
   const screenShakeRef = useRef({ x: 0, y: 0 });
   const glowEffectsRef = useRef<Map<PIXI.Container, PIXI.Graphics>>(new Map());
-
-  // View mode state for device dimension switching
   const [viewMode, setViewMode] = useState<'desktop' | 'mobile' | 'mobile-landscape'>('desktop');
 
-  // Detect current device type
   const getCurrentDevice = (): 'desktop' | 'mobilePortrait' | 'mobileLandscape' => {
     if (typeof window === 'undefined') return 'desktop';
     const width = window.innerWidth;
@@ -645,8 +916,11 @@ export default function SlotMachinePreview(): JSX.Element {
     return 'desktop';
   };
   const [currentDevice, setCurrentDevice] = useState<'desktop' | 'mobilePortrait' | 'mobileLandscape'>(getCurrentDevice());
-
-  // Sync refs with state (for immediate access in callbacks)
+  currentDeviceRef.current = currentDevice;
+  if (!logoSyncTimeoutRef.current) {
+    logoPositionsRef.current = logoPositions;
+    logoScalesRef.current = logoScales;
+  }
   useEffect(() => {
     freeSpinModeRef.current = isInFreeSpinMode;
   }, [isInFreeSpinMode]);
@@ -657,7 +931,37 @@ export default function SlotMachinePreview(): JSX.Element {
     animationSettingsRef.current = animationSettings;
   }, [animationSettings]);
 
-  // Get custom buttons from config
+  // === SPINE ANIMATION LIFECYCLE ===
+  // Initialize Spine character when ready
+  useEffect(() => {
+    // Wait for app to be initialized  
+    if (!appRef.current) return;
+
+    // Delay loading slightly to ensure stage is ready
+    const timeoutId = setTimeout(() => {
+      loadSpineCharacter();
+    }, 500);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [loadSpineCharacter]);
+
+  // Trigger win celebration animation when win occurs
+  useEffect(() => {
+    if (winAmount > 0 && showWinDisplay) {
+      console.log('[Spine] Win detected, playing celebration animation');
+      playSpineAnimation('win');
+    }
+  }, [winAmount, showWinDisplay, playSpineAnimation]);
+
+  // Cleanup Spine on unmount
+  useEffect(() => {
+    return () => {
+      cleanupSpineCharacter();
+    };
+  }, [cleanupSpineCharacter]);
+
   const getCustomButtons = useCallback(() => {
     const extractedButtons = (config as any)?.extractedUIButtons || (config as any)?.uiElements;
     if (!extractedButtons) return undefined;
@@ -674,7 +978,6 @@ export default function SlotMachinePreview(): JSX.Element {
 
   const customButtons = getCustomButtons();
 
-  // Handler functions for NormalDesign component
   const handleDecreaseBet = useCallback(() => {
     playAudio('ui', 'ui_click');
     setBetAmount(Math.max(1.00, betAmount - 1.00));
@@ -706,27 +1009,19 @@ export default function SlotMachinePreview(): JSX.Element {
   }, [showSettings, setShowSettings, playAudio]);
 
   const handleMaxBet = useCallback(() => {
-    // Set bet to maximum (could be balance or a fixed max)
     const maxBet = Math.min(balance, 100);
     setBetAmount(maxBet);
   }, [balance, setBetAmount]);
 
-  // Clear win lines function
   const clearWinLines = useCallback(() => {
-    winLinesRef.current.forEach(({ shadowLine, lineGraphics, mask }) => {
-      if (shadowLine && !shadowLine.destroyed) {
-        gsap.killTweensOf(shadowLine);
-        if (shadowLine.parent) {
-          shadowLine.parent.removeChild(shadowLine);
+    winLinesRef.current.forEach(({ shadowLine, lineGraphics, mask, gradient }) => {
+      const line = lineGraphics || shadowLine;
+      if (line && !line.destroyed) {
+        gsap.killTweensOf(line);
+        if (line.parent) {
+          line.parent.removeChild(line);
         }
-        shadowLine.destroy({ children: true });
-      }
-      if (lineGraphics && !lineGraphics.destroyed) {
-        gsap.killTweensOf(lineGraphics);
-        if (lineGraphics.parent) {
-          lineGraphics.parent.removeChild(lineGraphics);
-        }
-        lineGraphics.destroy({ children: true });
+        line.destroy({ children: true });
       }
       if (mask && !mask.destroyed) {
         gsap.killTweensOf(mask);
@@ -734,6 +1029,9 @@ export default function SlotMachinePreview(): JSX.Element {
           mask.parent.removeChild(mask);
         }
         mask.destroy({ children: true });
+      }
+      if (gradient && typeof (gradient as any).destroy === 'function') {
+        (gradient as any).destroy();
       }
     });
     winLinesRef.current = [];
@@ -769,14 +1067,16 @@ export default function SlotMachinePreview(): JSX.Element {
     const symbolContainer = reelContainer.children[childIndex] as PIXI.Container;
     if (!symbolContainer || symbolContainer.children.length === 0) return null;
 
-    const sprite = symbolContainer.children[0] as PIXI.Sprite;
-    if (!sprite || sprite.destroyed) return null;
+    const first = symbolContainer.children[0] as PIXI.Sprite;
+    const spine = symbolContainer.children.length > 1 ? (symbolContainer.children[1] as Spine) : null;
+    const visible = spine?.visible ? spine : first;
+    if (!visible || (visible as any).destroyed) return null;
 
-    return { sprite, container: symbolContainer };
+    return { sprite: visible as PIXI.Sprite, container: symbolContainer };
   }, [rows]);
 
-  // Reset sprite to original transform
-  const resetSpriteTransform = useCallback((sprite: PIXI.Sprite, _container: PIXI.Container, originalTransform: {
+  // Reset sprite (or Spine) to original transform
+  const resetSpriteTransform = useCallback((sprite: PIXI.Sprite | Spine, _container: PIXI.Container, originalTransform: {
     x: number;
     y: number;
     scaleX: number;
@@ -786,8 +1086,7 @@ export default function SlotMachinePreview(): JSX.Element {
     anchorX?: number;
     anchorY?: number;
   }) => {
-    // Restore anchor if it was changed
-    if (originalTransform.anchorX !== undefined && originalTransform.anchorY !== undefined) {
+    if (originalTransform.anchorX !== undefined && originalTransform.anchorY !== undefined && 'anchor' in sprite && sprite.anchor) {
       sprite.anchor.set(originalTransform.anchorX, originalTransform.anchorY);
     }
 
@@ -797,13 +1096,11 @@ export default function SlotMachinePreview(): JSX.Element {
     sprite.rotation = originalTransform.rotation;
     sprite.alpha = originalTransform.alpha;
 
-    // Remove filters
     if (sprite.filters && sprite.filters.length > 0) {
       sprite.filters = [];
     }
   }, []);
 
-  // Clean up all active symbol animations
   const cleanupSymbolAnimations = useCallback(() => {
     activeSymbolAnimationsRef.current.forEach((anim, key) => {
       if (anim.timeline) {
@@ -814,14 +1111,13 @@ export default function SlotMachinePreview(): JSX.Element {
     });
   }, [resetSpriteTransform]);
 
-  // Apply symbol animation based on template
   const applySymbolAnimation = useCallback((
-    sprite: PIXI.Sprite,
+    sprite: PIXI.Sprite | Spine,
     container: PIXI.Container,
     animationTemplate: string,
     duration: number
   ) => {
-    // Store original transform (including anchor for rotation animations)
+    const hasAnchor = 'anchor' in sprite && sprite.anchor;
     const originalTransform = {
       x: sprite.x,
       y: sprite.y,
@@ -829,14 +1125,12 @@ export default function SlotMachinePreview(): JSX.Element {
       scaleY: sprite.scale.y,
       rotation: sprite.rotation,
       alpha: sprite.alpha,
-      anchorX: sprite.anchor.x,
-      anchorY: sprite.anchor.y
+      anchorX: hasAnchor ? sprite.anchor.x : 0.5,
+      anchorY: hasAnchor ? sprite.anchor.y : 0.5
     };
 
-    // Create unique key for this animation
     const animKey = `${container.parent?.parent?.name || 'reel'}_${container.name || Date.now()}_${animationTemplate}`;
 
-    // Clean up any existing animation for this sprite
     const existingAnim = Array.from(activeSymbolAnimationsRef.current.entries()).find(
       ([_, anim]) => anim.sprite === sprite
     );
@@ -846,21 +1140,18 @@ export default function SlotMachinePreview(): JSX.Element {
       activeSymbolAnimationsRef.current.delete(existingAnim[0]);
     }
 
-    // Create timeline with limited duration (not infinite)
     const timeline = gsap.timeline({
       onComplete: () => {
-        // Reset sprite when animation completes
         resetSpriteTransform(sprite, container, originalTransform);
         activeSymbolAnimationsRef.current.delete(animKey);
       }
     });
     let repeatCount = 0;
-    let cycleDuration = 0.5; // Default cycle duration
+    let cycleDuration = 0.5;
 
-    // Apply animation based on template
     switch (animationTemplate) {
       case 'bounce':
-        cycleDuration = 0.8; // 0.4s up + 0.4s down
+        cycleDuration = 0.8;
         repeatCount = Math.max(1, Math.floor(duration / cycleDuration));
         timeline.to(sprite, {
           y: originalTransform.y - 20,
@@ -872,10 +1163,9 @@ export default function SlotMachinePreview(): JSX.Element {
         break;
 
       case 'pulse':
-        cycleDuration = 1.2; // 0.6s scale up + 0.6s scale down
+        cycleDuration = 1.2;
         repeatCount = Math.max(1, Math.floor(duration / cycleDuration));
 
-        // Don't change anchor - just scale from current anchor point
         timeline.to(sprite.scale, {
           x: originalTransform.scaleX * 1.03,
           y: originalTransform.scaleY * 1.03,
@@ -887,35 +1177,32 @@ export default function SlotMachinePreview(): JSX.Element {
         break;
 
       case 'glow':
-        cycleDuration = 1.6; // 0.8s glow up + 0.8s glow down
+        cycleDuration = 1.6;
         repeatCount = Math.max(1, Math.floor(duration / cycleDuration));
 
-        // Use PIXI GlowFilter for glow effect
         try {
-          // In PixiJS v8, filters are often available directly or via Imports. 
-          // Assuming standard filters or fallback
-          // For now, let's use a simple alpha/scale pulse as 'glow' to match the safe fallback
-          // This avoids the complexity of importing extra filter packages during this migration
-
-          timeline.to(sprite, {
-            alpha: 0.8, // Pulse alpha
-            duration: 0.8,
-            ease: "power2.inOut",
-            yoyo: true,
-            repeat: repeatCount
+          const glowFilter = new GlowFilter({
+            distance: 15,
+            outerStrength: 0,
+            color: 0xFFD700,
+            quality: 0.5
           });
-          timeline.to(sprite.scale, {
-            x: originalTransform.scaleX * 1.15,
-            y: originalTransform.scaleY * 1.15,
+          sprite.filters = [glowFilter];
+
+          timeline.to(glowFilter, {
+            outerStrength: 2,
             duration: 0.8,
             ease: "power2.inOut",
             yoyo: true,
-            repeat: repeatCount
-          }, 0);
-
+            repeat: repeatCount,
+            onComplete: () => {
+              if (sprite.filters) {
+                sprite.filters = sprite.filters.filter(f => f !== glowFilter);
+              }
+            }
+          });
         } catch (error) {
-          console.warn('[Symbol Animation] Glow error, using fallback:', error);
-          // Fallback animation
+          console.warn('[Symbol Animation] GlowFilter not available, using fallback:', error);
           timeline.to(sprite, {
             alpha: 0.9,
             duration: 0.8,
@@ -929,22 +1216,18 @@ export default function SlotMachinePreview(): JSX.Element {
       case 'rotate':
         cycleDuration = 2.0; // Full rotation duration
         repeatCount = Math.max(1, Math.floor(duration / cycleDuration));
-        const currentAnchorX = sprite.anchor.x;
-        const currentAnchorY = sprite.anchor.y;
-
-        // Get sprite dimensions (use current width/height, fallback to texture dimensions)
-        const spriteWidth = sprite.width || sprite.texture?.width || symbolSizeRef.current || 100;
-        const spriteHeight = sprite.height || sprite.texture?.height || symbolSizeRef.current || 100;
-
+        const hasAnchor = 'anchor' in sprite && sprite.anchor;
+        const currentAnchorX = hasAnchor ? sprite.anchor.x : 0.5;
+        const currentAnchorY = hasAnchor ? sprite.anchor.y : 0.5;
+        const spriteWidth = (sprite as PIXI.Sprite).width ?? (sprite as PIXI.Sprite).texture?.width ?? symbolSizeRef.current ?? 100;
+        const spriteHeight = (sprite as PIXI.Sprite).height ?? (sprite as PIXI.Sprite).texture?.height ?? symbolSizeRef.current ?? 100;
         const anchorOffsetX = (0.5 - currentAnchorX) * spriteWidth;
         const anchorOffsetY = (0.5 - currentAnchorY) * spriteHeight;
 
-        // Set anchor to center BEFORE adjusting position
-        sprite.anchor.set(0.5, 0.5);
+        if (hasAnchor) sprite.anchor.set(0.5, 0.5);
         sprite.x = originalTransform.x + anchorOffsetX;
         sprite.y = originalTransform.y + anchorOffsetY;
 
-        // Update originalTransform to reflect new position and anchor
         originalTransform.x = sprite.x;
         originalTransform.y = sprite.y;
         originalTransform.anchorX = 0.5;
@@ -1035,13 +1318,31 @@ export default function SlotMachinePreview(): JSX.Element {
       sprite,
       container,
       originalTransform,
-      filters: (sprite.filters as PIXI.Filter[]) || undefined
+      filters: sprite.filters ? [...sprite.filters] : undefined
     });
   }, [resetSpriteTransform]);
 
 
 
-  // Apply winning symbol animations
+  // Helper to get animation config - reads from store at call time, normalizes symbol keys
+  const getAnimationConfigForSymbol = useCallback((symbolKey: string) => {
+    const latestConfig = useGameStore.getState().config;
+    const symbolAnimations = latestConfig?.winAnimations?.symbolAnimations;
+    if (!symbolAnimations || typeof symbolAnimations !== 'object') return null;
+    const keysToTry = [
+      symbolKey,
+      symbolKey.replace(/([a-z]+)(\d+)/, '$1_$2'),
+      symbolKey.replace(/_/g, ''),
+      symbolKey.replace(/([a-z]+)_(\d+)/, '$1$2')
+    ];
+    for (const k of keysToTry) {
+      const cfg = symbolAnimations[k];
+      if (cfg?.animationTemplate) return cfg;
+    }
+    return null;
+  }, []);
+
+  // Apply winning symbol animations (reads config from store at call time to avoid stale closure)
   const applyWinningSymbolAnimations = useCallback((
     winDetails: Array<{
       line: number;
@@ -1052,10 +1353,11 @@ export default function SlotMachinePreview(): JSX.Element {
       amount: number;
     }>,
   ) => {
-    // Respect betline sequencing so animations play 1-by-1 per winning payline
-    const betlineConfig = (config as any).betlineConfig || {};
+    winningSpineInstancesRef.current.clear();
+    const latestConfig = useGameStore.getState().config;
+    const betlineConfig = (latestConfig as any)?.betlineConfig || {};
     const betlineSequential = betlineConfig.sequential !== undefined ? betlineConfig.sequential : true;
-    const betlineSpeed = betlineConfig.speed || 1.0; // seconds per line (mirrors drawWinLines)
+    const betlineSpeed = betlineConfig.speed || 1.0;
     const pauseBetweenLines = betlineConfig.pauseBetweenLines || 0.3;
 
     const fadeInDuration = betlineSpeed * 0.5;
@@ -1064,16 +1366,41 @@ export default function SlotMachinePreview(): JSX.Element {
     const betlineTotalDuration = fadeInDuration + displayDuration + fadeOutDuration;
 
     const applyForWinDetail = (winDetail: typeof winDetails[number]) => {
-      const symbolKey = winDetail.symbol; // e.g., 'high1', 'scatter', etc.
-      const animationConfig = config.winAnimations?.symbolAnimations?.[symbolKey];
-
-      winDetail.positions.forEach(({ reel, row }) => {
+      winDetail.positions.forEach(({ reel, row }, idx) => {
         const spriteData = getSpriteAtPosition(reel, row);
         if (!spriteData) return;
 
+        const spriteOrSpine = spriteData.sprite;
+
+        // If this cell shows a Spine (uploaded sprite symbol), play its win animation and update it for the win duration.
+        // Includes e.g. wild when win is high1+wild+high1 and wild is uploaded as Spine.
+        if (spriteOrSpine instanceof Spine) {
+          const spine = spriteOrSpine;
+          const anims = spine.skeleton?.data?.animations;
+          if (anims?.length) {
+            const winNames = ['win', 'celebrate', 'action', 'victory', 'happy', 'cheer'];
+            const winAnim = winNames.find((n) => anims.some((a: { name: string }) => a.name === n));
+            const winName = winAnim || anims[0].name;
+            spine.state?.setAnimation(0, winName, false);
+            winningSpineInstancesRef.current.add(spine);
+            const idleName = anims.find((a: { name: string }) => a.name === 'idle')?.name ?? anims[0].name;
+            setTimeout(() => {
+              spine.state?.setAnimation(0, idleName, true);
+              winningSpineInstancesRef.current.delete(spine);
+            }, betlineTotalDuration * 1000);
+          }
+        }
+
+        // Use actual symbol at this position (e.g. 'wild' or 'high1'), not just winning symbol type.
+        // When wild substitutes, winDetail.symbol is 'high1' but the wild cell should use wild's animation.
+        const actualSymbolAtPosition = winDetail.symbols[idx];
+        const animationConfig = actualSymbolAtPosition
+          ? getAnimationConfigForSymbol(actualSymbolAtPosition)
+          : getAnimationConfigForSymbol(winDetail.symbol);
+
         if (animationConfig?.animationTemplate) {
           applySymbolAnimation(
-            spriteData.sprite,
+            spriteOrSpine,
             spriteData.container,
             animationConfig.animationTemplate,
             betlineTotalDuration
@@ -1088,10 +1415,9 @@ export default function SlotMachinePreview(): JSX.Element {
         setTimeout(() => applyForWinDetail(winDetail), lineDelay * 1000);
       });
     } else {
-      // All at once
       winDetails.forEach((winDetail) => applyForWinDetail(winDetail));
     }
-  }, [config.winAnimations?.symbolAnimations, getSpriteAtPosition, applySymbolAnimation]);
+  }, [getAnimationConfigForSymbol, getSpriteAtPosition, applySymbolAnimation]);
 
   // Draw win lines over symbols
   const drawWinLines = useCallback((winDetails: Array<{
@@ -1116,28 +1442,25 @@ export default function SlotMachinePreview(): JSX.Element {
     const currentRows = config.reels?.layout?.rows ?? 3;
 
     const gridContainer = reelContainersRef.current[0]?.parent;
-
     if (!gridContainer) return;
 
     // Get betline configuration from config
     const betlineConfig = (config as any).betlineConfig || {};
     const betlineWidth = betlineConfig.width || 3;
-    const betlineSpeed = betlineConfig.speed || 1.0; // Animation speed (0.5-3.0 seconds per line)
+    const betlineSpeed = betlineConfig.speed || 1.0;
     const betlineSequential = betlineConfig.sequential !== undefined ? betlineConfig.sequential : true;
-    const pauseBetweenLines = betlineConfig.pauseBetweenLines || 0.3; // Pause between sequential lines
+    const pauseBetweenLines = betlineConfig.pauseBetweenLines || 0.3;
     const symbolHighlight = betlineConfig.symbolHighlight !== undefined ? betlineConfig.symbolHighlight : true;
-    const symbolHighlightDuration = betlineConfig.symbolHighlightDuration || 1.5; // How long symbols stay highlighted
+    const symbolHighlightDuration = betlineConfig.symbolHighlightDuration || 1.5;
 
-    const mainWidth = Math.max(betlineWidth * 3, 6);
-    const shadowWidth = mainWidth + 10;
+    // Thin line so glow comes from filter, not from thick stroke
+    const coreLineWidth = Math.min(Math.max(betlineWidth, 1.5), 3);
+    const glowExpand = 8;
 
-    // Use colors from config if available, otherwise use default
     const configColors = betlineConfig.colors || [];
     const defaultLineColors = [0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF, 0x00FFFF, 0xFFA500, 0x800080];
-    // Convert hex colors to numbers if provided
     const lineColors = configColors.length > 0
       ? configColors.map((color: string) => {
-        // Convert hex string to number (e.g., '#FF6B6B' -> 0xFF6B6B)
         if (typeof color === 'string' && color.startsWith('#')) {
           return parseInt(color.replace('#', ''), 16);
         }
@@ -1145,11 +1468,9 @@ export default function SlotMachinePreview(): JSX.Element {
       })
       : defaultLineColors;
 
-    // Get betline patterns for drawing lines
     let betlinePatterns = (config.reels as any)?.betlinePatterns;
-    const betlines = (config.reels as any)?.betlines || 20;
+    const betlines = config.reels?.betlines || 20;
 
-    // Validate and regenerate patterns if they don't match current grid dimensions
     const patternsValid = betlinePatterns &&
       Array.isArray(betlinePatterns) &&
       betlinePatterns.length > 0 &&
@@ -1164,51 +1485,37 @@ export default function SlotMachinePreview(): JSX.Element {
       }
     }
 
-    // Calculate metrics inline - MUST match computeResponsiveMetrics to account for UI buttons
     const w = renderSize.width;
     const h = renderSize.height;
 
-    // Get UI button container height to account for space taken at bottom
     let uiButtonHeight = 0;
     if (uiControlsRef.current) {
       const uiRect = uiControlsRef.current.getBoundingClientRect();
       uiButtonHeight = uiRect.height;
     } else {
-      // Fallback estimate: UI buttons are typically 80-130px tall
       uiButtonHeight = 100;
     }
-
-    // Calculate available height (excluding UI buttons at bottom)
     const availableHeight = h - uiButtonHeight;
-
-    // Base calculations - use available height instead of full height
     const symbolWidth = Math.floor((w * 0.8) / currentReels);
     const symbolHeight = Math.floor((availableHeight * 0.8) / currentRows);
     let size = Math.min(symbolWidth, symbolHeight);
 
-    // Apply grid scale (120 = 100% baseline, so divide by 120 and multiply by scale)
     const scaleFactor = gridAdjustments.scale / 120;
     size = size * scaleFactor;
 
-    // Apply grid stretch
     const baseSpacingX = size * 1.05 * (gridAdjustments.stretch.x / 100);
     const spacingY = size * 1.05 * (gridAdjustments.stretch.y / 100);
 
-    // Apply reel gap to spacingX (reelGap affects actual spacing between reels)
     const spacingX = baseSpacingX + (frameConfig.reelGap || 0);
 
-    // Calculate base offset (centered in available space, not full height)
     const totalWidth = currentReels * spacingX;
     const totalHeight = currentRows * spacingY;
     let offsetX = (w - totalWidth) / 2;
-    // Center vertically in the available space (above UI buttons)
     let offsetY = (availableHeight - totalHeight) / 2;
 
     // Apply grid position adjustments
     offsetX += gridAdjustments.position.x;
     offsetY += gridAdjustments.position.y;
-
-    // Helper function to draw a single line with all configurations
     const drawSingleLine = (
       detail: typeof winDetails[0],
       idx: number,
@@ -1221,12 +1528,9 @@ export default function SlotMachinePreview(): JSX.Element {
 
       if (!linePattern) return;
 
-      // Determine what to draw based on winAnimationType
       const shouldDrawLines = winAnimationType === 'lines' || winAnimationType === 'both' || winAnimationType === 'curvedLines';
       const shouldDrawSquares = winAnimationType === 'squares' || winAnimationType === 'both';
 
-      // Collect points for the FULL betline pattern (all reels, not just winning symbols)
-      // This makes the line span the entire row
       const points: Array<{ x: number, y: number }> = [];
       for (let reel = 0; reel < currentReels; reel++) {
         const row = linePattern[reel];
@@ -1237,17 +1541,12 @@ export default function SlotMachinePreview(): JSX.Element {
           continue;
         }
 
-        // Calculate center position of symbol using calculated metrics
         const centerX = offsetX + reel * spacingX + size / 2;
         const centerY = offsetY + row * spacingY + size / 2;
         points.push({ x: centerX, y: centerY });
       }
 
-      // Need at least 2 points to draw a line
       if (points.length < 2) return;
-
-      // Visual polish: Highlight winning symbols (glowing squares) - only if squares are enabled
-      // Note: Squares still only highlight the actual winning symbols, not the full row
       if (shouldDrawSquares) {
         detail.positions.forEach((pos) => {
           // Validate position is within current grid bounds
@@ -1257,15 +1556,13 @@ export default function SlotMachinePreview(): JSX.Element {
           }
 
           const highlight = new PIXI.Graphics();
-          highlight.beginFill(color, 0.2);
           highlight.roundRect(
             offsetX + pos.reel * spacingX - 3,
             offsetY + pos.row * spacingY - 3,
             size + 6,
             size + 6,
             6
-          );
-          highlight.endFill();
+          ).fill({ color, alpha: 0.2 });
 
           if (appRef.current) {
             appRef.current.stage.addChild(highlight);
@@ -1311,24 +1608,16 @@ export default function SlotMachinePreview(): JSX.Element {
         });
       }
 
-      // Draw lines - only if lines are enabled
       if (shouldDrawLines) {
-        // 1. SETUP GRAPHICS OBJECTS
-        // We use shadowLine for the "Glow" and lineGraphics for the "Core"
-        const shadowLine = new PIXI.Graphics();
+        // Thin glowing line: one thin stroke + GlowFilter so it glows from all sides, not a solid bar
         const lineGraphics = new PIXI.Graphics();
-
-        // Set blend mode to ADD to make it look like light/fire
-        shadowLine.blendMode = 'add';
         lineGraphics.blendMode = 'add';
 
-        // 2. DEFINE STYLING CONSTANTS (Gold/Energy Theme)
-        const GOLD_OUTER = 0xFFA500; // Orange-ish Gold
-        const GOLD_INNER = 0xFFFF00; // Bright Yellow
-        const CORE_WHITE = 0xFFFFFF; // Pure White center
+        const lineColor = lineColors[idx % lineColors.length];
+        const r = (lineColor >> 16) & 0xFF;
+        const g = (lineColor >> 8) & 0xFF;
+        const b = lineColor & 0xFF;
 
-        // 3. HELPER: SMOOTH CURVE FUNCTION
-        // Uses Catmull-Rom spline to create smooth curves that pass through ALL center points
         const drawSmoothCurve = (g: PIXI.Graphics, pts: { x: number, y: number }[]) => {
           if (pts.length < 2) return;
 
@@ -1339,14 +1628,12 @@ export default function SlotMachinePreview(): JSX.Element {
             return;
           }
 
-          // Catmull-Rom spline: smooth curve through all points
           for (let i = 0; i < pts.length - 1; i++) {
             const p0 = pts[Math.max(0, i - 1)];
             const p1 = pts[i];
             const p2 = pts[i + 1];
             const p3 = pts[Math.min(pts.length - 1, i + 2)];
 
-            // Calculate control points for bezier curve
             const cp1x = p1.x + (p2.x - p0.x) / 6;
             const cp1y = p1.y + (p2.y - p0.y) / 6;
             const cp2x = p2.x - (p3.x - p1.x) / 6;
@@ -1356,44 +1643,50 @@ export default function SlotMachinePreview(): JSX.Element {
           }
         };
 
-        // 4. DRAW THE LAYERS
+        // Gradient: tail faded → leading bright (softer alphas so it reads as light, not solid)
+        const minX = Math.min(...points.map(p => p.x));
+        const maxX = Math.max(...points.map(p => p.x));
+        const midY = points.reduce((s, p) => s + p.y, 0) / points.length;
+        const tailGradient = new FillGradient({
+          type: 'linear',
+          start: { x: minX, y: midY },
+          end: { x: maxX, y: midY },
+          colorStops: [
+            { offset: 0, color: `rgba(${r},${g},${b},0.12)` },
+            { offset: 0.4, color: `rgba(255,245,200,0.35)` },
+            { offset: 0.75, color: `rgba(255,250,220,0.7)` },
+            { offset: 1, color: 'rgba(255,255,255,0.95)' }
+          ],
+          textureSpace: 'global'
+        });
 
-        // LAYER A: Outer Glow (Wide, Soft, Orange/Gold)
-        // We draw this multiple times with low alpha to simulate a gradient fade
-        shadowLine.lineStyle(shadowWidth + 15, GOLD_OUTER, 0.3);
-        drawSmoothCurve(shadowLine, points);
-
-        // LAYER B: Inner Glow (Medium, Bright Yellow)
-        // We append this to shadowLine to keep them grouped in your existing logic
-        shadowLine.lineStyle(mainWidth + 5, GOLD_INNER, 0.5);
-        drawSmoothCurve(shadowLine, points);
-
-        // LAYER C: The Core (Thin, White/Bright, Sharp)
-        lineGraphics.lineStyle(mainWidth, CORE_WHITE, 1.0);
+        // Single thin line; GlowFilter makes it glow from all sides
         drawSmoothCurve(lineGraphics, points);
-
-        // 5. APPLY FILTERS
-        // Heavy blur for the glow, slight blur for the core to remove pixelation
-        shadowLine.filters = [new PIXI.BlurFilter(8, 4)]; // High quality blur
-        lineGraphics.filters = [new PIXI.BlurFilter(1)];  // Very slight blur for smoothness
-
-        // 6. ADD TO STAGE
-        if (appRef.current) {
-          appRef.current.stage.addChild(shadowLine);
-          appRef.current.stage.addChild(lineGraphics);
+        lineGraphics.stroke({
+          width: coreLineWidth,
+          fill: tailGradient,
+          cap: 'round',
+          join: 'round'
+        });
+        try {
+          const glowFilter = new GlowFilter({
+            distance: glowExpand,
+            outerStrength: 2.2,
+            innerStrength: 0.4,
+            color: lineColor,
+            quality: 0.2
+          });
+          lineGraphics.filters = [glowFilter];
+        } catch {
+          lineGraphics.filters = [new PIXI.BlurFilter({ strength: 4, quality: 2 })];
         }
 
-        // 7. ANIMATION (The "Beam" Travel Effect)
-        // Create progressive reveal mask
+        if (appRef.current) {
+          appRef.current.stage.addChild(lineGraphics);
+        }
         const maskHeight = totalHeight + size * 2;
         const revealMask = new PIXI.Graphics();
-
-        // Draw a gradient-like mask (using steps) or solid rect
-        // For a beam, a simple rect moving fast works well
-        revealMask.beginFill(0xFFFFFF);
-        // Make the mask wider (2 reels) so the tail of the beam doesn't cut off too abruptly
-        revealMask.drawRect(0, -size, spacingX * 2, maskHeight);
-        revealMask.endFill();
+        revealMask.rect(0, -size, spacingX * 2, maskHeight).fill(0xFFFFFF);
 
         // Position mask initially
         // Start far left
@@ -1402,53 +1695,37 @@ export default function SlotMachinePreview(): JSX.Element {
 
         revealMask.x = startX;
         revealMask.y = offsetY - size;
-
-        // Rotate mask slightly if the line goes diagonally (optional, but looks cool)
-        // For now, keep it simple vertical
-
-        // Apply mask
-        shadowLine.mask = revealMask;
         lineGraphics.mask = revealMask;
 
         if (appRef.current) {
           appRef.current.stage.addChild(revealMask);
         }
 
-        // Track for cleanup
-        winLinesRef.current.push({ shadowLine, lineGraphics, mask: revealMask });
-
-        // 8. ANIMATE
-        // Slower animation for better visibility
+        // Track for cleanup (destroy gradient to avoid memory leaks)
+        winLinesRef.current.push({ shadowLine: lineGraphics, lineGraphics, mask: revealMask, gradient: tailGradient });
         const animationDuration = (betlineSpeed || 0.8) * 2; // Double the duration to slow it down 
 
         gsap.fromTo(revealMask,
-          {
-            x: startX,
-            width: spacingX // Start narrow
-          },
+          { x: startX },
           {
             x: endX,
-            width: spacingX * 4, // Grow wider as it travels (trail effect)
             duration: animationDuration,
             delay: lineDelay + (betlineSequential ? 0 : idx * 0.1),
-            ease: 'power1.inOut', // Linear/Power1 is better for beams than elastic
+            ease: 'power2.out', // Fast start, smooth settle - beam traveling through symbols
             onComplete: () => {
-              // Fade out
-              gsap.to([shadowLine, lineGraphics], {
+              gsap.to(lineGraphics, {
                 alpha: 0,
                 duration: 0.3,
                 onComplete: () => {
-                  // ... [Your existing Cleanup Logic here] ...
-                  gsap.killTweensOf([shadowLine, lineGraphics, revealMask]);
-                  if (shadowLine.parent) shadowLine.parent.removeChild(shadowLine);
+                  gsap.killTweensOf([lineGraphics, revealMask]);
                   if (lineGraphics.parent) lineGraphics.parent.removeChild(lineGraphics);
                   if (revealMask.parent) revealMask.parent.removeChild(revealMask);
-                  shadowLine.destroy({ children: true });
                   lineGraphics.destroy({ children: true });
                   revealMask.destroy({ children: true });
+                  tailGradient.destroy();
 
                   winLinesRef.current = winLinesRef.current.filter(
-                    item => item.shadowLine !== shadowLine
+                    item => item.shadowLine !== lineGraphics
                   );
 
                   // Check callback
@@ -1464,19 +1741,18 @@ export default function SlotMachinePreview(): JSX.Element {
           }
         );
 
-        // Optional: Pulse the opacity slightly while moving
-        gsap.to([shadowLine, lineGraphics], {
-          alpha: 0.8,
-          duration: 0.1,
+        // Subtle glow pulse
+        gsap.to(lineGraphics, {
+          alpha: 0.92,
+          duration: 0.5,
+          ease: 'sine.inOut',
           yoyo: true,
-          repeat: 8
+          repeat: -1
         });
       }
     };
 
-    // Draw lines sequentially or all at once based on configuration
     if (betlineSequential && winDetails.length > 1) {
-      // Sequential: draw lines one by one with delays
       let completedLines = 0;
       const totalLines = winDetails.length;
 
@@ -1489,30 +1765,23 @@ export default function SlotMachinePreview(): JSX.Element {
           // Track completion
           completedLines++;
           if (completedLines === totalLines) {
-            // All lines drawn, check if we need to call onComplete
             if (onComplete) {
-              // Wait for all animations to complete
               const totalAnimationTime = betlineSpeed * totalLines + pauseBetweenLines * (totalLines - 1);
               setTimeout(() => {
                 if (winAnimationCompleteCallbackRef.current) {
                   winAnimationCompleteCallbackRef.current();
                   winAnimationCompleteCallbackRef.current = null;
                 }
-              }, totalAnimationTime * 1000 + 500); // Add buffer for animations
+              }, totalAnimationTime * 1000 + 500);
             }
           }
         }, lineDelay * 1000);
       });
     } else {
-      // All at once: draw all lines simultaneously
       winDetails.forEach((detail, idx) => {
         drawSingleLine(detail, idx, 0);
       });
-
-      // Store callback for completion tracking
     }
-
-    // Store callback for completion tracking (for non-sequential or single line)
     if (onComplete) {
       winAnimationCompleteCallbackRef.current = onComplete;
 
@@ -1544,10 +1813,6 @@ export default function SlotMachinePreview(): JSX.Element {
 
   function createRandomGrid(): string[][] {
     const allKeys = Object.keys(symbols);
-
-    // During initialization, isInFreeSpinMode is not yet defined, so use all symbols
-    // During gameplay, this function is called from contexts where isInFreeSpinMode is accessible
-    // For initialization, we always want all symbols (including scatter) since we start in regular mode
     const keys = allKeys;
 
     return Array.from({ length: reels }, () =>
@@ -1620,24 +1885,20 @@ export default function SlotMachinePreview(): JSX.Element {
         if (currentSymbolKey === winningSymbolKey || currentSymbolKey === 'wild') {
           matchCount++;
         } else {
-          break; // Stop at first non-matching symbol
+          break;
         }
       }
     }
 
-    // Handle case where all symbols are wilds
     if (winningSymbolKey === null && matchCount >= 3) {
       winningSymbolKey = 'wild';
     }
 
-    // Bonus symbols cannot be the winning symbol type for line wins
     if (winningSymbolKey === 'scatter' || winningSymbolKey === 'bonus' || winningSymbolKey === 'holdspin') {
       return { amount: 0, count: 0, symbol: null };
     }
 
-    // Check for minimum 3 consecutive matches
     if (matchCount >= 3 && winningSymbolKey) {
-      // Map storage key to paytable key format
       const paytableKey = mapStorageKeyToPaytableKey(winningSymbolKey);
       const paytable = symbolPaytable[paytableKey] || symbolPaytable['low_1'];
 
@@ -1666,7 +1927,7 @@ export default function SlotMachinePreview(): JSX.Element {
     // Read current grid dimensions directly from config (not from closure)
     const currentReels = config.reels?.layout?.reels ?? 5;
     const currentRows = config.reels?.layout?.rows ?? 3;
-    const betlines = (config.reels as any)?.betlines || 20;
+    const betlines = config.reels?.betlines || 20;
 
     // Validate that symbols array matches current grid dimensions
     if (symbols.length !== currentReels) {
@@ -1768,7 +2029,6 @@ export default function SlotMachinePreview(): JSX.Element {
         }
       }
 
-      // Only check for wins if we successfully extracted all symbols for this line
       if (lineSymbols.length !== currentReels) {
         console.warn(`[Win Detection] Incomplete line ${lineIndex}: only ${lineSymbols.length}/${currentReels} symbols extracted`);
         continue;
@@ -1779,7 +2039,7 @@ export default function SlotMachinePreview(): JSX.Element {
 
       if (lineWin.amount > 0) {
         totalWin += lineWin.amount;
-        const winPositions = linePositions.slice(0, lineWin.count); // Only winning positions
+        const winPositions = linePositions.slice(0, lineWin.count);
 
         winDetailsArray.push({
           line: lineIndex + 1,
@@ -1796,51 +2056,43 @@ export default function SlotMachinePreview(): JSX.Element {
   }, [config.reels?.layout?.reels, config.reels?.layout?.rows, (config.reels as any)?.betlinePatterns, config.reels?.betlines, config.theme?.generated?.symbolPaytables, betAmount, checkLineWin, generateDefaultPaytable]);
 
   const computeResponsiveMetrics = useCallback(() => {
-    const w = renderSize.width;
-    const h = renderSize.height;
+    const w = renderSizeRef.current.width;
+    const h = renderSizeRef.current.height;
+    const currentReels = reelsRef.current;
+    const currentRows = rowsRef.current;
+    const { position, scale, stretch } = gridAdjustmentsRef.current;
+    const currentReelGap = frameConfigRef.current.reelGap || 0;
 
-    // Get UI button container height to account for space taken at bottom
     let uiButtonHeight = 0;
     if (uiControlsRef.current) {
       const uiRect = uiControlsRef.current.getBoundingClientRect();
       uiButtonHeight = uiRect.height;
     } else {
-      // Fallback estimate: UI buttons are typically 80-130px tall
       uiButtonHeight = 100;
     }
 
-    // Calculate available height (excluding UI buttons at bottom)
     const availableHeight = h - uiButtonHeight;
-
-    // Base calculations - use available height instead of full height
-    const symbolWidth = Math.floor((w * 0.8) / reels);
-    const symbolHeight = Math.floor((availableHeight * 0.8) / rows);
+    const symbolWidth = Math.floor((w * 0.8) / currentReels);
+    const symbolHeight = Math.floor((availableHeight * 0.8) / currentRows);
     let size = Math.min(symbolWidth, symbolHeight);
     symbolSizeRef.current = size;
-
-    // Apply grid scale (120 = 100% baseline, so divide by 120 and multiply by scale)
-    const scaleFactor = gridAdjustments.scale / 120;
+    const scaleFactor = scale / 120;
     size = size * scaleFactor;
 
     // Apply grid stretch
-    const baseSpacingX = size * 1.05 * (gridAdjustments.stretch.x / 100);
-    const spacingY = size * 1.05 * (gridAdjustments.stretch.y / 100);
+    const baseSpacingX = size * 1.05 * (stretch.x / 100);
+    const spacingY = size * 1.05 * (stretch.y / 100);
 
-    // Apply reel gap to spacingX (reelGap affects actual spacing between reels)
-    // reelGap is in pixels, so we add it to the base spacing
-    const spacingX = baseSpacingX + (frameConfig.reelGap || 0);
+    const spacingX = baseSpacingX + currentReelGap;
 
-    // Calculate base offset (centered in available space, not full height)
-    const totalWidth = reels * spacingX;
-    const totalHeight = rows * spacingY;
+    const totalWidth = currentReels * spacingX;
+    const totalHeight = currentRows * spacingY;
     const freespinSpacingY = spacingY - 5;
     let offsetX = (w - totalWidth) / 2;
-    // Center vertically in the available space (above UI buttons)
     let offsetY = (availableHeight - totalHeight) / 2;
 
-    // Apply grid position adjustments
-    offsetX += gridAdjustments.position.x;
-    offsetY += gridAdjustments.position.y;
+    offsetX += position.x;
+    offsetY += position.y;
 
     return {
       size,
@@ -1850,65 +2102,165 @@ export default function SlotMachinePreview(): JSX.Element {
       offsetX,
       offsetY,
     };
-  }, [renderSize, reels, rows, gridAdjustments, frameConfig.reelGap]);
+  }, []);
+
+  useEffect(() => {
+    computeResponsiveMetricsRef.current = computeResponsiveMetrics;
+  }, [computeResponsiveMetrics]);
 
   const preloadTextures = useCallback(async () => {
-    // Wait for preloader to be ready
     await SymbolPreloader.waitForReady();
 
     const map: Record<string, PIXI.Texture> = {};
+    const spineAssets = symbolSpineAssets;
 
     for (const [k, url] of Object.entries(symbols)) {
+      if (spineAssets[k]) continue;
       if (!url || url === '') {
         console.warn(`⚠️ Symbol ${k} has empty URL, skipping`);
         continue;
       }
 
-      // Try to get from cache first (instant!)
-      let texture = SymbolPreloader.getTexture(url) ||
-        SymbolPreloader.getTexture(k);
-
+      // Prefer texture for this config URL (uploaded/custom) so spin always uses new symbols
+      let texture = SymbolPreloader.getTexture(url) || null;
       if (!texture) {
         texture = await SymbolPreloader.waitForSymbol(url, 10000);
-
-        // If still not loaded, try loading directly
         if (!texture) {
           try {
-            let newTexture: PIXI.Texture | null = null;
-
-            // For base64 data URLs, use PIXI.Texture.from directly
-            if (url.startsWith('data:')) {
-              newTexture = await PIXI.Assets.load(url);
-            } else {
-              // Regular URL - use PIXI.Assets
-              newTexture = await PIXI.Assets.load(url);
-            }
-
-            if (newTexture) {
-              texture = newTexture;
-            }
+            const newTexture = await Assets.load(url) as PIXI.Texture;
+            if (newTexture) texture = newTexture;
           } catch (error) {
             console.error(`[SlotMachine] Failed to load symbol ${k}:`, error);
           }
         }
       }
-
+      if (!texture) {
+        texture = SymbolPreloader.getTexture(k) || null;
+      }
       if (texture) {
         map[k] = texture;
       } else {
-        // Fallback - try to use predefined symbol if available
-        const predefinedTexture = SymbolPreloader.getTexture(k);
-        if (predefinedTexture) {
-          map[k] = predefinedTexture;
-        } else {
-          console.warn(`⚠️ Symbol ${k} not available, using fallback`);
-          map[k] = PIXI.Texture.WHITE;
-        }
+        console.warn(`⚠️ Symbol ${k} not available, using fallback`);
+        map[k] = PIXI.Texture.WHITE;
       }
     }
 
     texturesRef.current = map;
-  }, [symbols]);
+  }, [symbols, symbolSpineAssets]);
+
+  // Load Spine assets for animated symbols (same format as character: atlas, skel, texture)
+  const loadSpineSymbolAssets = useCallback(async () => {
+    const assets = (useGameStore.getState().config?.theme?.generated?.symbolSpineAssets || {}) as Record<string, SymbolSpineAsset>;
+    const keys = Object.keys(assets);
+    if (keys.length === 0) return;
+
+    const ids = spineSymbolAssetIdsRef.current;
+    const lastUrls = lastSpineSymbolUrlsRef.current;
+
+    for (const key of keys) {
+      const asset = assets[key];
+      if (!asset?.atlasUrl || !asset.skelUrl || !asset.textureUrl || !asset.textureName) continue;
+      const urlKey = `${asset.atlasUrl}|${asset.skelUrl}`;
+      if (lastUrls[key] === urlKey && ids[key]) continue;
+
+      try {
+        const prev = ids[key];
+        if (prev) {
+          if (PIXI.Assets.cache.has(prev.skel)) await PIXI.Assets.unload(prev.skel);
+          if (PIXI.Assets.cache.has(prev.atlas)) await PIXI.Assets.unload(prev.atlas);
+          if (prev.texture && PIXI.Assets.cache.has(prev.texture)) await PIXI.Assets.unload(prev.texture);
+        }
+        const pool = spineSymbolPoolRef.current.get(key);
+        if (pool) {
+          pool.forEach(s => { if (s.parent) s.parent.removeChild(s); s.destroy({ children: true }); });
+          spineSymbolPoolRef.current.set(key, []);
+        }
+
+        const unique = `sym_${key}_${Date.now()}`;
+        const skelId = `spine_sym_skel_${unique}`;
+        const atlasId = `spine_sym_atlas_${unique}`;
+        const texId = `spine_sym_tex_${unique}`;
+
+        PIXI.Assets.add({ alias: skelId, src: asset.skelUrl, loadParser: 'spineSkeletonLoader' });
+        PIXI.Assets.add({ alias: texId, src: asset.textureUrl, loadParser: 'loadTextures' });
+        const loadedTex = await PIXI.Assets.load(texId) as PIXI.Texture;
+        const textureSource = loadedTex?.source ?? null;
+        PIXI.Assets.add({
+          alias: atlasId,
+          src: asset.atlasUrl,
+          loadParser: 'spineTextureAtlasLoader',
+          data: { images: textureSource ? { [asset.textureName]: textureSource } : { [asset.textureName]: asset.textureUrl } }
+        });
+        await PIXI.Assets.load([skelId, atlasId]);
+
+        ids[key] = { skel: skelId, atlas: atlasId, texture: texId };
+        lastUrls[key] = urlKey;
+      } catch (err) {
+        console.error(`[SlotMachine] Failed to load Spine symbol ${key}:`, err);
+      }
+    }
+  }, []);
+
+  /** Scale a Spine instance to fit inside a single symbol cell and center it (pixelSize x pixelSize). */
+  function scaleSpineToFitCell(spine: Spine, pixelSize: number) {
+    if (!spine || (spine as any).destroyed || !spine.skeleton) return;
+    spine.update(0);
+    const b = spine.bounds as { width?: number; height?: number; maxX?: number; minX?: number; maxY?: number; minY?: number };
+    const minX = b?.minX ?? 0;
+    const minY = b?.minY ?? 0;
+    const maxX = b?.maxX ?? minX;
+    const maxY = b?.maxY ?? minY;
+    const w = (b?.width ?? (maxX - minX)) || 0;
+    const h = (b?.height ?? (maxY - minY)) || 0;
+    const maxDim = Math.max(w, h, 1);
+    const scale = maxDim > 0 ? pixelSize / maxDim : pixelSize / 100;
+    spine.scale.set(scale);
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    spine.x = pixelSize / 2 - scale * centerX;
+    spine.y = pixelSize / 2 - scale * centerY;
+  }
+
+  function getSpineFromPool(symbolKey: string, pixelSize: number): Spine | null {
+    const ids = spineSymbolAssetIdsRef.current[symbolKey];
+    if (!ids) return null;
+    let pool = spineSymbolPoolRef.current.get(symbolKey);
+    if (!pool) spineSymbolPoolRef.current.set(symbolKey, (pool = []));
+    let spine: Spine | null = null;
+    while (pool.length > 0) {
+      const candidate = pool.shift()!;
+      if (candidate && !(candidate as any).destroyed && candidate.skeleton) {
+        spine = candidate;
+        break;
+      }
+    }
+    if (!spine) {
+      try {
+        spine = Spine.from({ skeleton: ids.skel, atlas: ids.atlas });
+      } catch (e) {
+        console.warn('[SlotMachine] Spine.from failed for', symbolKey, e);
+        return null;
+      }
+    }
+    spine.visible = true;
+    const anims = spine.skeleton?.data?.animations;
+    if (anims?.length) {
+      const name = anims.find((a: { name: string }) => a.name === 'idle')?.name ?? anims[0].name;
+      spine.state?.setAnimation(0, name, true);
+    }
+    scaleSpineToFitCell(spine, pixelSize);
+    (spine as any).__symbolKey = symbolKey;
+    return spine;
+  }
+
+  function returnSpineToPool(symbolKey: string, spine: Spine) {
+    if (!spine || (spine as any).destroyed) return;
+    if (spine.parent) spine.parent.removeChild(spine);
+    spine.visible = false;
+    let pool = spineSymbolPoolRef.current.get(symbolKey);
+    if (!pool) spineSymbolPoolRef.current.set(symbolKey, (pool = []));
+    pool.push(spine);
+  }
 
   const updateBackground = useCallback((url: string | null, adjustments?: {
     position?: { x: number; y: number };
@@ -1918,7 +2270,6 @@ export default function SlotMachinePreview(): JSX.Element {
     const app = appRef.current;
     if (!app) return;
 
-    // Remove existing background sprite
     if (backgroundSpriteRef.current) {
       app.stage.removeChild(backgroundSpriteRef.current);
       backgroundSpriteRef.current.destroy();
@@ -1929,78 +2280,76 @@ export default function SlotMachinePreview(): JSX.Element {
       return;
     }
 
-    // Load and create background sprite
-    try {
-      const texture = PIXI.Texture.from(url);
-      const sprite = new PIXI.Sprite(texture);
+    Assets.load(url).then((texture: PIXI.Texture) => {
+      if (!appRef.current) return;
+      const app = appRef.current;
+      try {
+        const sprite = new PIXI.Sprite(texture);
 
-      // Calculate symbol area bounds
-      const metrics = computeResponsiveMetrics();
-      const symbolAreaWidth = reels * metrics.spacingX;
-      const symbolAreaHeight = rows * metrics.spacingY;
-      const symbolAreaX = metrics.offsetX;
-      const symbolAreaY = metrics.offsetY;
+        // Calculate symbol area bounds
+        const metrics = computeResponsiveMetrics();
+        const symbolAreaWidth = reels * metrics.spacingX;
+        const symbolAreaHeight = rows * metrics.spacingY;
+        const symbolAreaX = metrics.offsetX;
+        const symbolAreaY = metrics.offsetY;
 
-      // Apply adjustments
-      const pos = adjustments?.position || backgroundAdjustments.position;
-      const scale = adjustments?.scale ?? backgroundAdjustments.scale;
-      const fit = adjustments?.fit || backgroundAdjustments.fit;
+        // Apply adjustments
+        const pos = adjustments?.position || backgroundAdjustments.position;
+        const scale = adjustments?.scale ?? backgroundAdjustments.scale;
+        const fit = adjustments?.fit || backgroundAdjustments.fit;
+        const textureWidth = texture.width;
+        const textureHeight = texture.height;
 
-      // Calculate dimensions based on symbol area only
-      const textureWidth = texture.width;
-      const textureHeight = texture.height;
+        let finalWidth = textureWidth;
+        let finalHeight = textureHeight;
 
-      let finalWidth = textureWidth;
-      let finalHeight = textureHeight;
+        switch (fit) {
+          case 'cover':
+            const coverScale = Math.max(symbolAreaWidth / textureWidth, symbolAreaHeight / textureHeight);
+            finalWidth = textureWidth * coverScale;
+            finalHeight = textureHeight * coverScale;
+            break;
+          case 'contain':
+            const containScale = Math.min(symbolAreaWidth / textureWidth, symbolAreaHeight / textureHeight);
+            finalWidth = textureWidth * containScale;
+            finalHeight = textureHeight * containScale;
+            break;
+          case 'fill':
+            finalWidth = symbolAreaWidth;
+            finalHeight = symbolAreaHeight;
+            break;
+          case 'scale-down':
+            const scaleDownScale = Math.min(1, Math.min(symbolAreaWidth / textureWidth, symbolAreaHeight / textureHeight));
+            finalWidth = textureWidth * scaleDownScale;
+            finalHeight = textureHeight * scaleDownScale;
+            break;
+        }
 
-      switch (fit) {
-        case 'cover':
-          const coverScale = Math.max(symbolAreaWidth / textureWidth, symbolAreaHeight / textureHeight);
-          finalWidth = textureWidth * coverScale;
-          finalHeight = textureHeight * coverScale;
-          break;
-        case 'contain':
-          const containScale = Math.min(symbolAreaWidth / textureWidth, symbolAreaHeight / textureHeight);
-          finalWidth = textureWidth * containScale;
-          finalHeight = textureHeight * containScale;
-          break;
-        case 'fill':
-          finalWidth = symbolAreaWidth;
-          finalHeight = symbolAreaHeight;
-          break;
-        case 'scale-down':
-          const scaleDownScale = Math.min(1, Math.min(symbolAreaWidth / textureWidth, symbolAreaHeight / textureHeight));
-          finalWidth = textureWidth * scaleDownScale;
-          finalHeight = textureHeight * scaleDownScale;
-          break;
+        // Apply scale percentage
+        finalWidth = (finalWidth * scale) / 100;
+        finalHeight = (finalHeight * scale) / 100;
+
+        sprite.width = finalWidth;
+        sprite.height = finalHeight;
+        sprite.anchor.set(0.5);
+        sprite.x = symbolAreaX + symbolAreaWidth / 2 + pos.x;
+        sprite.y = symbolAreaY + symbolAreaHeight / 2 + pos.y;
+
+        // Create mask to constrain background to symbol area
+        const bgMask = new PIXI.Graphics();
+        bgMask.rect(symbolAreaX, symbolAreaY, symbolAreaWidth, symbolAreaHeight).fill(0xffffff);
+        app.stage.addChild(bgMask);
+        sprite.mask = bgMask;
+
+        // Add to stage at the bottom (behind everything)
+        app.stage.addChildAt(sprite, 0);
+        backgroundSpriteRef.current = sprite;
+      } catch (error) {
+        console.error('Error loading background image:', error);
       }
-
-      // Apply scale percentage
-      finalWidth = (finalWidth * scale) / 100;
-      finalHeight = (finalHeight * scale) / 100;
-
-      sprite.width = finalWidth;
-      sprite.height = finalHeight;
-
-      // Position within symbol area bounds only
-      sprite.anchor.set(0.5);
-      sprite.x = symbolAreaX + symbolAreaWidth / 2 + pos.x;
-      sprite.y = symbolAreaY + symbolAreaHeight / 2 + pos.y;
-
-      // Create mask to constrain background to symbol area
-      const bgMask = new PIXI.Graphics();
-      bgMask.beginFill(0xffffff);
-      bgMask.drawRect(symbolAreaX, symbolAreaY, symbolAreaWidth, symbolAreaHeight);
-      bgMask.endFill();
-      app.stage.addChild(bgMask);
-      sprite.mask = bgMask;
-
-      // Add to stage at the bottom (behind everything)
-      app.stage.addChildAt(sprite, 0);
-      backgroundSpriteRef.current = sprite;
-    } catch (error) {
+    }).catch((error) => {
       console.error('Error loading background image:', error);
-    }
+    });
   }, [backgroundAdjustments, reels, rows, computeResponsiveMetrics]);
 
   function renderReelFinal(_reelIndex: number, symbolsArr: string[] | undefined, rc: PIXI.Container, metrics: any) {
@@ -2010,9 +2359,6 @@ export default function SlotMachinePreview(): JSX.Element {
       rc.filters = rc.filters.filter(f => f !== blurFilter);
       blurFiltersRef.current.delete(rc);
     }
-
-    // Safety check: if symbolsArr is undefined or empty, generate random symbols
-    // Exclude scatter if in free spin mode with retriggers disabled
     const keys = isInFreeSpinMode && config.bonus?.freeSpins?.retriggers === false
       ? Object.keys(symbols).filter(key => key !== 'scatter')
       : Object.keys(symbols);
@@ -2022,17 +2368,14 @@ export default function SlotMachinePreview(): JSX.Element {
 
     const totalSprites = rc.children.length;
     const hasBufferSprites = totalSprites >= rows + 2;
+    const spineAssets = symbolSpineAssets;
+    const pixelSize = Math.round(metrics.size);
 
     for (let childIndex = 0; childIndex < totalSprites; childIndex++) {
       const symbolContainer = rc.children[childIndex] as PIXI.Container;
       if (!symbolContainer || symbolContainer.children.length === 0) continue;
 
       const sprite = symbolContainer.children[0] as PIXI.Sprite;
-
-      // Keep final layout aligned with spinning layout:
-      // - child 0: top buffer (hidden by mask)
-      // - children 1..rows: visible symbols (rows 0..rows-1)
-      // - last child: bottom buffer (hidden by mask)
       let symbolRow = childIndex;
       if (hasBufferSprites) {
         const topBufferIndex = 0;
@@ -2047,15 +2390,45 @@ export default function SlotMachinePreview(): JSX.Element {
       }
 
       const sym = symbolsArr[symbolRow] || keys[Math.floor(Math.random() * keys.length)];
-      sprite.texture = texturesRef.current[sym] || PIXI.Texture.WHITE;
-      sprite.width = metrics.size;
-      sprite.height = metrics.size;
 
-      // Position the symbol container, sprite is at (0, 0) relative to container
-      sprite.x = 0;
-      sprite.y = 0;
-      symbolContainer.x = 0;
-      symbolContainer.y = hasBufferSprites ? (childIndex - 1) * metrics.spacingY : childIndex * metrics.spacingY;
+      if (spineAssets[sym]) {
+        let spine = symbolContainer.children.length > 1 ? (symbolContainer.children[1] as Spine) : null;
+        if (spine && ((spine as any).destroyed || !spine.skeleton)) {
+          symbolContainer.removeChild(spine);
+          returnSpineToPool((spine as any).__symbolKey ?? sym, spine);
+          spine = null;
+        }
+        if (!spine) {
+          spine = getSpineFromPool(sym, pixelSize);
+          if (spine) symbolContainer.addChild(spine);
+        }
+        if (spine) {
+          sprite.visible = false;
+          spine.visible = true;
+          scaleSpineToFitCell(spine, pixelSize);
+        }
+      } else {
+        if (symbolContainer.children.length > 1) {
+          const existingSpine = symbolContainer.children[1] as Spine;
+          symbolContainer.removeChild(existingSpine);
+          const poolKey = (existingSpine as any).__symbolKey ?? sym;
+          returnSpineToPool(poolKey, existingSpine);
+        }
+        sprite.visible = true;
+        const targetTexture = texturesRef.current[sym] || PIXI.Texture.WHITE;
+        if (sprite.texture !== targetTexture) sprite.texture = targetTexture;
+        sprite.width = pixelSize;
+        sprite.height = pixelSize;
+        sprite.x = 0;
+        sprite.y = 0;
+      }
+
+      const targetX = 0;
+      const targetY = hasBufferSprites ? (childIndex - 1) * metrics.spacingY : childIndex * metrics.spacingY;
+      if (symbolContainer.x !== targetX || symbolContainer.y !== targetY) {
+        symbolContainer.x = Math.round(targetX);
+        symbolContainer.y = Math.round(targetY);
+      }
     }
   }
 
@@ -2063,22 +2436,14 @@ export default function SlotMachinePreview(): JSX.Element {
   function renderReelSpinning(rc: PIXI.Container, metrics: any, offsetPx: number, reelIndex: number) {
     const spacingY = metrics.spacingY;
     const totalSprites = rc.children.length;
-
-    // 1. BLUR VISUALS
-    // Only apply if enabled in settings
     if (animationSettingsRef.current.visualEffects.spinBlur) {
       let blurFilter = blurFiltersRef.current.get(rc);
       if (!blurFilter) {
-        blurFilter = new PIXI.BlurFilter();
+        blurFilter = new PIXI.BlurFilter({ strength: 0 });
         blurFiltersRef.current.set(rc, blurFilter);
-        // Ensure we don't overwrite existing filters if any
         rc.filters = rc.filters ? [...rc.filters, blurFilter] : [blurFilter];
       }
-      // Note: Blur strength is controlled in the GSAP onUpdate loop
     }
-
-    // 2. DATA SAFETY CHECKS (Keep your existing fallback logic)
-    // Get symbol sequence for this reel
     if (!reelSymbolSequencesRef.current[reelIndex] || reelSymbolSequencesRef.current[reelIndex].length === 0) {
       const keys = isInFreeSpinMode && config.bonus?.freeSpins?.retriggers === false
         ? Object.keys(symbols).filter(key => key !== 'scatter')
@@ -2108,75 +2473,55 @@ export default function SlotMachinePreview(): JSX.Element {
     }
 
     // 3. RENDER LOOP (The Critical Fix)
+    const spineAssets = symbolSpineAssets;
+    const pixelSize = Math.round(metrics.size);
+
     for (let i = 0; i < totalSprites; i++) {
       const symbolContainer = rc.children[i] as PIXI.Container;
       if (!symbolContainer || symbolContainer.children.length === 0) continue;
 
       const sprite = symbolContainer.children[0] as PIXI.Sprite;
-
-      // --- STEP A: CALCULATE VISUAL Y POSITION FIRST ---
-      // We calculate where the sprite physically is BEFORE deciding what symbol it shows.
-
-      // rawY = Initial Position + Scroll Offset
-      // (This moves the sprite DOWN as offset increases)
       const rawY = i * spacingY + offsetPx;
-
-      // Wrap Logic: Keep sprite inside the visible window (+ buffer)
-      // Range: -spacingY (just above top) to (totalSprites - 1) * spacingY (just below bottom)
-      // IMPORTANT: loop height must match the number of symbol containers, otherwise sprites will
-      // "wrap" into visible positions mid-spin and look like they change rows.
       const loopHeight = totalSprites * spacingY;
-
-      // Mathematical modulo that handles wrapping correctly
-      // This ensures 'y' is always valid on screen
       const y = ((rawY % loopHeight) + loopHeight) % loopHeight - spacingY;
 
-      // Apply Position immediately
       symbolContainer.x = 0;
-      symbolContainer.y = y;
-
-      // --- STEP B: CALCULATE SYMBOL INDEX FROM Y ---
-      // Now we map the physical Y position back to the data array.
-      // Since we are scrolling DOWN, the "Virtual Index" effectively moves backward through the tape
-      // (Or simply: "What symbol lives at this specific pixel?")
-
-      // Formula: (Total Distance - Current Y) / Item Height
-      // This creates a stable index that doesn't "jump" when the sprite wraps.
+      symbolContainer.y = Math.round(y);
       const virtualIndex = Math.floor((offsetPx - y) / spacingY);
 
-      // Safe Modulo to wrap around the data array
       const seqLen = symbolSequence.length;
       const wrappedIndex = ((virtualIndex % seqLen) + seqLen) % seqLen;
 
       const symbolKey = symbolSequence[wrappedIndex];
 
-      // --- STEP C: UPDATE TEXTURE ---
-      const targetTexture = texturesRef.current[symbolKey] || PIXI.Texture.WHITE;
-
-      // Only swap if texture changed (Performance optimization)
-      if (sprite.texture !== targetTexture) {
-        sprite.texture = targetTexture;
-        sprite.width = metrics.size;
-        sprite.height = metrics.size;
-      }
-    }
-  }
-
-  // Reset sprite positions to canonical grid order
-  // Used after spin animation to ensure renderGrid finds sprites in expected locations
-  function resetSpritePositions(metrics: any) {
-    const spacingY = metrics.spacingY;
-
-    for (let c = 0; c < reelContainersRef.current.length; c++) {
-      const rc = reelContainersRef.current[c];
-      if (!rc) continue;
-
-      const totalSprites = rc.children.length;
-      for (let i = 0; i < totalSprites; i++) {
-        const symbolContainer = rc.children[i];
-        if (symbolContainer) {
-          symbolContainer.x = 0;
-          symbolContainer.y = i * spacingY;
+      if (spineAssets[symbolKey]) {
+        let spine = symbolContainer.children.length > 1 ? (symbolContainer.children[1] as Spine) : null;
+        if (spine && ((spine as any).destroyed || !spine.skeleton)) {
+          symbolContainer.removeChild(spine);
+          returnSpineToPool((spine as any).__symbolKey ?? symbolKey, spine);
+          spine = null;
+        }
+        if (!spine) {
+          spine = getSpineFromPool(symbolKey, pixelSize);
+          if (spine) symbolContainer.addChild(spine);
+        }
+        if (spine) {
+          sprite.visible = false;
+          spine.visible = true;
+          scaleSpineToFitCell(spine, pixelSize);
+        }
+      } else {
+        if (symbolContainer.children.length > 1) {
+          const existingSpine = symbolContainer.children[1] as Spine;
+          symbolContainer.removeChild(existingSpine);
+          returnSpineToPool((existingSpine as any).__symbolKey ?? symbolKey, existingSpine);
+        }
+        sprite.visible = true;
+        const targetTexture = texturesRef.current[symbolKey] || PIXI.Texture.WHITE;
+        if (sprite.texture !== targetTexture) {
+          sprite.texture = targetTexture;
+          sprite.width = pixelSize;
+          sprite.height = pixelSize;
         }
       }
     }
@@ -2224,7 +2569,6 @@ export default function SlotMachinePreview(): JSX.Element {
     const requiredScatters = freeSpinsConfig.triggers?.[0] || 3;
     if (scatterCount < requiredScatters) return false;
 
-    // Check if retriggers are allowed (use ref for immediate check)
     if (freeSpinModeRef.current && freeSpinsConfig.retriggers === false) {
       return false;
     }
@@ -2232,61 +2576,50 @@ export default function SlotMachinePreview(): JSX.Element {
     const freeSpinsToAward = freeSpinsConfig.count || 10;
 
     if (!freeSpinModeRef.current) {
-      // First time triggering free spins
       freeSpinModeRef.current = true; // Update ref immediately
       freeSpinsRemainingRef.current = freeSpinsToAward; // Update ref immediately
       totalFreeSpinWinsRef.current = 0; // Reset accumulator when starting free spins
       setIsInFreeSpinMode(true);
       setFreeSpinsRemaining(freeSpinsToAward);
       setTotalFreeSpinWins(0); // Reset state accumulator
-      // Play free spins start sound
       playAudio('bonus', 'fs_start');
     } else {
-      // Retrigger - add more free spins
       freeSpinsRemainingRef.current += freeSpinsToAward; // Update ref immediately
       setFreeSpinsRemaining(prev => prev + freeSpinsToAward);
-      // Play free spins start sound for retrigger
       playAudio('bonus', 'fs_start');
     }
 
     setFreeSpinAwardedCount(freeSpinsToAward);
 
-    // Get transition style and duration from config
     const transitionStyle = (config as any)?.freespinTransition?.style || 'fade';
     const transitionDuration = (config as any)?.freespinTransition?.duration || 3;
 
-    // Set transition style and duration for announcement
     setAnnouncementTransitionStyle(transitionStyle);
     setAnnouncementTransitionDuration(transitionDuration);
 
     setShowFreeSpinAnnouncement(true);
 
-    // Hide announcement after configured duration
     setTimeout(() => {
       setShowFreeSpinAnnouncement(false);
     }, transitionDuration * 1000);
 
-    // Show scatter highlight animation
     if (appRef.current && scatterPositions.length > 0) {
       scatterPositions.forEach((pos, idx) => {
         setTimeout(() => {
           const highlight = new PIXI.Graphics();
-          highlight.beginFill(0xFF6B35, 0.8); // Orange glow for scatters
           const metrics = computeResponsiveMetrics();
-          highlight.drawRoundedRect(
+          highlight.roundRect(
             metrics.offsetX + pos.reel * metrics.spacingX - 3,
             metrics.offsetY + pos.row * metrics.spacingY - 3,
             metrics.size + 6,
             metrics.size + 6,
             6
-          );
-          highlight.endFill();
+          ).fill({ color: 0xFF6B35, alpha: 0.8 }); // Orange glow for scatters
 
           if (appRef.current) {
             appRef.current.stage.addChild(highlight);
           }
 
-          // Pulsing animation
           gsap.to(highlight, {
             alpha: 0.3,
             duration: 0.5,
@@ -2307,16 +2640,12 @@ export default function SlotMachinePreview(): JSX.Element {
     return true;
   }, [config.bonus?.freeSpins, isInFreeSpinMode, computeResponsiveMetrics]);
 
-  // Trigger wheel bonus
   const triggerWheelBonus = useCallback((bonusCount: number, bonusPositions: Array<{ reel: number; row: number }>) => {
     const wheelConfig = config.bonus?.wheel;
     if (!wheelConfig?.enabled) return false;
-    // Wheel bonus typically requires 3 bonus symbols
     if (bonusCount < 3) return false;
-    // Show announcement first (image or default)
     setShowWheelAnnouncement(true);
 
-    // After announcement, show wheel bonus modal
     setTimeout(() => {
       setShowWheelAnnouncement(false);
       setWheelRotation(0);
@@ -2325,27 +2654,23 @@ export default function SlotMachinePreview(): JSX.Element {
       setShowWheelBonus(true);
     }, 3000); // 3 second announcement display
 
-    // Show bonus highlight animation
     if (appRef.current && bonusPositions.length > 0) {
       bonusPositions.forEach((pos, idx) => {
         setTimeout(() => {
           const highlight = new PIXI.Graphics();
-          highlight.beginFill(0xFFD700, 0.8); // Gold glow for bonus symbols
           const metrics = computeResponsiveMetrics();
-          highlight.drawRoundedRect(
+          highlight.roundRect(
             metrics.offsetX + pos.reel * metrics.spacingX - 3,
             metrics.offsetY + pos.row * metrics.spacingY - 3,
             metrics.size + 6,
             metrics.size + 6,
             6
-          );
-          highlight.endFill();
+          ).fill({ color: 0xFFD700, alpha: 0.8 }); // Gold glow for bonus symbols
 
           if (appRef.current) {
             appRef.current.stage.addChild(highlight);
           }
 
-          // Pulsing animation
           gsap.to(highlight, {
             alpha: 0.3,
             duration: 0.5,
@@ -2366,7 +2691,6 @@ export default function SlotMachinePreview(): JSX.Element {
     return true;
   }, [config.bonus?.wheel, computeResponsiveMetrics]);
 
-  // Initialize Pick & Click grid
   const initializePickAndClickGrid = useCallback(() => {
     const pickAndClickConfig = config.bonus?.pickAndClick;
     if (!pickAndClickConfig?.enabled) return;
@@ -2378,29 +2702,23 @@ export default function SlotMachinePreview(): JSX.Element {
     const hasMultipliers = !!pickAndClickConfig.multipliers;
     const hasExtraPicks = !!pickAndClickConfig.extraPicks;
 
-    // Create grid with prizes
     const grid: Array<Array<{ type: 'prize' | 'extraPick' | 'multiplier'; value: number } | null>> = [];
     const revealed: Array<Array<boolean>> = [];
 
-    // Create array of all cells
     const allCells: Array<{ type: 'prize' | 'extraPick' | 'multiplier'; value: number }> = [];
 
-    // Add prize values
     for (let i = 0; i < rows * cols; i++) {
       const value = prizeValues[i] || 100;
       allCells.push({ type: 'prize', value });
     }
 
-    // Add extra pick if enabled
     if (hasExtraPicks && allCells.length > 0) {
       const extraPickIndex = Math.floor(Math.random() * allCells.length);
       allCells[extraPickIndex] = { type: 'extraPick', value: 0 };
     }
 
-    // Add multiplier if enabled
     if (hasMultipliers && allCells.length > 0) {
       let multiplierIndex = Math.floor(Math.random() * allCells.length);
-      // Make sure multiplier doesn't replace extra pick
       if (hasExtraPicks && allCells[multiplierIndex].type === 'extraPick') {
         multiplierIndex = (multiplierIndex + 1) % allCells.length;
       }
@@ -2408,13 +2726,11 @@ export default function SlotMachinePreview(): JSX.Element {
       allCells[multiplierIndex] = { type: 'multiplier', value: multiplierValue };
     }
 
-    // Shuffle the cells
     for (let i = allCells.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [allCells[i], allCells[j]] = [allCells[j], allCells[i]];
     }
 
-    // Fill grid
     let cellIndex = 0;
     for (let r = 0; r < rows; r++) {
       grid[r] = [];
@@ -2423,7 +2739,6 @@ export default function SlotMachinePreview(): JSX.Element {
         if (cellIndex < allCells.length) {
           grid[r][c] = allCells[cellIndex];
         } else {
-          // Fill remaining cells with default prizes if needed
           const defaultValue = prizeValues[cellIndex] || 100;
           grid[r][c] = { type: 'prize', value: defaultValue };
         }
@@ -2439,44 +2754,36 @@ export default function SlotMachinePreview(): JSX.Element {
     setPickAndClickCurrentMultiplier(1);
   }, [config.bonus?.pickAndClick]);
 
-  // Trigger Pick & Click bonus
   const triggerPickAndClick = useCallback((bonusCount: number, bonusPositions: Array<{ reel: number; row: number }>) => {
     const pickAndClickConfig = config.bonus?.pickAndClick;
     if (!pickAndClickConfig?.enabled) return false;
-    // Pick & Click typically requires 3 bonus symbols
     if (bonusCount < 3) return false;
 
-    // Show announcement first (image or default)
     setShowPickAndClickAnnouncement(true);
 
-    // After announcement, initialize and show the grid
     setTimeout(() => {
       setShowPickAndClickAnnouncement(false);
       initializePickAndClickGrid();
       setShowPickAndClick(true);
     }, 3000); // 3 second announcement display
 
-    // Show bonus highlight animation
     if (appRef.current && bonusPositions.length > 0) {
       bonusPositions.forEach((pos, idx) => {
         setTimeout(() => {
           const highlight = new PIXI.Graphics();
-          highlight.beginFill(0xFFD700, 0.8); // Gold glow for bonus symbols
           const metrics = computeResponsiveMetrics();
-          highlight.drawRoundedRect(
+          highlight.roundRect(
             metrics.offsetX + pos.reel * metrics.spacingX - 3,
             metrics.offsetY + pos.row * metrics.spacingY - 3,
             metrics.size + 6,
             metrics.size + 6,
             6
-          );
-          highlight.endFill();
+          ).fill({ color: 0xFFD700, alpha: 0.8 }); // Gold glow for bonus symbols
 
           if (appRef.current) {
             appRef.current.stage.addChild(highlight);
           }
 
-          // Pulsing animation
           gsap.to(highlight, {
             alpha: 0.3,
             duration: 0.5,
@@ -2497,7 +2804,6 @@ export default function SlotMachinePreview(): JSX.Element {
     return true;
   }, [config.bonus?.pickAndClick, initializePickAndClickGrid, computeResponsiveMetrics]);
 
-  // Handle Pick & Click cell selection
   const handlePickAndClickCell = useCallback((row: number, col: number) => {
     if (pickAndClickPicksRemaining <= 0) return;
     if (pickAndClickRevealed[row]?.[col]) return; // Already revealed
@@ -2505,13 +2811,11 @@ export default function SlotMachinePreview(): JSX.Element {
     const cell = pickAndClickGrid[row]?.[col];
     if (!cell) return;
 
-    // Mark as revealed
     const newRevealed = pickAndClickRevealed.map((r, rIdx) =>
       rIdx === row ? r.map((revealed, cIdx) => cIdx === col ? true : revealed) : r
     );
     setPickAndClickRevealed(newRevealed);
 
-    // Handle different cell types
     let newPicksRemaining = pickAndClickPicksRemaining;
     let newTotalWin = pickAndClickTotalWin;
     let newMultiplier = pickAndClickCurrentMultiplier;
@@ -2530,16 +2834,13 @@ export default function SlotMachinePreview(): JSX.Element {
       setPickAndClickCurrentMultiplier(newMultiplier);
     }
 
-    // Check if game is over (after processing the pick)
     if (newPicksRemaining <= 0) {
-      // Game ends after a short delay to show the last reveal
       setTimeout(() => {
         if (newTotalWin > 0) {
           const currentBalance = balance;
           setBalance(currentBalance + newTotalWin);
           setWinAmount(newTotalWin);
 
-          // Calculate win tier and trigger particle effects for big, mega, and super wins
           const winTier = calculateWinTier(betAmount, newTotalWin);
           if (winTier !== 'small') {
             triggerParticleEffects(winTier);
@@ -2547,10 +2848,8 @@ export default function SlotMachinePreview(): JSX.Element {
 
           setShowWinDisplay(true);
         }
-        // Close modal after showing win
         setTimeout(() => {
           setShowPickAndClick(false);
-          // Resume normal gameplay
           spinTimelinesRef.current.forEach(tl => {
             if (tl) tl.kill();
           });
@@ -2567,96 +2866,98 @@ export default function SlotMachinePreview(): JSX.Element {
   }, [pickAndClickPicksRemaining, pickAndClickRevealed, pickAndClickGrid, pickAndClickCurrentMultiplier, pickAndClickTotalWin, betAmount, setBalance, setWinAmount]);
 
   const onSpin = () => {
-    // If spinning, stop the spin immediately
     if (isSpinning) {
       quickStopRef.current?.();
       return;
     }
     if (!Object.keys(symbols).length) return;
 
-    // Clean up any active symbol animations before starting new spin
     cleanupSymbolAnimations();
 
-    // Play UI spin press sound
     playAudio('ui', 'ui_spin_press');
 
-    // In free spin mode, don't check balance or deduct bet (use ref for immediate check)
     if (!freeSpinModeRef.current) {
-      // Check if balance is sufficient
       if (balance < betAmount) {
         console.warn('Insufficient balance');
         return;
       }
 
-      // Deduct bet amount from balance (only in normal mode)
       setBalance(balance - betAmount);
     } else {
-      // Decrement free spins remaining
       const newCount = freeSpinsRemainingRef.current - 1;
       freeSpinsRemainingRef.current = newCount; // Update ref immediately
       setFreeSpinsRemaining(newCount);
 
       if (newCount <= 0) {
-        // Free spins ended - show summary after a short delay
         freeSpinModeRef.current = false; // Update ref immediately
         const totalWins = totalFreeSpinWinsRef.current;
         setTimeout(() => {
           setIsInFreeSpinMode(false);
           setTotalFreeSpinWins(totalWins);
           setShowFreeSpinSummary(true);
-          // Play free spins end sound
           playAudio('bonus', 'fs_end');
         }, 2000);
       }
     }
 
-    // Clear previous win lines
     clearWinLines();
 
-    // Reset win state for new spin
     setWinAmount(0);
+    setShowWinDisplay(false);
 
-    // Get available symbols (exclude scatter if in free spin mode with retriggers disabled)
     const keys = isInFreeSpinMode && config.bonus?.freeSpins?.retriggers === false
       ? Object.keys(symbols).filter(key => key !== 'scatter')
       : Object.keys(symbols);
 
-    const finalGrid = Array.from({ length: reels }, () =>
-      Array.from({ length: rows }, () => keys[Math.floor(Math.random() * keys.length)])
-    );
+    // Use reel strips from MathWizard when available (store-based connection)
+    const latestConfig = useGameStore.getState().config as { theme?: { generated?: { reelStrips?: Array<{ reelIndex: number; symbols: string[]; length: number }> } } };
+    const storedReelStrips = latestConfig?.theme?.generated?.reelStrips;
+    const hasValidReelStrips = storedReelStrips && Array.isArray(storedReelStrips) &&
+      storedReelStrips.length === reels &&
+      storedReelStrips.every((r) => r.symbols && r.symbols.length >= rows);
+
+    let finalGrid: string[][];
+    if (hasValidReelStrips) {
+      finalGrid = Array.from({ length: reels }, (_, reelIdx) => {
+        const strip = storedReelStrips[reelIdx];
+        const stripLen = strip.symbols.length;
+        const stop = Math.floor(Math.random() * stripLen);
+        const resolve = (sym: string) => (keys.includes(sym) ? sym : keys[Math.floor(Math.random() * keys.length)]);
+        return Array.from({ length: rows }, (_, rowIdx) =>
+          resolve(strip.symbols[(stop + rowIdx) % stripLen])
+        );
+      });
+    } else {
+      finalGrid = Array.from({ length: reels }, () =>
+        Array.from({ length: rows }, () => keys[Math.floor(Math.random() * keys.length)])
+      );
+    }
 
     finalGridRef.current = finalGrid;
 
-    // Kill any existing spin timelines
     spinTimelinesRef.current.forEach(tl => {
       if (tl) tl.kill();
     });
     spinTimelinesRef.current = [];
 
-    // Clear the spin completion flag when starting a new spin
     spinJustCompletedRef.current = false;
 
-    // Play reel start sound
     playAudio('reels', 'reel_start');
-    // Play reel loop sound (looping)
     playAudio('reels', 'reel_loop', { loop: true, stopPrevious: true });
 
     setIsSpinning(true);
+    window.dispatchEvent(new CustomEvent('spinStarted'));
     startGSAPSpin();
   };
 
-  // GSAP-based spin animation
   const startGSAPSpin = () => {
     const metrics = computeResponsiveMetrics();
     const { size, spacingX, spacingY, offsetX, offsetY } = metrics;
-    // Speed 1.0 = 2.5 seconds, speed 2.0 = 1.25 seconds, speed 0.5 = 5 seconds
     const currentSpeed = animationSettingsRef.current.speed;
     const baseDurationMs = 3500 / currentSpeed; // Faster default: 2.5s at speed 1.0
     const baseMs = Math.max(800, Math.min(15000, baseDurationMs)); // Clamp between 0.8-15 seconds for wider range
     const reelDelay = 300; // Increased delay between reels
 
-    // Initialize symbol sequences for each reel with final symbols integrated
-    // Exclude scatter if in free spin mode with retriggers disabled
     const keys = isInFreeSpinMode && config.bonus?.freeSpins?.retriggers === false
       ? Object.keys(symbols).filter(key => key !== 'scatter')
       : Object.keys(symbols);
@@ -2668,27 +2969,20 @@ export default function SlotMachinePreview(): JSX.Element {
 
     reelSymbolSequencesRef.current = [];
 
-    // Calculate how many symbols we need to scroll to bring final symbols into view
-    const minScrollSymbols = 30; // Minimum symbols to scroll before final symbols appear
-
+    const minScrollSymbols = 30;
     for (let i = 0; i < reels; i++) {
       const finalSymbols = finalGridRef.current ? finalGridRef.current[i] : null;
-
-      // Create sequence: random symbols first, then final symbols at the end
       const sequence: string[] = [];
 
-      // Add random symbols for initial scrolling
       for (let j = 0; j < minScrollSymbols; j++) {
         sequence.push(keys[Math.floor(Math.random() * keys.length)]);
       }
 
-      // Add final symbols that will scroll into view
       if (finalSymbols && finalSymbols.length === rows) {
         for (let j = finalSymbols.length - 1; j >= 0; j--) {
           sequence.push(finalSymbols[j]);
         }
       } else {
-        // Fallback: add random symbols if final symbols not available
         for (let j = 0; j < rows; j++) {
           sequence.push(keys[Math.floor(Math.random() * keys.length)]);
         }
@@ -2697,16 +2991,12 @@ export default function SlotMachinePreview(): JSX.Element {
       for (let j = 0; j < 50; j++) {
         sequence.push(keys[Math.floor(Math.random() * keys.length)]);
       }
-
-      // Seed the tape with the currently visible symbols so the first spinning frame doesn't
-      // "teleport" to a new random set before motion is visible.
       const currentSymbols = currentGrid?.[i];
       if (currentSymbols && currentSymbols.length === rows) {
         const sanitizedCurrent = currentSymbols.map(sym =>
           keys.includes(sym) ? sym : keys[Math.floor(Math.random() * keys.length)]
         );
 
-        // With offset=0, row 0 uses sequence[0], row 1 uses sequence[-1], row 2 uses sequence[-2], etc.
         sequence[0] = sanitizedCurrent[0];
         for (let r = 1; r < rows; r++) {
           const idx = sequence.length - r;
@@ -2719,14 +3009,12 @@ export default function SlotMachinePreview(): JSX.Element {
       reelSymbolSequencesRef.current[i] = sequence;
     }
 
-    // Verify sequences were created successfully
     if (reelSymbolSequencesRef.current.length !== reels) {
       console.error('[startGSAPSpin] Failed to initialize symbol sequences!');
       setIsSpinning(false);
       return;
     }
 
-    // Map easing string to GSAP easing
     const getGSAPEasing = (easingType: string): string => {
       const easingMap: Record<string, string> = {
         'linear': 'none',
@@ -2742,71 +3030,47 @@ export default function SlotMachinePreview(): JSX.Element {
 
     const configuredEasing = animationSettingsRef.current.easing;
 
-    // Use native GSAP easing directly for the scroll.
     const scrollEasing = getGSAPEasing(configuredEasing);
     const stopEasing = getGSAPEasing(configuredEasing);
 
-    // Disable the artificial settle animation
     const stopSettle = { enabled: false, px: 0, downDuration: 0, upDuration: 0 };
 
     let completedReels = 0;
     const totalReels = reels;
     const spinningReels = new Set<number>();
 
-    // Create timeline for each reel
     for (let c = 0; c < reels; c++) {
       const rc = reelContainersRef.current[c];
       if (!rc) continue;
 
       const duration = (baseMs + c * reelDelay) / 1000; // Convert to seconds
       spinningReels.add(c);
-
-      // Calculate total scroll distance needed to bring the final symbols into view.
-      // Visible rows map to seq[n], seq[n-1], ... so we stop when the top row hits:
-      // index = minScrollSymbols + (rows - 1)
       const minScrollSymbols = 30;
       const stopIndex = minScrollSymbols + (rows - 1);
       const finalOffset = stopIndex * spacingY;
 
-      // Create a progress object to animate
       const spinProgress = { value: 0 };
 
-      // Create a timeline for this reel
       const tl = gsap.timeline();
-
-      // Animate the progress value
       tl.to(spinProgress, {
         value: 1,
         duration: duration,
         ease: scrollEasing,
         onUpdate: function () {
           const progress = spinProgress.value;
-
-          // Apply easing to progress, then multiply by total distance
-          // Speed multiplier affects how fast visually, but we still scroll the full distance
           const currentScrollDistance = progress * finalOffset;
-
-          // Don't use modulo - let it scroll continuously
           const offset = currentScrollDistance;
-
-          // Update reel spinning visuals
           renderReelSpinning(rc, { size, spacingX, spacingY }, offset, c);
 
-          // Apply blur intensity from animation settings (use ref for real-time updates)
           const blurFilter = blurFiltersRef.current.get(rc);
           const currentSettings = animationSettingsRef.current;
           if (blurFilter && currentSettings.visualEffects.spinBlur) {
-            const speed = 1 - progress; // Speed factor based on progress (1 at start, 0 at end)
-            // Use blurIntensity from settings (0-20 range), convert to PIXI blur pixels
-            // Blur is stronger at the start of spin and decreases as it slows down
-            // Formula: blurIntensity (0-20) -> blur pixels (0-20), scaled by speed
+            const speed = 1 - progress;
             blurFilter.blur = (currentSettings.blurIntensity / 2) * (0.3 + speed * 1.4);
           } else if (blurFilter) {
-            // Remove blur if spinBlur is disabled
             blurFilter.blur = 0;
           }
 
-          // Visual polish: Anticipation scale when about to stop
           if (progress > 0.85) {
             const anticipation = (progress - 0.85) / 0.15;
             rc.scale.set(1 + (anticipation * 0.015));
@@ -2814,7 +3078,6 @@ export default function SlotMachinePreview(): JSX.Element {
             rc.scale.set(1);
           }
 
-          // Apply glow effects if enabled (use ref for real-time updates)
           if (currentSettings.visualEffects.glowEffects) {
             let glow = glowEffectsRef.current.get(rc);
             if (!glow) {
@@ -2830,11 +3093,8 @@ export default function SlotMachinePreview(): JSX.Element {
             }
             const glowIntensity = Math.sin(progress * Math.PI * 4) * 0.5 + 0.5;
             glow.clear();
-            glow.beginFill(0xffff00, 0.3 * glowIntensity);
-            glow.drawRect(offsetX + c * spacingX - 5, offsetY - 5, size + 10, rows * spacingY + 10);
-            glow.endFill();
+            glow.rect(offsetX + c * spacingX - 5, offsetY - 5, size + 10, rows * spacingY + 10).fill({ color: 0xffff00, alpha: 0.3 * glowIntensity });
           } else {
-            // Remove glow if disabled
             const glow = glowEffectsRef.current.get(rc);
             if (glow && glow.parent) {
               glow.parent.removeChild(glow);
@@ -2843,7 +3103,6 @@ export default function SlotMachinePreview(): JSX.Element {
             }
           }
 
-          // Apply screen shake if enabled (use ref for real-time updates)
           if (currentSettings.visualEffects.screenShake && spinningReels.size > 0) {
             const shakeIntensity = (1 - progress) * 2;
             const shakeX = (Math.random() - 0.5) * shakeIntensity;
@@ -2851,7 +3110,6 @@ export default function SlotMachinePreview(): JSX.Element {
             screenShakeRef.current = { x: shakeX, y: shakeY };
           }
 
-          // Update reel position (with screen shake if enabled)
           const shakeX = currentSettings.visualEffects.screenShake && spinningReels.size > 0
             ? screenShakeRef.current.x
             : 0;
@@ -2861,29 +3119,23 @@ export default function SlotMachinePreview(): JSX.Element {
           rc.x = offsetX + c * spacingX + shakeX;
           rc.y = offsetY + shakeY;
 
-          // Update mask position and visibility
           const mask = reelMasksRef.current[c];
           if (mask) {
             const reelEnabled = maskControls.enabled && maskControls.perReelEnabled[c];
             mask.clear();
             if (reelEnabled) {
               if (maskControls.debugVisible) {
-                mask.beginFill(0xff0000, 0.2);
+                mask.rect(offsetX + c * spacingX, offsetY, size, rows * spacingY).fill({ color: 0xff0000, alpha: 0.2 });
               } else {
-                mask.beginFill(0xffffff);
+                mask.rect(offsetX + c * spacingX, offsetY, size, rows * spacingY).fill(0xffffff);
               }
-              mask.drawRect(offsetX + c * spacingX, offsetY, size, rows * spacingY);
-              mask.endFill();
             } else {
-              mask.beginFill(0x000000, 0);
-              mask.drawRect(offsetX + c * spacingX, offsetY, size, rows * spacingY);
-              mask.endFill();
+              mask.rect(offsetX + c * spacingX, offsetY, size, rows * spacingY).fill({ color: 0x000000, alpha: 0 });
             }
             mask.visible = true;
             rc.mask = mask;
           }
 
-          // Hide/show reel container based on mask controls
           if (maskControls.enabled) {
             rc.visible = maskControls.perReelEnabled[c];
           } else {
@@ -2892,17 +3144,11 @@ export default function SlotMachinePreview(): JSX.Element {
         }
       });
 
-      // Reel finished spinning: snap to final symbols, remove FX, then apply stop settle if configured.
       tl.add(() => {
         spinningReels.delete(c);
 
-        // Snap to the exact final offset so the visible window shows the final symbols (no post-spin replacement)
         renderReelSpinning(rc, { size, spacingX, spacingY }, finalOffset, c);
-
-        // Ensure scale is exactly 1.0 when reel stops
         rc.scale.set(1, 1);
-
-        // Remove blur filter
         const blurFilter = blurFiltersRef.current.get(rc);
         if (blurFilter) {
           blurFilter.blur = 0;
@@ -2912,7 +3158,6 @@ export default function SlotMachinePreview(): JSX.Element {
           blurFiltersRef.current.delete(rc);
         }
 
-        // Remove glow when finished
         const glow = glowEffectsRef.current.get(rc);
         if (glow && glow.parent) {
           glow.parent.removeChild(glow);
@@ -2920,13 +3165,11 @@ export default function SlotMachinePreview(): JSX.Element {
           glowEffectsRef.current.delete(rc);
         }
 
-        // Update position without shake
         rc.x = offsetX + c * spacingX;
         rc.y = offsetY;
       });
 
       if (stopSettle.enabled) {
-        // Small overshoot down, then bounce back to final using the selected easing.
         tl.to(rc, {
           y: offsetY + stopSettle.px,
           duration: stopSettle.downDuration,
@@ -2950,80 +3193,71 @@ export default function SlotMachinePreview(): JSX.Element {
   };
 
 
-  // Handle spin completion
   const handleSpinComplete = () => {
     const finalGrid = finalGridRef.current || currentGrid;
     const metrics = computeResponsiveMetrics();
     setCurrentGrid(finalGrid);
 
-    // Reset sprite positions to canonical grid order to prevent visual "swapping"
-    // when transitioning from spin animation (cyclic positions) to static grid (linear positions)
-    resetSpritePositions(metrics);
-
-    // Mark that spin just completed to prevent renderGrid/renderReelFinal from overwriting
-    // while win animations/lines are being applied.
     spinJustCompletedRef.current = true;
 
-    // Final symbols should already be visible from the spin sequence; this locks the final
-    // layout so row indices map correctly for win highlights/animations (no visual replacement).
+    // Apply final symbols reel-by-reel in stop order so it doesn't look like a sudden replace
     if (finalGrid) {
-      for (let i = 0; i < reels; i++) {
-        const rc = reelContainersRef.current[i];
-        if (!rc) continue;
+      const reelRevealDelayMs = 80;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          for (let i = 0; i < reels; i++) {
+            const rc = reelContainersRef.current[i];
+            if (!rc) continue;
 
-        const reelSymbols = finalGrid[i];
-        renderReelFinal(i, reelSymbols, rc, metrics);
-        rc.x = metrics.offsetX + i * metrics.spacingX;
-        rc.y = metrics.offsetY;
-      }
+            const reelSymbols = finalGrid[i];
+            const delayMs = i * reelRevealDelayMs;
+
+            if (delayMs === 0) {
+              renderReelFinal(i, reelSymbols, rc, metrics);
+              rc.x = metrics.offsetX + i * metrics.spacingX;
+              rc.y = metrics.offsetY;
+            } else {
+              setTimeout(() => {
+                if (rc.destroyed) return;
+                renderReelFinal(i, reelSymbols, rc, metrics);
+                rc.x = metrics.offsetX + i * metrics.spacingX;
+                rc.y = metrics.offsetY;
+              }, delayMs);
+            }
+          }
+        });
+      });
     }
 
-    // Reset screen shake
     screenShakeRef.current = { x: 0, y: 0 };
-
-    // Stop reel loop sound
     stopAudio('reels', 'reel_loop');
 
-    // Calculate wins after spin completes
     if (finalGrid) {
-      // Check for scatter symbols first (before win calculation)
       const scatterCheck = checkScatterSymbols(finalGrid);
       if (scatterCheck.count >= 3) {
-        // Play scatter sound
         playAudio('features', 'feat_scatter');
       }
       triggerFreeSpins(scatterCheck.count, scatterCheck.positions);
 
-      // Check for bonus symbols (wheel bonus and pick & click)
       const bonusCheck = checkBonusSymbols(finalGrid);
       if (bonusCheck.count >= 3) {
-        // Play bonus trigger sound
         playAudio('bonus', 'bonus_trigger');
       }
       const wheelWasTriggered = triggerWheelBonus(bonusCheck.count, bonusCheck.positions);
       const pickAndClickWasTriggered = triggerPickAndClick(bonusCheck.count, bonusCheck.positions);
-
-      // Calculate wins (scatter is already excluded from line wins in checkLineWin)
       const winResult = checkWinLines(finalGrid);
 
-      // Apply symbol animations to winning symbols (if configured)
-      // Use a small delay to ensure sprites are in final positions after renderReelFinal
       if (winResult.totalWin > 0 && winResult.winDetails.length > 0) {
-        // Clean up any existing animations first
         cleanupSymbolAnimations();
-        // Wait a frame to ensure renderReelFinal has positioned sprites correctly
         requestAnimationFrame(() => {
           setTimeout(() => {
-            // Apply animations with 3 second duration
             applyWinningSymbolAnimations(winResult.winDetails);
-          }, 50); // Small delay to ensure sprites are positioned
+          }, 50);
         });
       } else {
-        // No wins - clean up any lingering animations
         cleanupSymbolAnimations();
       }
 
-      // Apply free spin multipliers if in free spin mode (use ref for immediate synchronous check)
       let finalWin = winResult.totalWin;
       if (freeSpinModeRef.current && config.bonus?.freeSpins?.multipliers && config.bonus.freeSpins.multipliers.length > 0) {
         const multipliers = config.bonus.freeSpins.multipliers;
@@ -3033,24 +3267,20 @@ export default function SlotMachinePreview(): JSX.Element {
 
       setWinAmount(finalWin);
 
-      // Accumulate free spin wins if in free spin mode
       if (freeSpinModeRef.current && finalWin > 0) {
         totalFreeSpinWinsRef.current += finalWin;
         setTotalFreeSpinWins(totalFreeSpinWinsRef.current);
       }
 
-      // Add win amount to balance
       if (finalWin > 0) {
         setBalance(balance + finalWin);
-
-        // Calculate win tier
         const winTier = calculateWinTier(betAmount, finalWin);
         setCurrentWinTier(winTier);
-
-        // Play hard stop sound for wins
         playAudio('reels', 'reel_stop_hard');
 
-        // Play win sound based on tier
+        // Trigger Spine character win animation
+        playSpineAnimation('win');
+
         if (winTier === 'small') {
           playAudio('wins', 'win_small');
         } else if (winTier === 'big') {
@@ -3061,30 +3291,24 @@ export default function SlotMachinePreview(): JSX.Element {
           playAudio('wins', 'win_medium');
         }
 
-        // Trigger particle effects for big, mega, and super wins
         if (winTier !== 'small') {
           triggerParticleEffects(winTier);
         }
 
-        // Check for generated win title asset
         const winTitleId = winTier === 'big' ? 'big_win' :
           winTier === 'mega' ? 'mega_win' :
             winTier === 'super' ? 'super_win' : null;
 
-        // Comprehensive check for win title URL - check multiple possible locations
         let winTitleUrl = null;
         if (winTitleId) {
-          // First, try the standard location
           winTitleUrl = config.generatedAssets?.winTitles?.[winTitleId] || null;
 
-          // If not found, also check winTitleConfigs for the URL
           if (!winTitleUrl && config.winTitleConfigs?.[winTitleId]?.generatedUrl) {
             winTitleUrl = config.winTitleConfigs[winTitleId].generatedUrl;
             console.log('[SlotMachine] Found win title URL in winTitleConfigs:', winTitleId);
           }
         }
 
-        // Debug logging for win titles
         if (winTier !== 'small') {
           console.log('[SlotMachine] Win title check:', {
             winTier,
@@ -3110,17 +3334,13 @@ export default function SlotMachinePreview(): JSX.Element {
           });
         }
 
-        // Show both win title and win display at the same time for big/mega/super wins
-        // Show win title if URL exists, otherwise just show win display
         if (winTier !== 'small') {
           if (winTitleUrl) {
-            // Show both win title and win display simultaneously
             setShowWinTitle(true);
             setShowWinDisplay(true);
             console.log('[SlotMachine] Showing win title:', winTitleId);
 
-            // Hide both after the same animation duration
-            const animationDuration = 3.5; // Match the fadeInOut animation duration
+            const animationDuration = 3.5;
             setTimeout(() => {
               setShowWinTitle(false);
               setShowWinDisplay(false);
@@ -3137,7 +3357,6 @@ export default function SlotMachinePreview(): JSX.Element {
               }, 100);
             }, animationDuration * 1000);
           } else {
-            // No win title asset, just show win display
             console.log('[SlotMachine] No win title asset found for:', winTitleId, '- showing win display only');
             setShowWinDisplay(true);
             setTimeout(() => {
@@ -3150,13 +3369,12 @@ export default function SlotMachinePreview(): JSX.Element {
                   setIsSpinning(false);
                   setTimeout(() => {
                     spinJustCompletedRef.current = false;
-                  }, 5000); // Clear after 5 seconds (enough for win animations)
+                  }, 5000);
                 }
               });
             }, 100);
           }
         } else {
-          // Small wins - show win display immediately
           setShowWinDisplay(true);
           setTimeout(() => {
             drawWinLines(winResult.winDetails, () => {
@@ -3174,34 +3392,27 @@ export default function SlotMachinePreview(): JSX.Element {
           }, 100);
         }
       } else {
-        // No wins - play soft stop sound
         playAudio('reels', 'reel_stop_soft');
         if (!wheelWasTriggered && !pickAndClickWasTriggered) {
           spinTimelinesRef.current = [];
           setIsSpinning(false);
-          // Clear the flag after a short delay
           setTimeout(() => {
             spinJustCompletedRef.current = false;
           }, 1000);
         }
       }
     } else {
-      // No final grid, set isSpinning to false immediately
-      // Play soft stop sound
       playAudio('reels', 'reel_stop_soft');
       spinTimelinesRef.current = [];
       setIsSpinning(false);
-      // Clear the flag after a short delay
       setTimeout(() => {
         spinJustCompletedRef.current = false;
       }, 1000);
     }
   };
 
-  // Quick Stop function 
   const quickStop = useCallback(() => {
     if (!isSpinning) return;
-    // Kill all GSAP timelines immediately
     spinTimelinesRef.current.forEach(tl => {
       if (tl) {
         gsap.killTweensOf(tl);
@@ -3209,26 +3420,19 @@ export default function SlotMachinePreview(): JSX.Element {
       }
     });
     spinTimelinesRef.current = [];
-
-    // Clean up any active symbol animations
     cleanupSymbolAnimations();
-
-    // Stop reel loop sound
     stopAudio('reels', 'reel_loop');
 
-    // Get metrics for positioning
     const metrics = computeResponsiveMetrics();
     const { spacingX, offsetX, offsetY } = metrics;
 
-    // Get final grid symbols
     const finalGrid = finalGridRef.current || currentGrid;
+    const quickRevealDelayMs = 55;
 
-    // Immediately set all reels to their final positions
     for (let c = 0; c < reels; c++) {
       const rc = reelContainersRef.current[c];
       if (!rc) continue;
 
-      // Remove blur filter immediately
       const blurFilter = blurFiltersRef.current.get(rc);
       if (blurFilter) {
         blurFilter.blur = 0;
@@ -3238,7 +3442,6 @@ export default function SlotMachinePreview(): JSX.Element {
         blurFiltersRef.current.delete(rc);
       }
 
-      // Remove glow effects immediately
       const glow = glowEffectsRef.current.get(rc);
       if (glow && glow.parent) {
         glow.parent.removeChild(glow);
@@ -3246,28 +3449,29 @@ export default function SlotMachinePreview(): JSX.Element {
         glowEffectsRef.current.delete(rc);
       }
 
-      // Get final symbols for this reel
       const reelSymbols = finalGrid && finalGrid[c] ? finalGrid[c] : undefined;
-      // Render final symbols using renderReelFinal (same as normal completion)
-      renderReelFinal(c, reelSymbols, rc, metrics);
+      const delayMs = c * quickRevealDelayMs;
 
-      // Reset scale and position
-      rc.scale.set(1, 1);
-      rc.x = offsetX + c * spacingX;
-      rc.y = offsetY;
+      const applyFinal = () => {
+        if (rc.destroyed) return;
+        renderReelFinal(c, reelSymbols, rc, metrics);
+        rc.scale.set(1, 1);
+        rc.x = offsetX + c * spacingX;
+        rc.y = offsetY;
+      };
+
+      if (delayMs === 0) {
+        applyFinal();
+      } else {
+        setTimeout(applyFinal, delayMs);
+      }
     }
-
-    // Reset screen shake
     screenShakeRef.current = { x: 0, y: 0 };
-
-    // Mark that spin just completed
     spinJustCompletedRef.current = true;
 
-    // Immediately process spin completion (calculate wins, show results)
     handleSpinComplete();
   }, [isSpinning, reels, rows, computeResponsiveMetrics, currentGrid]);
 
-  // Store quickStop in ref so it can be called from onSpin
   useEffect(() => {
     quickStopRef.current = quickStop;
   }, [quickStop]);
@@ -3278,14 +3482,9 @@ export default function SlotMachinePreview(): JSX.Element {
       const rect = containerRef.current.getBoundingClientRect();
       setRenderSize({ width: rect.width, height: rect.height });
     };
-
-    // Initial size update
     updateSize();
-
-    // Listen to window resize events
     window.addEventListener("resize", updateSize);
 
-    // Use ResizeObserver to detect container size changes
     let resizeObserver: ResizeObserver | null = null;
     if (containerRef.current && typeof ResizeObserver !== 'undefined') {
       resizeObserver = new ResizeObserver((entries) => {
@@ -3305,10 +3504,11 @@ export default function SlotMachinePreview(): JSX.Element {
         resizeObserver.disconnect();
       }
     };
-  }, []);
+  }, [viewMode]); // Re-run when viewMode changes to reattach ResizeObserver to new container
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    const container = containerRef.current;
+    if (!container) return;
 
     const checkWebGLSupport = () => {
       try {
@@ -3350,49 +3550,47 @@ export default function SlotMachinePreview(): JSX.Element {
       });
     }
 
-    const initApp = async () => {
-      // Create application
-      const app = new PIXI.Application();
+    let app: PIXI.Application = new PIXI.Application();
+    let cancelled = false;
 
+    (async () => {
       try {
         await app.init({
-          background: '#000000',
+          backgroundColor: 0x000000,
           backgroundAlpha: 0,
-          resizeTo: containerRef.current || window,
+          resizeTo: container,
           autoDensity: true,
-          resolution: window.devicePixelRatio || 1,
-          preference: 'webgl'
+          resolution: Math.max(1, window.devicePixelRatio || 1),
+          roundPixels: true,
         });
-      } catch (error) {
-        console.warn('⚠️ WebGL init failed, falling back to Canvas', error);
-        // Fallback strategies if needed, but in v8 init handles things. 
-        // Force canvas via preference if needed:
+      } catch (webglError) {
+        console.warn('⚠️ WebGL initialization failed, falling back to Canvas renderer:', webglError);
         try {
-          // Re-create app for clean retry
-          // Note: app.init can be called only once.
-          // If it failed, we might need a new instance or different config.
-          // For now, let's assume default init works or propagates error.
-          console.error('Failed to init PIXI app', error);
-          return;
-        } catch (e) {
+          await app.init({
+            backgroundColor: 0x000000,
+            backgroundAlpha: 0,
+            resizeTo: container,
+            autoDensity: true,
+            resolution: Math.max(1, window.devicePixelRatio || 1),
+            roundPixels: true,
+            preference: 'canvas',
+          });
+        } catch (canvasError) {
+          console.error('❌ Failed to initialize PIXI with Canvas renderer:', canvasError);
+          app.destroy(true, { children: true });
           return;
         }
       }
-
-      if (!containerRef.current) {
-        app.destroy();
+      if (cancelled) {
+        app.destroy(true, { children: true });
         return;
       }
-
-      // Add canvas to DOM
-      containerRef.current.appendChild(app.canvas);
       appRef.current = app;
-
-      // Preload textures asynchronously
-      try {
-        await preloadTextures();
-      } catch (e) {
-        console.error(e);
+      containerRef.current?.appendChild(app.canvas as any);
+      const canvasEl = app.canvas as HTMLCanvasElement;
+      if (canvasEl?.style) {
+        canvasEl.style.position = 'relative';
+        canvasEl.style.zIndex = '10';
       }
 
       const reelContainers: PIXI.Container[] = [];
@@ -3404,22 +3602,17 @@ export default function SlotMachinePreview(): JSX.Element {
         reelContainers.push(rc);
         app.stage.addChild(rc);
 
-        // Create a mask to clip sprites to visible rows only
-        // Position mask at container's future position, but don't add as child
         const mask = new PIXI.Graphics();
-        mask.rect(metrics.offsetX + c * metrics.spacingX, metrics.offsetY, metrics.size, rows * metrics.spacingY);
-        mask.fill(0xffffff);
+        mask.rect(metrics.offsetX + c * metrics.spacingX, metrics.offsetY, metrics.size, rows * metrics.spacingY).fill(0xffffff);
         app.stage.addChild(mask);
         rc.mask = mask;
-        mask.visible = false; // Hide the mask graphics itself
+        mask.visible = false;
         reelMasks.push(mask);
 
-        // Always create enough symbol containers for smooth scrolling (rows + 2 extra for wrapping)
         const symbolCount = rows + 2;
         for (let r = 0; r < symbolCount; r++) {
-          // Each symbol has its own container
           const symbolContainer = new PIXI.Container();
-          const sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+          const sprite = new PIXI.Sprite({ texture: PIXI.Texture.WHITE, roundPixels: true });
           symbolContainer.addChild(sprite);
           rc.addChild(symbolContainer);
         }
@@ -3427,9 +3620,42 @@ export default function SlotMachinePreview(): JSX.Element {
       reelContainersRef.current = reelContainers;
       reelMasksRef.current = reelMasks;
 
+      // Preload textures and Spine symbol assets before first render
+      preloadTextures()
+        .then(() => loadSpineSymbolAssets())
+        .then(() => {
+          if (appRef.current) renderGrid();
+        })
+        .catch((err) => {
+          console.error('[SlotMachine] preloadTextures failed:', err);
+          if (appRef.current) renderGrid();
+        });
+
       renderGrid();
 
-      // Initialize background if available (now using CSS background on main div, not PIXI)
+      // Update only Spine symbols that are on a winning line (so they animate during win).
+      // Idle Spine symbols are not updated and stay static.
+      const updateWinningSpines = (ticker: { deltaTime: number }) => {
+        const set = winningSpineInstancesRef.current;
+        if (set.size === 0) return;
+        const deltaSec = ticker.deltaTime / 60;
+        const toRemove: Spine[] = [];
+        set.forEach((spine) => {
+          if (!spine || (spine as any).destroyed || !spine.parent || !spine.skeleton) {
+            toRemove.push(spine);
+            return;
+          }
+          try {
+            if (spine.visible) spine.update(deltaSec);
+          } catch (_) {
+            toRemove.push(spine);
+          }
+        });
+        toRemove.forEach((s) => set.delete(s));
+      };
+      winningSpineTickerRef.current = updateWinningSpines;
+      app.ticker.add(updateWinningSpines);
+
       const initialBackground = config.background?.backgroundImage || getBackgroundForMode();
       if (initialBackground) {
         setTimeout(() => {
@@ -3438,52 +3664,42 @@ export default function SlotMachinePreview(): JSX.Element {
             scale: config.backgroundScale || 100,
             fit: (config.backgroundFit || 'cover') as 'cover' | 'contain' | 'fill' | 'scale-down'
           };
-          // Set state for CSS background (no longer using PIXI background sprite)
           setBackgroundUrl(initialBackground);
           setBackgroundAdjustments(adjustments);
         }, 100);
       }
-    };
-
-    initApp();
+    })();
 
     return () => {
-      // Kill any ongoing GSAP timelines
+      cancelled = true;
+      // Stop Spine ticker first so it never runs during teardown (avoids BatcherPipe on destroyed objects).
+      if (appRef.current && winningSpineTickerRef.current) {
+        appRef.current.ticker.remove(winningSpineTickerRef.current);
+        winningSpineTickerRef.current = null;
+      }
       spinTimelinesRef.current.forEach(tl => {
         if (tl) tl.kill();
       });
       spinTimelinesRef.current = [];
-
-      // Cancel any ongoing animation frame (legacy cleanup)
       if (rafRef.current) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
-
-      // Reset spinning state if component unmounts during spin
       if (isSpinning) {
         setIsSpinning(false);
       }
-
-      // Clear spin metadata
       spinMetaRef.current = null;
-
-      // Clean up win lines
       clearWinLines();
-
-      // Clean up symbol grid backgrounds
-      symbolGridBackgroundsRef.current.forEach(bg => {
-        if (bg && !bg.destroyed && bg.parent) {
+      if (symbolGridBackgroundRef.current && !symbolGridBackgroundRef.current.destroyed) {
+        const bg = symbolGridBackgroundRef.current;
+        if (bg.parent) {
           bg.parent.removeChild(bg);
-          bg.destroy({ children: true });
         }
-      });
-      symbolGridBackgroundsRef.current = [];
-
-      // Kill all GSAP animations
+        bg.destroy({ children: true });
+      }
+      symbolGridBackgroundRef.current = null;
       gsap.killTweensOf('*');
 
-      // Visual polish: Clean up blur filters
       blurFiltersRef.current.forEach((filter, container) => {
         if (container.filters) {
           container.filters = container.filters.filter(f => f !== filter);
@@ -3491,7 +3707,6 @@ export default function SlotMachinePreview(): JSX.Element {
       });
       blurFiltersRef.current.clear();
 
-      // Clean up glow effects
       glowEffectsRef.current.forEach((glow) => {
         if (glow && !glow.destroyed && glow.parent) {
           glow.parent.removeChild(glow);
@@ -3499,8 +3714,6 @@ export default function SlotMachinePreview(): JSX.Element {
         }
       });
       glowEffectsRef.current.clear();
-
-      // Clean up background mask
       if (backgroundSpriteRef.current?.mask) {
         const mask = backgroundSpriteRef.current.mask as PIXI.Graphics;
         if (mask.parent) {
@@ -3509,7 +3722,6 @@ export default function SlotMachinePreview(): JSX.Element {
         mask.destroy();
       }
 
-      // Clean up frames
       if (outerFrameSpriteRef.current) {
         if (outerFrameSpriteRef.current.parent) {
           outerFrameSpriteRef.current.parent.removeChild(outerFrameSpriteRef.current);
@@ -3525,8 +3737,6 @@ export default function SlotMachinePreview(): JSX.Element {
         }
       });
       reelDividerSpritesRef.current = [];
-
-      // Clean up masks
       reelMasksRef.current.forEach(mask => {
         if (mask && mask.parent) {
           mask.parent.removeChild(mask);
@@ -3534,27 +3744,147 @@ export default function SlotMachinePreview(): JSX.Element {
         }
       });
       reelMasksRef.current = [];
+      // Remove and destroy all Spine instances from reel symbol containers first,
+      // so the renderer never sees partially-destroyed objects (avoids BatcherPipe geometry null).
+      reelContainersRef.current.forEach((rc) => {
+        if (!rc?.children) return;
+        rc.children.forEach((symbolContainer) => {
+          const sc = symbolContainer as PIXI.Container;
+          if (sc.children.length > 1) {
+            const spine = sc.children[1] as Spine;
+            if (spine && spine.parent) {
+              spine.parent.removeChild(spine);
+              if (!(spine as any).destroyed) spine.destroy({ children: true });
+            }
+          }
+        });
+      });
+      reelContainersRef.current = [];
 
-      // Clean up symbol animations
       cleanupSymbolAnimations();
 
+      winningSpineInstancesRef.current.clear();
+      spineSymbolPoolRef.current.forEach((pool) => {
+        pool.forEach((s) => {
+          if (s && !(s as any).destroyed) s.destroy({ children: true });
+        });
+      });
+      spineSymbolPoolRef.current.clear();
+
       if (appRef.current) {
-        appRef.current.destroy({ removeView: true }, { children: true });
+        appRef.current.destroy(true, { children: true });
         appRef.current = null;
       }
     };
-  }, [symbols, reels, rows, clearWinLines, cleanupSymbolAnimations]);
+  }, [symbols, clearWinLines, cleanupSymbolAnimations]);
 
-  // Regenerate grid when dimensions change
+  // Adjust grid size dynamically without destroying the PIXI app
   useEffect(() => {
-    // Check if currentGrid dimensions don't match current reels/rows
+    if (!appRef.current) return;
+
+    const currentReels = config.reels?.layout?.reels ?? 5;
+    const currentRows = config.reels?.layout?.rows ?? 3;
+    const metrics = computeResponsiveMetrics();
+
+    // Adjust reel containers count
+    const currentContainers = reelContainersRef.current;
+    const currentMasks = reelMasksRef.current;
+
+    // Add or remove reel containers as needed
+    if (currentContainers.length < currentReels) {
+      for (let c = currentContainers.length; c < currentReels; c++) {
+        const rc = new PIXI.Container();
+        currentContainers.push(rc);
+        appRef.current.stage.addChild(rc);
+
+        const mask = new PIXI.Graphics();
+        mask.rect(metrics.offsetX + c * metrics.spacingX, metrics.offsetY, metrics.size, currentRows * metrics.spacingY).fill(0xffffff);
+        appRef.current.stage.addChild(mask);
+        rc.mask = mask;
+        mask.visible = false;
+        currentMasks.push(mask);
+
+        const symbolCount = currentRows + 2;
+        for (let r = 0; r < symbolCount; r++) {
+          const symbolContainer = new PIXI.Container();
+          const sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+          symbolContainer.addChild(sprite);
+          rc.addChild(symbolContainer);
+        }
+      }
+    } else if (currentContainers.length > currentReels) {
+      for (let c = currentContainers.length - 1; c >= currentReels; c--) {
+        const rc = currentContainers[c];
+        const mask = currentMasks[c];
+
+        const blurFilter = blurFiltersRef.current.get(rc);
+        if (blurFilter && rc.filters) {
+          rc.filters = rc.filters.filter(f => f !== blurFilter);
+          blurFiltersRef.current.delete(rc);
+        }
+
+        if (rc && rc.parent) {
+          rc.parent.removeChild(rc);
+          rc.destroy({ children: true });
+        }
+        if (mask && mask.parent) {
+          mask.parent.removeChild(mask);
+          mask.destroy();
+        }
+
+        currentContainers.pop();
+        currentMasks.pop();
+      }
+    }
+
+    // Update all reel containers and masks for new row count
+    for (let c = 0; c < currentReels; c++) {
+      const rc = currentContainers[c];
+      const mask = currentMasks[c];
+
+      if (!rc || !mask) continue;
+
+      rc.x = metrics.offsetX + c * metrics.spacingX;
+      rc.y = metrics.offsetY;
+
+      mask.clear();
+      mask.rect(metrics.offsetX + c * metrics.spacingX, metrics.offsetY, metrics.size, currentRows * metrics.spacingY).fill(0xffffff);
+
+      const currentSymbolCount = rc.children.length;
+      const requiredSymbolCount = currentRows + 2;
+
+      if (currentSymbolCount < requiredSymbolCount) {
+        for (let r = currentSymbolCount; r < requiredSymbolCount; r++) {
+          const symbolContainer = new PIXI.Container();
+          const sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+          symbolContainer.addChild(sprite);
+          rc.addChild(symbolContainer);
+        }
+      } else if (currentSymbolCount > requiredSymbolCount) {
+        for (let r = currentSymbolCount - 1; r >= requiredSymbolCount; r--) {
+          const symbolContainer = rc.children[r];
+          if (symbolContainer && symbolContainer.parent) {
+            if (symbolContainer.children.length > 1) {
+              const spine = symbolContainer.children[1] as Spine;
+              const poolKey = (spine as any).__symbolKey;
+              if (poolKey) returnSpineToPool(poolKey, spine);
+            }
+            symbolContainer.parent.removeChild(symbolContainer);
+            symbolContainer.destroy({ children: true });
+          }
+        }
+      }
+    }
+
+    renderGrid();
+  }, [config.reels?.layout?.reels, config.reels?.layout?.rows, computeResponsiveMetrics]);
+
+  useEffect(() => {
     const currentReels = config.reels?.layout?.reels ?? 5;
     const currentRows = config.reels?.layout?.rows ?? 3;
 
     if (!currentGrid || currentGrid.length !== currentReels ||
       (currentGrid[0] && currentGrid[0].length !== currentRows)) {
-      // Grid dimensions don't match, regenerate
-      // Exclude scatter if in free spin mode with retriggers disabled
       const availableKeys = isInFreeSpinMode && config.bonus?.freeSpins?.retriggers === false
         ? Object.keys(symbols).filter(key => key !== 'scatter')
         : Object.keys(symbols);
@@ -3567,27 +3897,52 @@ export default function SlotMachinePreview(): JSX.Element {
     }
   }, [reels, rows, config.reels?.layout?.reels, config.reels?.layout?.rows, symbols]);
 
-  // Watch for symbol changes in config and reload textures
+  // Resize PIXI app and move canvas when viewMode changes
+  useEffect(() => {
+    if (appRef.current && containerRef.current) {
+      setTimeout(() => {
+        if (appRef.current && containerRef.current) {
+          const canvas = appRef.current.canvas as HTMLCanvasElement;
+
+          if (canvas && canvas.parentNode !== containerRef.current) {
+            if (canvas.parentNode) {
+              canvas.parentNode.removeChild(canvas);
+            }
+            containerRef.current.appendChild(canvas);
+            if (canvas.style) {
+              canvas.style.position = 'relative';
+              canvas.style.zIndex = '10';
+            }
+          }
+
+          const rect = containerRef.current.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            setRenderSize({ width: rect.width, height: rect.height });
+            appRef.current.renderer.resize(rect.width, rect.height);
+            renderGrid();
+            updateSpinePosition();
+          }
+        }
+      }, 150);
+    }
+  }, [viewMode, computeResponsiveMetrics, updateSpinePosition]);
+
   const previousSymbolsRef = useRef<string>('');
   useEffect(() => {
     const currentSymbols = config.theme?.generated?.symbols;
-    if (!currentSymbols || Object.keys(currentSymbols).length === 0) {
-      // Initialize ref on first render if no symbols
+    const hasSymbols = currentSymbols && typeof currentSymbols === 'object' && !Array.isArray(currentSymbols) && Object.keys(currentSymbols).length > 0;
+    if (!hasSymbols) {
       if (previousSymbolsRef.current === '') {
         previousSymbolsRef.current = '{}';
       }
       return;
     }
 
-    // Serialize current symbols to compare
     const currentSymbolsStr = JSON.stringify(currentSymbols);
 
-    // Check if symbols have actually changed
     if (currentSymbolsStr !== previousSymbolsRef.current) {
       previousSymbolsRef.current = currentSymbolsStr;
-      // Reload textures when symbols change
-      preloadTextures().then(() => {
-        // Re-render grid after textures are loaded
+      preloadTextures().then(() => loadSpineSymbolAssets()).then(() => {
         if (appRef.current) {
           renderGrid();
         }
@@ -3595,24 +3950,55 @@ export default function SlotMachinePreview(): JSX.Element {
         console.error('[SlotMachine] Error reloading textures:', error);
       });
     }
-  }, [config.theme?.generated?.symbols, preloadTextures]);
+  }, [config.theme?.generated?.symbols, preloadTextures, loadSpineSymbolAssets]);
+
+  // Delayed retry for texture load - handles async config/store hydration when opening project first time
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (Object.keys(symbols).length > 0 && appRef.current) {
+        preloadTextures().then(() => loadSpineSymbolAssets()).then(() => {
+          if (appRef.current) renderGrid();
+        }).catch(() => { });
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [symbols, preloadTextures, loadSpineSymbolAssets]);
 
   useEffect(() => {
-    renderGrid();
-    // Background is now handled via CSS on main div, no need to update PIXI background
+    if (appRef.current && reelContainersRef.current?.length) renderGrid();
   }, [currentGrid, renderSize, gridAdjustments, frameConfig, maskControls, isSpinning]);
 
-  // Recalculate grid position when UI button adjustments change (to recenter symbols)
+  // Reposition Spine character when preview size or layout changes
+  useEffect(() => {
+    if (renderSize.width > 0 && renderSize.height > 0) {
+      updateSpinePosition();
+    }
+  }, [renderSize.width, renderSize.height, updateSpinePosition]);
+
+  // Reposition Spine when config position/scale changes (from Step4 sliders)
+  const spinePos = (config as { spineCharacterPosition?: { x: number; y: number } })?.spineCharacterPosition;
+  const spineScale = (config as { spineCharacterScale?: number })?.spineCharacterScale;
+  useEffect(() => {
+    updateSpinePosition();
+  }, [spinePos?.x, spinePos?.y, spineScale, updateSpinePosition]);
+
+  // Reload Spine when user uploads a new ZIP (custom event from Step4), only if "Show character" is on
+  useEffect(() => {
+    const onSpineCharacterUpdated = () => {
+      if (!showSpineCharacter) return;
+      loadSpineCharacter().catch(err => console.error('[Spine] Reload after ZIP upload failed:', err));
+    };
+    window.addEventListener('spineCharacterUpdated', onSpineCharacterUpdated);
+    return () => window.removeEventListener('spineCharacterUpdated', onSpineCharacterUpdated);
+  }, [showSpineCharacter, loadSpineCharacter]);
+
+  // Recalculate grid position when UI button adjustments change
   useEffect(() => {
     if (appRef.current) {
       renderGrid();
     }
   }, [uiButtonAdjustments.scale, uiButtonAdjustments.buttonScales]);
 
-  // REMOVED: Config sync for uiButtonAdjustments to prevent race condition
-  // State is initialized from config once, then only updated via events
-
-  // Update mask controls when reel count changes
   useEffect(() => {
     const currentReels = config.reels?.layout?.reels ?? 5;
     setMaskControls(prev => ({
@@ -3621,9 +4007,7 @@ export default function SlotMachinePreview(): JSX.Element {
     }));
   }, [config.reels?.layout?.reels]);
 
-  // Force resize check when sidebar state changes (backup to ResizeObserver)
   useEffect(() => {
-    // Small delay to allow sidebar animation to complete
     const timeoutId = setTimeout(() => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
@@ -3631,12 +4015,11 @@ export default function SlotMachinePreview(): JSX.Element {
           setRenderSize({ width: rect.width, height: rect.height });
         }
       }
-    }, 350); // Slightly longer than sidebar animation duration (300ms)
+    }, 350);
 
     return () => clearTimeout(timeoutId);
   }, [isSidebarCollapsed]);
 
-  // Detect device type changes
   useEffect(() => {
     const handleResize = () => {
       setCurrentDevice(getCurrentDevice());
@@ -3646,27 +4029,17 @@ export default function SlotMachinePreview(): JSX.Element {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Calculate win tier based on bet and win amounts
   const calculateWinTier = useCallback((betAmount: number, winAmount: number): 'small' | 'big' | 'mega' | 'super' => {
     if (winAmount === 0) return 'small';
 
     const multiplier = winAmount / betAmount;
 
-    // Get thresholds from config or use defaults (industry standard)
     const thresholds = config.winMultiplierThresholds || {
       smallWin: 1,
       bigWin: 5,
       megaWin: 25,
       superWin: 100
     };
-
-    console.log('[SlotMachine] Calculating win tier:', {
-      betAmount,
-      winAmount,
-      multiplier: multiplier.toFixed(2) + 'x',
-      thresholds,
-      hasConfigThresholds: !!config.winMultiplierThresholds
-    });
 
     let tier: 'small' | 'big' | 'mega' | 'super' = 'small';
     if (multiplier >= thresholds.superWin) {
@@ -3683,7 +4056,6 @@ export default function SlotMachinePreview(): JSX.Element {
     return tier;
   }, [config.winMultiplierThresholds]);
 
-  // Helper function to clean malformed data URLs
   const cleanDataUrl = useCallback((url: string): string => {
     if (!url) return url;
     let cleanedUrl = url;
@@ -3693,7 +4065,6 @@ export default function SlotMachinePreview(): JSX.Element {
     return cleanedUrl;
   }, []);
 
-  // Get fallback emoji for custom particles based on name
   const getCustomParticleFallback = useCallback((name: string): string => {
     const lowerName = name.toLowerCase();
     if (lowerName.includes('coin') || lowerName.includes('gold')) return '💰';
@@ -3710,12 +4081,9 @@ export default function SlotMachinePreview(): JSX.Element {
     return '✨';
   }, []);
 
-  // Get particle types for each win tier
   const getParticleTypesForTier = useCallback((tier: 'small' | 'big' | 'mega' | 'super'): Array<{ url?: string, fallback: string, config?: any }> => {
     const particleConfigs = config.particleConfigs || {};
     const particleUrls = config.generatedAssets?.particles || {};
-
-    // Get all particles assigned to this tier
     const tierParticles: Array<{ url?: string, fallback: string, config?: any }> = [];
 
     Object.entries(particleConfigs).forEach(([particleId, particleConfig]: [string, any]) => {
@@ -3739,12 +4107,9 @@ export default function SlotMachinePreview(): JSX.Element {
       }
     });
 
-    // If we have particles assigned to this tier, use them
     if (tierParticles.length > 0) {
       return tierParticles;
     }
-
-    // If no particles are assigned, fall back to default emoji icons
     switch (tier) {
       case 'small':
         return [{ fallback: '💰' }];
@@ -3759,7 +4124,6 @@ export default function SlotMachinePreview(): JSX.Element {
     }
   }, [config.particleConfigs, config.generatedAssets?.particles, cleanDataUrl, getCustomParticleFallback]);
 
-  // Create fountain particle with realistic physics
   const createFountainParticle = useCallback((
     overlay: HTMLElement,
     _tier: 'small' | 'big' | 'mega' | 'super',
@@ -3768,16 +4132,12 @@ export default function SlotMachinePreview(): JSX.Element {
   ) => {
     const particle = document.createElement('div');
     const selectedParticle = particleTypes[Math.floor(Math.random() * particleTypes.length)];
-
-    // Get particle configuration for celebration effects
     const particleConfig = selectedParticle.config;
     const sizeMultiplier = (particleConfig?.celebrationSize || 100) / 100;
     const spreadMultiplier = (particleConfig?.fountainSpread || 100) / 100;
     const speedMultiplier = (particleConfig?.particleSpeed || 100) / 100;
     const heightMultiplier = (particleConfig?.fountainHeight || 100) / 100;
     const windEffect = (particleConfig?.windEffect || 0) / 100;
-
-    // Advanced fountain pattern logic
     const pattern = particleConfig?.fountainPattern || 'classic-3';
     const leftAngle = particleConfig?.leftAngle || -45;
     const rightAngle = particleConfig?.rightAngle || 45;
@@ -3786,7 +4146,6 @@ export default function SlotMachinePreview(): JSX.Element {
     let horizontalVelocity: number;
     let baseVerticalVelocity: number | undefined = undefined;
 
-    // Determine direction based on fountain pattern
     switch (pattern) {
       case 'classic-3':
         const direction3 = [-1, 0, 1][Math.floor(Math.random() * 3)];
@@ -3832,15 +4191,12 @@ export default function SlotMachinePreview(): JSX.Element {
         horizontalVelocity = directionDefault * (50 + Math.random() * 50) * spreadMultiplier;
     }
 
-    // Set vertical velocity if not already set by pattern
     if (baseVerticalVelocity === undefined) {
       baseVerticalVelocity = -(120 + Math.random() * 80) * heightMultiplier;
     }
 
     const verticalVelocity = baseVerticalVelocity * speedMultiplier;
     const gravity = 300 * speedMultiplier;
-
-    // Create particle content - use generated image if available, otherwise fallback to emoji
     const finalSize = Math.round(32 * sizeMultiplier);
 
     if (selectedParticle.url) {
@@ -3875,7 +4231,6 @@ export default function SlotMachinePreview(): JSX.Element {
 
     overlay.appendChild(particle);
 
-    // Physics-based animation
     const animationDuration = duration * 0.8;
     const startTime = Date.now();
 
@@ -3888,12 +4243,10 @@ export default function SlotMachinePreview(): JSX.Element {
         return;
       }
 
-      // Calculate position using physics with wind effect
       const windDrift = windEffect * elapsed * 30;
       const x = horizontalVelocity * elapsed + windDrift;
       const y = verticalVelocity * elapsed + 0.5 * gravity * elapsed * elapsed;
 
-      // Apply position and fade out over time
       const opacity = Math.max(0, 1 - progress);
       particle.style.transform = `translate(${x - particle.offsetWidth / 2}px, ${y}px)`;
       particle.style.opacity = opacity.toString();
@@ -3904,11 +4257,9 @@ export default function SlotMachinePreview(): JSX.Element {
     requestAnimationFrame(animate);
   }, []);
 
-  // Trigger particle effects for a win tier
   const triggerParticleEffects = useCallback((tier: 'small' | 'big' | 'mega' | 'super') => {
     if (!containerRef.current) return;
 
-    // Get win effects from config
     const winAnimations = config.winAnimations || {};
     const effects = winAnimations[tier] || {
       particles: tier === 'small' ? 30 : tier === 'big' ? 80 : tier === 'mega' ? 150 : 250,
@@ -3916,7 +4267,6 @@ export default function SlotMachinePreview(): JSX.Element {
       intensity: tier === 'small' ? 3 : tier === 'big' ? 6 : tier === 'mega' ? 8 : 10
     };
 
-    // Create or get particle overlay
     let overlay = particleOverlayRef.current;
     if (!overlay) {
       overlay = document.createElement('div');
@@ -3935,16 +4285,13 @@ export default function SlotMachinePreview(): JSX.Element {
       particleOverlayRef.current = overlay;
     }
 
-    // Get particle types for this tier
     const particleTypes = getParticleTypesForTier(tier);
     const fountainDuration = effects.duration * 1000;
 
-    // Calculate independent contributions from each particle type
     const particleContributions: Array<{ type: typeof particleTypes[0], count: number }> = [];
     let totalParticleCount = 0;
 
     if (particleTypes.length > 0 && particleTypes[0].config) {
-      // Generated particles with individual density settings
       particleTypes.forEach(particleType => {
         const baseDensity = effects.particles / particleTypes.length;
         const densityMultiplier = (particleType.config?.particleDensity || 100) / 100;
@@ -3957,7 +4304,6 @@ export default function SlotMachinePreview(): JSX.Element {
         totalParticleCount += individualCount;
       });
     } else {
-      // Fallback emoji particles - use base count
       particleContributions.push({
         type: particleTypes[0],
         count: effects.particles
@@ -3965,7 +4311,6 @@ export default function SlotMachinePreview(): JSX.Element {
       totalParticleCount = effects.particles;
     }
 
-    // Cap total particles for performance (max 1000)
     const maxParticles = 1000;
     if (totalParticleCount > maxParticles) {
       const scaleFactor = maxParticles / totalParticleCount;
@@ -3975,7 +4320,6 @@ export default function SlotMachinePreview(): JSX.Element {
       totalParticleCount = particleContributions.reduce((sum, contrib) => sum + contrib.count, 0);
     }
 
-    // Create particles with individual timing
     let particleIndex = 0;
     particleContributions.forEach(contribution => {
       for (let i = 0; i < contribution.count; i++) {
@@ -3986,7 +4330,6 @@ export default function SlotMachinePreview(): JSX.Element {
       }
     });
 
-    // Cleanup overlay after animation duration
     setTimeout(() => {
       if (overlay && overlay.parentNode) {
         overlay.remove();
@@ -3995,16 +4338,12 @@ export default function SlotMachinePreview(): JSX.Element {
     }, fountainDuration);
   }, [config.winAnimations, getParticleTypesForTier, createFountainParticle]);
 
-  // Animate win amount counting from 0 to final amount (only for big, mega, and super wins)
   useEffect(() => {
     if (winAmount > 0 && showWinDisplay) {
-      // Calculate win tier
       const winTier = calculateWinTier(betAmount, winAmount);
 
-      // For small wins, display final amount immediately without animation
       if (winTier === 'small') {
         setAnimatedWinAmount(winAmount);
-        // Kill any existing animation
         if (winAmountAnimationRef.current) {
           winAmountAnimationRef.current.kill();
           winAmountAnimationRef.current = null;
@@ -4012,21 +4351,14 @@ export default function SlotMachinePreview(): JSX.Element {
         return;
       }
 
-      // For big, mega, and super wins, animate from 0 to final amount
-      // Reset animated amount to 0 when new win is shown
       setAnimatedWinAmount(0);
-
-      // Kill any existing animation
       if (winAmountAnimationRef.current) {
         winAmountAnimationRef.current.kill();
         winAmountAnimationRef.current = null;
       }
 
-      // Calculate animation duration based on win amount (longer for bigger wins)
-      // Minimum 1 second, maximum 3 seconds
       const duration = Math.min(3, Math.max(1, winAmount / 1000));
 
-      // Animate from 0 to winAmount
       const animationTarget = { value: 0 };
       const timeline = gsap.to(animationTarget, {
         value: winAmount,
@@ -4036,7 +4368,6 @@ export default function SlotMachinePreview(): JSX.Element {
           setAnimatedWinAmount(Math.floor(animationTarget.value));
         },
         onComplete: () => {
-          // Ensure final value is set
           setAnimatedWinAmount(winAmount);
           winAmountAnimationRef.current = null;
         }
@@ -4051,7 +4382,6 @@ export default function SlotMachinePreview(): JSX.Element {
         winAmountAnimationRef.current = null;
       };
     } else {
-      // Reset when win display is hidden
       setAnimatedWinAmount(0);
       if (winAmountAnimationRef.current) {
         winAmountAnimationRef.current.kill();
@@ -4060,16 +4390,21 @@ export default function SlotMachinePreview(): JSX.Element {
     }
   }, [winAmount, showWinDisplay, betAmount, calculateWinTier]);
 
-  // Reset win title state when win display is hidden
   useEffect(() => {
     if (!showWinDisplay && !showWinTitle) {
-      // When win UI is fully closed, also clear any symbol/overlay animations
       setCurrentWinTier('small');
       cleanupSymbolAnimations();
     }
   }, [showWinDisplay, showWinTitle, cleanupSymbolAnimations]);
 
-  // Update frame config from store when it changes
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('winDisplayVisibilityChanged', { detail: { visible: showWinDisplay } }));
+  }, [showWinDisplay]);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent(isSpinning ? 'spinStarted' : 'spinEnded'));
+  }, [isSpinning]);
+
   useEffect(() => {
     setFrameConfig(prev => ({
       framePath: (config as any).frame || prev.framePath,
@@ -4084,20 +4419,17 @@ export default function SlotMachinePreview(): JSX.Element {
     }));
   }, [(config as any).frame, (config as any).frameStyle, (config as any).framePosition, (config as any).frameScale, (config as any).frameStretch, (config as any).reelGap, (config as any).reelDividerPosition, (config as any).reelDividerStretch, (config as any).aiReelImage]);
 
-  // Update logo from config when it changes
   useEffect(() => {
     if ((config as any).logo) {
       setLogoUrl((config as any).logo);
     }
     if ((config as any).logoPositions) {
-      // Convert old pixel values to percentages if needed
       const convertToPercentage = (pos: { x: number; y: number } | undefined, defaultPos: { x: number; y: number }) => {
         if (!pos) return defaultPos;
-        // If values are in pixel range (negative or > 100), they're old pixel values - convert to center
         if (pos.x < 0 || pos.x > 100 || pos.y < 0 || pos.y > 100) {
-          return defaultPos; // Return default percentage position
+          return defaultPos;
         }
-        return pos; // Already in percentage format
+        return pos;
       };
 
       const defaultDesktop = { x: 50, y: 10 };
@@ -4119,23 +4451,6 @@ export default function SlotMachinePreview(): JSX.Element {
     }
   }, [(config as any).logo, (config as any).logoPositions, (config as any).logoScales]);
 
-  // Update win display config when it changes
-  useEffect(() => {
-    setWinDisplayConfig({
-      positions: (config as any).winDisplayPositions || {
-        desktop: { x: 50, y: 20 },
-        mobilePortrait: { x: 50, y: 20 },
-        mobileLandscape: { x: 50, y: 20 }
-      },
-      scales: (config as any).winDisplayScales || {
-        desktop: 80,
-        mobilePortrait: 80,
-        mobileLandscape: 80
-      }
-    });
-  }, [(config as any).winDisplayPositions, (config as any).winDisplayScales]);
-
-  // Listen for background updates from Step4_GameAssets
   useEffect(() => {
     const handleBackgroundUpdated = (event: CustomEvent) => {
       const { backgroundUrl: url, position, scale, fit } = event.detail;
@@ -4148,9 +4463,6 @@ export default function SlotMachinePreview(): JSX.Element {
           fit: (fit || 'cover') as 'cover' | 'contain' | 'fill' | 'scale-down'
         };
         setBackgroundAdjustments(adjustments);
-        // Background is now handled via CSS on main div, no PIXI update needed
-
-        // Force a resize recalculation to prevent symbol position shifts
         setTimeout(() => {
           if (containerRef.current) {
             const rect = containerRef.current.getBoundingClientRect();
@@ -4172,11 +4484,9 @@ export default function SlotMachinePreview(): JSX.Element {
       };
       setBackgroundAdjustments(adjustments);
 
-      // Update background URL if provided
       if (url) {
         setBackgroundUrl(url);
       }
-      // Background is now handled via CSS on main div, no PIXI update needed
     };
 
     const handleUIButtonAdjustmentsUpdated = (event: CustomEvent) => {
@@ -4197,24 +4507,36 @@ export default function SlotMachinePreview(): JSX.Element {
       }
     };
 
+    const scheduleLogoSync = () => {
+      if (logoSyncTimeoutRef.current) clearTimeout(logoSyncTimeoutRef.current);
+      logoSyncTimeoutRef.current = setTimeout(() => {
+        logoSyncTimeoutRef.current = null;
+        if (logoPositionsRef.current) setLogoPositions(prev => ({ ...prev, ...logoPositionsRef.current }));
+        if (logoScalesRef.current) setLogoScales(prev => ({ ...prev, ...logoScalesRef.current }));
+      }, 50);
+    };
+
     const handleLogoPositionChanged = (event: CustomEvent) => {
       const { position, device } = event.detail;
-      if (device && position) {
-        setLogoPositions(prev => ({
-          ...prev,
-          [device]: position
-        }));
+      if (!device || !position) return;
+      const next = { ...(logoPositionsRef.current || {}), [device]: position };
+      logoPositionsRef.current = next;
+      if (device === currentDeviceRef.current && logoContainerRef.current) {
+        logoContainerRef.current.style.left = `${position.x}%`;
+        logoContainerRef.current.style.top = `${position.y}%`;
       }
+      scheduleLogoSync();
     };
 
     const handleLogoScaleChanged = (event: CustomEvent) => {
       const { scale, device } = event.detail;
-      if (device && scale !== undefined) {
-        setLogoScales(prev => ({
-          ...prev,
-          [device]: scale
-        }));
+      if (!device || scale === undefined) return;
+      const next = { ...(logoScalesRef.current || {}), [device]: scale };
+      logoScalesRef.current = next;
+      if (device === currentDeviceRef.current && logoContainerRef.current) {
+        logoContainerRef.current.style.transform = `translate(-50%, -50%) scale(${scale / 100})`;
       }
+      scheduleLogoSync();
     };
 
     const handleGridAdjustmentsUpdated = (event: CustomEvent) => {
@@ -4226,9 +4548,18 @@ export default function SlotMachinePreview(): JSX.Element {
           stretch: stretch !== undefined ? stretch : prev.stretch,
           showSymbolGrid: showSymbolGrid !== undefined ? showSymbolGrid : prev.showSymbolGrid
         };
+        if (
+          prev.scale === newAdjustments.scale &&
+          prev.showSymbolGrid === newAdjustments.showSymbolGrid &&
+          prev.position.x === newAdjustments.position.x &&
+          prev.position.y === newAdjustments.position.y &&
+          prev.stretch.x === newAdjustments.stretch.x &&
+          prev.stretch.y === newAdjustments.stretch.y
+        ) {
+          return prev;
+        }
         return newAdjustments;
       });
-      // Grid will re-render automatically via useEffect dependency on gridAdjustments
     };
 
     const handleFrameUpdated = (event: CustomEvent) => {
@@ -4238,7 +4569,6 @@ export default function SlotMachinePreview(): JSX.Element {
         framePath: frameUrl !== undefined ? (frameUrl || null) : prev.framePath,
         frameStyle: frameStyle !== undefined ? frameStyle : prev.frameStyle
       }));
-      // Frames will re-render when frameConfig changes
     };
 
     const handleFrameAdjustmentsUpdated = (event: CustomEvent) => {
@@ -4249,7 +4579,6 @@ export default function SlotMachinePreview(): JSX.Element {
         frameScale: scale !== undefined ? scale : prev.frameScale,
         frameStretch: stretch !== undefined ? stretch : prev.frameStretch
       }));
-      // Frames will re-render when frameConfig changes
     };
 
     const handleReelGapAdjustmentsUpdated = (event: CustomEvent) => {
@@ -4260,7 +4589,6 @@ export default function SlotMachinePreview(): JSX.Element {
         reelDividerPosition: position !== undefined ? position : prev.reelDividerPosition,
         reelDividerStretch: stretch !== undefined ? stretch : prev.reelDividerStretch
       }));
-      // Reel dividers will re-render when frameConfig changes
     };
 
     const handleAIReelImageUpdated = (event: CustomEvent) => {
@@ -4270,7 +4598,27 @@ export default function SlotMachinePreview(): JSX.Element {
         aiReelImage: aiReelImage !== undefined ? (aiReelImage || null) : prev.aiReelImage,
         frameStyle: frameStyle !== undefined ? frameStyle : prev.frameStyle
       }));
-      // Reel dividers will re-render when frameConfig changes
+    };
+
+    const handleWinDisplayConfigUpdated = (event: CustomEvent) => {
+      const {
+        winDisplayPositions,
+        winDisplayScales,
+        winDisplayTextPositions,
+        winDisplayTextScales,
+        showWinText
+      } = event.detail;
+
+      setWinDisplayConfig({
+        positions: winDisplayPositions || winDisplayConfig.positions,
+        scales: winDisplayScales || winDisplayConfig.scales
+      });
+
+      setWinDisplayTextConfig(prev => ({
+        positions: winDisplayTextPositions || prev.positions,
+        scales: winDisplayTextScales || prev.scales,
+        showWinText: showWinText !== undefined ? showWinText : prev.showWinText
+      }));
     };
 
     const handleAnimationSettingsChanged = (event: CustomEvent) => {
@@ -4296,6 +4644,10 @@ export default function SlotMachinePreview(): JSX.Element {
       }
     };
 
+    const handleWinDisplayUpdated = (_event: CustomEvent) => {
+      setShowWinDisplay(true);
+    };
+
     const handleSlotSpin = () => {
       if (!isSpinning) {
         onSpin();
@@ -4305,12 +4657,9 @@ export default function SlotMachinePreview(): JSX.Element {
     const handleSymbolsChanged = async (event: Event) => {
       const customEvent = event as CustomEvent;
       const detail = customEvent.detail;
-      // Force reload textures when symbols change
       try {
-        // Wait a bit to ensure config and SymbolPreloader have updated
         await new Promise(resolve => setTimeout(resolve, 200));
 
-        // Get the latest symbols directly from config (not from closure)
         const latestConfig = useGameStore.getState().config;
         const latestSymbolsRaw = latestConfig?.theme?.generated?.symbols;
         const latestSymbols: Record<string, string> = (typeof latestSymbolsRaw === 'object' && !Array.isArray(latestSymbolsRaw))
@@ -4320,7 +4669,6 @@ export default function SlotMachinePreview(): JSX.Element {
           console.log('[SlotMachine] Force refresh requested, reloading all textures');
         }
 
-        // Reload textures with latest symbols from config
         await SymbolPreloader.waitForReady();
         const map: Record<string, PIXI.Texture> = {};
 
@@ -4328,52 +4676,36 @@ export default function SlotMachinePreview(): JSX.Element {
           if (!url || url === '') {
             continue;
           }
-          // For force refresh, always try to load fresh (don't use cache)
           let texture: PIXI.Texture | null = null;
 
           if (detail.forceRefresh && detail.symbolKey === k) {
             try {
-              if (url.startsWith('data:')) {
-                texture = await PIXI.Assets.load(url);
-              } else {
-                texture = await PIXI.Assets.load(url);
-              }
+              texture = await Assets.load(url) as PIXI.Texture;
             } catch (error) {
               console.error(`[SlotMachine] Failed to force-load symbol ${k}:`, error);
             }
           } else {
-            // Try to get from cache first
-            texture = SymbolPreloader.getTexture(url) || SymbolPreloader.getTexture(k);
-          }
-
-          if (!texture) {
-            // Not in cache - wait for it to load or load directly
-            texture = await SymbolPreloader.waitForSymbol(url, 10000);
-
-            // If still not loaded, try loading directly
+            // Prefer texture for this config URL (uploaded symbol) so spin keeps new symbol
+            texture = SymbolPreloader.getTexture(url) || null;
             if (!texture) {
-              try {
-                let newTexture: PIXI.Texture | null = null;
-
-                if (url.startsWith('data:')) {
-                  newTexture = await PIXI.Assets.load(url);
-                } else {
-                  newTexture = await PIXI.Assets.load(url);
+              texture = await SymbolPreloader.waitForSymbol(url, 10000);
+              if (!texture) {
+                try {
+                  const newTexture = await Assets.load(url) as PIXI.Texture;
+                  if (newTexture) texture = newTexture;
+                } catch (error) {
+                  console.error(`[SlotMachine] Failed to load symbol ${k}:`, error);
                 }
-
-                if (newTexture) {
-                  texture = newTexture;
-                }
-              } catch (error) {
-                console.error(`[SlotMachine] Failed to load symbol ${k}:`, error);
               }
+            }
+            if (!texture) {
+              texture = SymbolPreloader.getTexture(k);
             }
           }
 
           if (texture) {
             map[k] = texture;
           } else {
-            // Fallback - try predefined symbol
             const predefinedTexture = SymbolPreloader.getTexture(k);
             if (predefinedTexture) {
               map[k] = predefinedTexture;
@@ -4383,10 +4715,8 @@ export default function SlotMachinePreview(): JSX.Element {
             }
           }
         }
-
-        // Update textures ref with new textures
+        await loadSpineSymbolAssets();
         texturesRef.current = map;
-        // Force grid re-render to show new symbols
         if (appRef.current) {
           renderGrid();
         }
@@ -4408,15 +4738,42 @@ export default function SlotMachinePreview(): JSX.Element {
     window.addEventListener('aiReelImageUpdated', handleAIReelImageUpdated as EventListener);
     window.addEventListener('animationSettingsChanged', handleAnimationSettingsChanged as EventListener);
     window.addEventListener('applyMaskControls', handleApplyMaskControls as EventListener);
+    window.addEventListener('winDisplayConfigUpdated', handleWinDisplayConfigUpdated as EventListener);
+    window.addEventListener('winDisplayUpdated', handleWinDisplayUpdated as EventListener);
     window.addEventListener('slotSpin', handleSlotSpin as EventListener);
     window.addEventListener('symbolsChanged', handleSymbolsChanged);
+
+    // Sync with MathWizard reel strips - refresh idle grid when strips are updated
+    const handleReelStripsUpdated = (event: CustomEvent<{ reelStrips: Array<{ reelIndex: number; symbols: string[] }> }>) => {
+      const latestConfig = useGameStore.getState().config;
+      const latestSymbols = latestConfig?.theme?.generated?.symbols;
+      const symKeys = typeof latestSymbols === 'object' && !Array.isArray(latestSymbols)
+        ? Object.keys(latestSymbols)
+        : [];
+      if (symKeys.length === 0) return;
+
+      const { reelStrips } = event.detail || {};
+      if (!reelStrips || !Array.isArray(reelStrips)) return;
+      const currentReels = latestConfig?.reels?.layout?.reels ?? 5;
+      const currentRows = latestConfig?.reels?.layout?.rows ?? 3;
+      if (reelStrips.length !== currentReels) return;
+
+      const resolve = (sym: string) => (symKeys.includes(sym) ? sym : symKeys[Math.floor(Math.random() * symKeys.length)]);
+      const newGrid = reelStrips.map((strip) => {
+        const arr = strip.symbols;
+        if (!arr || arr.length < currentRows) return Array.from({ length: currentRows }, () => symKeys[Math.floor(Math.random() * symKeys.length)]);
+        const stop = Math.floor(Math.random() * arr.length);
+        return Array.from({ length: currentRows }, (_, rowIdx) => resolve(arr[(stop + rowIdx) % arr.length]));
+      });
+      setCurrentGrid(newGrid);
+    };
+    window.addEventListener('reelStripsUpdated', handleReelStripsUpdated as EventListener);
 
     // Handle freespin transition preview
     const handleFreespinTransition = (event: CustomEvent) => {
       const { direction, style, duration } = event.detail;
       console.log('🎰 Freespin transition preview:', { direction, style, duration });
 
-      // Get the latest config from store to ensure we have the most recent value
       const latestConfig = useGameStore.getState().config;
       const freeSpinCount = latestConfig?.bonus?.freeSpins?.count || 10;
       const transitionStyle = style || (latestConfig as any)?.freespinTransition?.style || 'fade';
@@ -4425,24 +4782,21 @@ export default function SlotMachinePreview(): JSX.Element {
       console.log('🎰 Free spin count from config:', freeSpinCount);
       console.log('🎰 Transition style:', transitionStyle, 'Duration:', transitionDuration);
 
-      // Apply transition based on direction
       if (direction === 'to-freespin') {
-        // Set transition style and duration for announcement
         setAnnouncementTransitionStyle(transitionStyle);
         setAnnouncementTransitionDuration(transitionDuration);
 
-        // Show the announcement (image if available, otherwise custom modal)
-        setFreeSpinAwardedCount(freeSpinCount); // Use configured free spin count
+        setFreeSpinAwardedCount(freeSpinCount);
         setShowFreeSpinAnnouncement(true);
 
-        // After announcement (using configured duration), apply free spin mode
         setTimeout(() => {
           setShowFreeSpinAnnouncement(false);
+          setBgTransitionRevealed(false);
           setIsInFreeSpinMode(true);
-          setFreeSpinsRemaining(freeSpinCount); // Use configured free spin count
+          setFreeSpinsRemaining(freeSpinCount);
         }, transitionDuration * 1000);
       } else {
-        // Transition back to regular mode (no announcement needed)
+        setBgTransitionRevealed(false);
         setIsInFreeSpinMode(false);
         setFreeSpinsRemaining(0);
       }
@@ -4450,10 +4804,8 @@ export default function SlotMachinePreview(): JSX.Element {
 
     window.addEventListener('previewFreespinTransition', handleFreespinTransition as EventListener);
 
-    // Handle Pick & Click bonus trigger
     const handlePickAndClickTrigger = (event: CustomEvent) => {
       console.log('🎁 Pick & Click bonus trigger received:', event.detail);
-      // Trigger with mock data (3 bonus symbols)
       const mockPositions = [
         { reel: 0, row: 1 },
         { reel: 2, row: 1 },
@@ -4462,10 +4814,8 @@ export default function SlotMachinePreview(): JSX.Element {
       triggerPickAndClick(3, mockPositions);
     };
 
-    // Handle Wheel bonus trigger
     const handleWheelTrigger = (event: CustomEvent) => {
       console.log('🎰 Wheel bonus trigger received:', event.detail);
-      // Trigger with mock data (3 bonus symbols)
       const mockPositions = [
         { reel: 0, row: 1 },
         { reel: 2, row: 1 },
@@ -4474,34 +4824,26 @@ export default function SlotMachinePreview(): JSX.Element {
       triggerWheelBonus(3, mockPositions);
     };
 
-    // Handle Hold & Spin bonus trigger
     const handleHoldAndSpinTrigger = (event: CustomEvent) => {
       console.log('🔄 Hold & Spin bonus trigger received:', event.detail);
-      // For now, we'll show a message that this feature needs to be implemented
-      // You can implement the actual trigger logic here
       if (typeof window !== 'undefined' && (window as any).showToast) {
         (window as any).showToast('Hold & Spin bonus triggered!', 'success');
       }
-      // TODO: Implement hold & spin trigger logic
     };
 
-    // Handle Jackpot win trigger
     const handleJackpotTrigger = (event: CustomEvent) => {
       console.log('💰 Jackpot trigger received:', event.detail);
       const { level } = event.detail;
       const jackpotConfig = config.bonus?.jackpots;
       if (!jackpotConfig?.enabled) return;
 
-      // Calculate jackpot value based on level
       const jackpotValues = jackpotConfig.values || { Mini: 20, Minor: 100, Major: 1000, Grand: 10000 };
       const jackpotMultiplier = jackpotValues[level as keyof typeof jackpotValues] || 100;
       const jackpotAmount = jackpotMultiplier * betAmount;
 
-      // Add to balance and show win
       setBalance(balance + jackpotAmount);
       setWinAmount(jackpotAmount);
 
-      // Show win display
       setShowWinDisplay(true);
       setTimeout(() => {
         setShowWinDisplay(false);
@@ -4518,6 +4860,7 @@ export default function SlotMachinePreview(): JSX.Element {
     window.addEventListener('previewJackpotWin', handleJackpotTrigger as EventListener);
 
     return () => {
+      if (logoSyncTimeoutRef.current) clearTimeout(logoSyncTimeoutRef.current);
       window.removeEventListener('backgroundUpdated', handleBackgroundUpdated as EventListener);
       window.removeEventListener('backgroundAdjustmentsUpdated', handleBackgroundAdjustmentsUpdated as EventListener);
       window.removeEventListener('uiButtonAdjustmentsUpdated', handleUIButtonAdjustmentsUpdated as EventListener);
@@ -4536,75 +4879,65 @@ export default function SlotMachinePreview(): JSX.Element {
       window.removeEventListener('aiReelImageUpdated', handleAIReelImageUpdated as EventListener);
       window.removeEventListener('animationSettingsChanged', handleAnimationSettingsChanged as EventListener);
       window.removeEventListener('applyMaskControls', handleApplyMaskControls as EventListener);
+      window.removeEventListener('winDisplayConfigUpdated', handleWinDisplayConfigUpdated as EventListener);
+      window.removeEventListener('winDisplayUpdated', handleWinDisplayUpdated as EventListener);
       window.removeEventListener('slotSpin', handleSlotSpin as EventListener);
       window.removeEventListener('symbolsChanged', handleSymbolsChanged);
+      window.removeEventListener('reelStripsUpdated', handleReelStripsUpdated as EventListener);
     };
-  }, [updateBackground, backgroundUrl, backgroundAdjustments, uiButtonAdjustments, isSpinning, preloadTextures, triggerPickAndClick, triggerWheelBonus, betAmount, balance, config.bonus?.jackpots]);
+  }, [updateBackground, backgroundUrl, backgroundAdjustments, uiButtonAdjustments, isSpinning, preloadTextures, loadSpineSymbolAssets, triggerPickAndClick, triggerWheelBonus, betAmount, balance, config.bonus?.jackpots]);
 
-  // Render symbol grid square backgrounds
   const renderSymbolGridBackgrounds = useCallback((metrics: ReturnType<typeof computeResponsiveMetrics>, showSymbolGrid: boolean) => {
-    if (!appRef.current) return;
+    const app = appRef.current;
+    if (!app) return;
 
-    // Always clear existing backgrounds first - aggressive cleanup
-    symbolGridBackgroundsRef.current.forEach(bg => {
-      try {
-        if (bg && !bg.destroyed) {
-          if (bg.parent) {
-            bg.parent.removeChild(bg);
-          }
-          bg.destroy({ children: true });
-        }
-      } catch (e) {
-        // Ignore errors during cleanup
-        console.warn('Error cleaning up symbol grid background:', e);
-      }
-    });
-    symbolGridBackgroundsRef.current = [];
-
-    // Only create backgrounds if enabled
     if (!showSymbolGrid) {
+      if (symbolGridBackgroundRef.current && symbolGridBackgroundRef.current.parent) {
+        symbolGridBackgroundRef.current.parent.removeChild(symbolGridBackgroundRef.current);
+      }
       return;
     }
 
-    // Find insertion point (before first reel container)
-    let baseInsertIndex = 0;
-    if (reelContainersRef.current.length > 0 && reelContainersRef.current[0]?.parent) {
-      baseInsertIndex = appRef.current.stage.getChildIndex(reelContainersRef.current[0]);
-    }
-    if (baseInsertIndex < 0) {
-      baseInsertIndex = appRef.current.stage.children.length;
+    let bg = symbolGridBackgroundRef.current;
+    if (!bg || bg.destroyed) {
+      bg = new PIXI.Graphics();
+      symbolGridBackgroundRef.current = bg;
     }
 
-    let currentInsertIndex = baseInsertIndex;
+    bg.clear();
     for (let reel = 0; reel < reels; reel++) {
       for (let row = 0; row < rows; row++) {
-        const bg = new PIXI.Graphics();
-
-        bg.beginFill(0x000000, 0.2); // Semi-transparent black
-        bg.lineStyle(1, 0xffffff, 0.1); // Subtle white border
-        bg.drawRoundedRect(
+        bg.roundRect(
           metrics.offsetX + reel * metrics.spacingX,
           metrics.offsetY + row * metrics.spacingY,
           metrics.size,
           metrics.size,
-          4 // Rounded corners
-        );
-        bg.endFill();
+          4
+        ).fill({ color: 0x000000, alpha: 0.2 }).stroke({ width: 1, color: 0xffffff, alpha: 0.1 });
+      }
+    }
 
-        // Add to stage at the calculated insertion point
-        appRef.current.stage.addChildAt(bg, currentInsertIndex);
-        symbolGridBackgroundsRef.current.push(bg);
-        // Increment for next background (they'll all stack before reel containers)
-        currentInsertIndex++;
+    let insertIndex = app.stage.children.length;
+    if (reelContainersRef.current.length > 0 && reelContainersRef.current[0]?.parent) {
+      insertIndex = app.stage.getChildIndex(reelContainersRef.current[0]);
+    }
+    if (insertIndex < 0) {
+      insertIndex = app.stage.children.length;
+    }
+
+    if (!bg.parent) {
+      app.stage.addChildAt(bg, insertIndex);
+    } else {
+      const bgIndex = app.stage.getChildIndex(bg);
+      if (bgIndex > insertIndex) {
+        app.stage.removeChild(bg);
+        app.stage.addChildAt(bg, insertIndex);
       }
     }
   }, [reels, rows]);
 
-  // Render outer frame (border around entire grid)
   const renderOuterFrame = useCallback((metrics: ReturnType<typeof computeResponsiveMetrics>) => {
     if (!appRef.current) return;
-
-    // Remove existing outer frame
     if (outerFrameSpriteRef.current) {
       if (outerFrameSpriteRef.current.parent) {
         outerFrameSpriteRef.current.parent.removeChild(outerFrameSpriteRef.current);
@@ -4613,62 +4946,53 @@ export default function SlotMachinePreview(): JSX.Element {
       outerFrameSpriteRef.current = null;
     }
 
-    // Only render if frame style includes outer and frame path exists
     if ((frameConfig.frameStyle === 'outer' || frameConfig.frameStyle === 'both') && frameConfig.framePath) {
-      try {
-        const texture = PIXI.Texture.from(frameConfig.framePath);
-        const sprite = new PIXI.Sprite(texture);
+      Assets.load(frameConfig.framePath).then((texture: PIXI.Texture) => {
+        if (!appRef.current) return;
+        try {
+          const sprite = new PIXI.Sprite(texture);
 
-        // Calculate grid dimensions
-        const gridWidth = reels * metrics.spacingX;
-        const gridHeight = rows * metrics.spacingY;
-        const gridCenterX = metrics.offsetX + gridWidth / 2;
-        const gridCenterY = metrics.offsetY + gridHeight / 2;
+          const gridWidth = reels * metrics.spacingX;
+          const gridHeight = rows * metrics.spacingY;
+          const gridCenterX = metrics.offsetX + gridWidth / 2;
+          const gridCenterY = metrics.offsetY + gridHeight / 2;
 
-        const targetWidth = gridWidth * 1.1;
-        const targetHeight = gridHeight * 1.1;
+          const targetWidth = gridWidth * 1.1;
+          const targetHeight = gridHeight * 1.1;
 
-        // Calculate scale to fit grid while maintaining aspect ratio
-        const scaleX = targetWidth / texture.width;
-        const scaleY = targetHeight / texture.height;
-        const baseScale = Math.max(scaleX, scaleY);
+          const scaleX = targetWidth / texture.width;
+          const scaleY = targetHeight / texture.height;
+          const baseScale = Math.max(scaleX, scaleY);
 
-        // Apply frame scale adjustment
-        const scaleFactor = (frameConfig.frameScale / 100) * baseScale;
+          const scaleFactor = (frameConfig.frameScale / 100) * baseScale;
 
-        // Apply frame stretch
-        const finalWidth = texture.width * scaleFactor * (frameConfig.frameStretch.x / 100);
-        const finalHeight = texture.height * scaleFactor * (frameConfig.frameStretch.y / 100);
+          const finalWidth = texture.width * scaleFactor * (frameConfig.frameStretch.x / 100);
+          const finalHeight = texture.height * scaleFactor * (frameConfig.frameStretch.y / 100);
 
-        sprite.width = finalWidth;
-        sprite.height = finalHeight;
-        sprite.anchor.set(0.5);
+          sprite.width = finalWidth;
+          sprite.height = finalHeight;
+          sprite.anchor.set(0.5);
+          sprite.x = gridCenterX + frameConfig.framePosition.x;
+          sprite.y = gridCenterY + frameConfig.framePosition.y;
 
-        // Apply frame position
-        sprite.x = gridCenterX + frameConfig.framePosition.x;
-        sprite.y = gridCenterY + frameConfig.framePosition.y;
-
-        // Add to stage (behind symbols but above background)
-        // Find insertion point - after backgrounds, before reel containers
-        let insertIndex = 0;
-        if (reelContainersRef.current.length > 0 && reelContainersRef.current[0]?.parent) {
-          insertIndex = appRef.current.stage.getChildIndex(reelContainersRef.current[0]);
+          let insertIndex = 0;
+          if (reelContainersRef.current.length > 0 && reelContainersRef.current[0]?.parent) {
+            insertIndex = appRef.current.stage.getChildIndex(reelContainersRef.current[0]);
+          }
+          const gridBackgroundCount = symbolGridBackgroundRef.current && symbolGridBackgroundRef.current.parent ? 1 : 0;
+          insertIndex = Math.max(0, insertIndex - gridBackgroundCount);
+          appRef.current.stage.addChildAt(sprite, insertIndex);
+          outerFrameSpriteRef.current = sprite;
+        } catch (error) {
+          console.error('Error loading outer frame:', error);
         }
-        // Account for symbol grid backgrounds
-        insertIndex = Math.max(0, insertIndex - symbolGridBackgroundsRef.current.length);
-        appRef.current.stage.addChildAt(sprite, insertIndex);
-        outerFrameSpriteRef.current = sprite;
-      } catch (error) {
-        console.error('Error loading outer frame:', error);
-      }
+      }).catch((error) => console.error('Error loading outer frame:', error));
     }
   }, [frameConfig.framePath, frameConfig.frameStyle, frameConfig.framePosition, frameConfig.frameScale, frameConfig.frameStretch, reels, rows]);
 
-  // Render reel dividers (between reels)
   const renderReelDividers = useCallback((metrics: ReturnType<typeof computeResponsiveMetrics>) => {
     if (!appRef.current) return;
 
-    // Remove existing reel divider sprites
     reelDividerSpritesRef.current.forEach(divider => {
       if (divider && !divider.destroyed && divider.parent) {
         divider.parent.removeChild(divider);
@@ -4677,150 +5001,118 @@ export default function SlotMachinePreview(): JSX.Element {
     });
     reelDividerSpritesRef.current = [];
 
-    // Only render if frame style includes reel AND AI reel image is available
-    // Don't show default dividers - only show when AI reel image exists
     if ((frameConfig.frameStyle === 'reel' || frameConfig.frameStyle === 'both') && frameConfig.aiReelImage) {
       const gridHeight = rows * metrics.spacingY;
 
-      // Calculate divider dimensions
-      // reelGap controls the actual spacing between reels (affects spacingX in computeResponsiveMetrics)
-      // reelDividerStretch.x controls the width of the divider image itself (independent of gap)
-      // Use symbol size as a reference for reasonable divider width, not reelGap
       const baseDividerWidth = metrics.size * 0.08; // Base width as 8% of symbol size (independent of gap)
       const dividerWidth = baseDividerWidth * (frameConfig.reelDividerStretch.x / 100);
 
-      // Base height from grid height, apply stretch
       const dividerHeight = gridHeight * (frameConfig.reelDividerStretch.y / 100);
 
-      // Render dividers between reels (one less than number of reels)
-      for (let i = 0; i < reels - 1; i++) {
-        let dividerSprite: PIXI.Sprite;
+      Assets.load(frameConfig.aiReelImage).then((texture: PIXI.Texture) => {
+        if (!appRef.current) return;
+        for (let i = 0; i < reels - 1; i++) {
+          let dividerSprite: PIXI.Sprite;
+          try {
+            dividerSprite = new PIXI.Sprite(texture);
 
-        // Only render if AI reel image is available
-        try {
-          const texture = PIXI.Texture.from(frameConfig.aiReelImage);
-          dividerSprite = new PIXI.Sprite(texture);
+            const textureAspect = texture.width / texture.height;
+            const dividerAspect = dividerWidth / dividerHeight;
 
-          // Scale to fit divider dimensions while maintaining aspect ratio
-          const textureAspect = texture.width / texture.height;
-          const dividerAspect = dividerWidth / dividerHeight;
+            let scaleX: number, scaleY: number;
+            if (textureAspect > dividerAspect) {
+              scaleX = dividerWidth / texture.width;
+              scaleY = scaleX;
+            } else {
+              scaleY = dividerHeight / texture.height;
+              scaleX = scaleY;
+            }
 
-          let scaleX: number, scaleY: number;
-          if (textureAspect > dividerAspect) {
-            // Texture is wider - fit to width
-            scaleX = dividerWidth / texture.width;
-            scaleY = scaleX; // Maintain aspect ratio
-          } else {
-            // Texture is taller - fit to height
-            scaleY = dividerHeight / texture.height;
-            scaleX = scaleY; // Maintain aspect ratio
+            dividerSprite.scale.set(scaleX, scaleY);
+            dividerSprite.width = dividerWidth;
+            dividerSprite.height = dividerHeight;
+
+            const reelICenterX = metrics.offsetX + i * metrics.spacingX + metrics.size / 2;
+            const reelI1CenterX = metrics.offsetX + (i + 1) * metrics.spacingX + metrics.size / 2;
+            const dividerCenterX = (reelICenterX + reelI1CenterX) / 2;
+            const dividerTopY = metrics.offsetY;
+
+            dividerSprite.x = dividerCenterX + frameConfig.reelDividerPosition.x;
+            dividerSprite.y = dividerTopY + frameConfig.reelDividerPosition.y;
+
+            dividerSprite.anchor.set(0.5, 0);
+
+            let insertIndex = 0;
+            if (reelContainersRef.current.length > 0 && reelContainersRef.current[0]?.parent) {
+              insertIndex = appRef.current.stage.getChildIndex(reelContainersRef.current[0]);
+            }
+            const gridBackgroundCount = symbolGridBackgroundRef.current && symbolGridBackgroundRef.current.parent ? 1 : 0;
+            insertIndex = Math.max(0, insertIndex - gridBackgroundCount);
+            if (outerFrameSpriteRef.current && outerFrameSpriteRef.current.parent) {
+              const frameIndex = appRef.current.stage.getChildIndex(outerFrameSpriteRef.current);
+              insertIndex = Math.max(insertIndex, frameIndex + 1);
+            }
+            appRef.current.stage.addChildAt(dividerSprite, insertIndex);
+            reelDividerSpritesRef.current.push(dividerSprite);
+          } catch (error) {
+            console.error('Error loading AI reel image:', error);
           }
-
-          dividerSprite.scale.set(scaleX, scaleY);
-          dividerSprite.width = dividerWidth;
-          dividerSprite.height = dividerHeight;
-
-          // Position divider exactly between two reels
-          // Calculate the center point between reel i and reel i+1
-          const reelICenterX = metrics.offsetX + i * metrics.spacingX + metrics.size / 2;
-          const reelI1CenterX = metrics.offsetX + (i + 1) * metrics.spacingX + metrics.size / 2;
-          const dividerCenterX = (reelICenterX + reelI1CenterX) / 2;
-
-          // Y position starts at grid top, with adjustment
-          const dividerTopY = metrics.offsetY;
-
-          // Set position with adjustments
-          dividerSprite.x = dividerCenterX + frameConfig.reelDividerPosition.x;
-          dividerSprite.y = dividerTopY + frameConfig.reelDividerPosition.y;
-
-          // Set anchor for sprite
-          dividerSprite.anchor.set(0.5, 0); // Anchor at top center
-
-          // Add to stage (same layer as outer frame)
-          let insertIndex = 0;
-          if (reelContainersRef.current.length > 0 && reelContainersRef.current[0]?.parent) {
-            insertIndex = appRef.current.stage.getChildIndex(reelContainersRef.current[0]);
-          }
-          insertIndex = Math.max(0, insertIndex - symbolGridBackgroundsRef.current.length);
-          if (outerFrameSpriteRef.current && outerFrameSpriteRef.current.parent) {
-            const frameIndex = appRef.current.stage.getChildIndex(outerFrameSpriteRef.current);
-            insertIndex = Math.max(insertIndex, frameIndex + 1);
-          }
-          appRef.current.stage.addChildAt(dividerSprite, insertIndex);
-          reelDividerSpritesRef.current.push(dividerSprite);
-        } catch (error) {
-          console.error('Error loading AI reel image:', error);
         }
-      }
+      }).catch((error) => console.error('Error loading AI reel image:', error));
     }
   }, [frameConfig.frameStyle, frameConfig.reelGap, frameConfig.reelDividerPosition, frameConfig.reelDividerStretch, frameConfig.aiReelImage, reels, rows]);
 
   function renderGrid() {
+    if (!appRef.current || !reelContainersRef.current?.length) return;
     const metrics = computeResponsiveMetrics();
-
-    // Always call renderSymbolGridBackgrounds - it will clear and conditionally create backgrounds
-    // This ensures the toggle works correctly
     renderSymbolGridBackgrounds(metrics, gridAdjustments.showSymbolGrid);
 
-    // Render frames (outer frame and/or reel dividers)
     renderOuterFrame(metrics);
     renderReelDividers(metrics);
 
     for (let c = 0; c < reels; c++) {
       const rc = reelContainersRef.current[c];
-      if (!rc) continue;
+      if (!rc || (rc as PIXI.Container & { destroyed?: boolean }).destroyed) continue;
 
-      // IMPORTANT: Don't reposition reel symbols during spin animation or immediately after
-      // The spin animation (renderReelSpinning) handles symbol positioning during spins
-      // After spin completes, positions are already correct, so don't overwrite them
-      // Only render final positions when not spinning AND spin hasn't just completed
       if (!isSpinning && !spinJustCompletedRef.current) {
-        // Safety check: ensure currentGrid has the correct dimensions
         const reelSymbols = currentGrid && currentGrid[c] ? currentGrid[c] : undefined;
         renderReelFinal(c, reelSymbols, rc, metrics);
         rc.x = metrics.offsetX + c * metrics.spacingX;
         rc.y = metrics.offsetY;
       }
 
-      // Update mask position and visibility based on mask controls (always update masks)
       const mask = reelMasksRef.current[c];
       if (mask) {
         const reelEnabled = maskControls.enabled && maskControls.perReelEnabled[c];
 
         if (reelEnabled) {
-          // Show reel - normal mask
           mask.clear();
           if (maskControls.debugVisible) {
-            mask.rect(metrics.offsetX + c * metrics.spacingX, metrics.offsetY, metrics.size, rows * metrics.spacingY).fill({ color: 0xff0000, alpha: 0.2 }); // Red overlay for debug
+            mask.rect(metrics.offsetX + c * metrics.spacingX, metrics.offsetY, metrics.size, rows * metrics.spacingY).fill({ color: 0xff0000, alpha: 0.2 });
           } else {
             mask.rect(metrics.offsetX + c * metrics.spacingX, metrics.offsetY, metrics.size, rows * metrics.spacingY).fill(0xffffff);
           }
           mask.visible = true;
         } else {
-          // Hide reel - make mask transparent
           mask.clear();
-          mask.beginFill(0x000000, 0); // Transparent mask
-          mask.drawRect(metrics.offsetX + c * metrics.spacingX, metrics.offsetY, metrics.size, rows * metrics.spacingY);
-          mask.endFill();
+          mask.rect(metrics.offsetX + c * metrics.spacingX, metrics.offsetY, metrics.size, rows * metrics.spacingY).fill({ color: 0x000000, alpha: 0 });
           mask.visible = true;
         }
-
-        // Apply mask to reel container
         rc.mask = mask;
       }
 
-      // Hide/show reel container based on mask controls
       if (maskControls.enabled) {
         rc.visible = maskControls.perReelEnabled[c];
       } else {
-        rc.visible = true; // Show all if masking is disabled
+        rc.visible = true;
       }
     }
   }
   const betValues = [0.25, 0.5, 1, 2, 5, 10, 20, 30, 50, 100, 200, 300, 500];
 
-  // Helper function to get transition animation CSS
-  const getTransitionAnimation = (style: 'fade' | 'slide' | 'zoom' | 'dissolve', duration: number) => {
+  /** Reserved for announcement/transition UI. */
+  // @ts-expect-error Reserved for future use - kept for transition UI
+  const _getTransitionAnimation = (style: 'fade' | 'slide' | 'zoom' | 'dissolve', duration: number) => {
     switch (style) {
       case 'fade':
         return `fadeTransition ${duration}s ease-in-out forwards`;
@@ -4834,11 +5126,25 @@ export default function SlotMachinePreview(): JSX.Element {
         return `fadeTransition ${duration}s ease-in-out forwards`;
     }
   };
-
-  // Calculate background style for preview container only
-
-  const getBackgroundStyle = () => {
-    // Use free spin background if in free spin mode
+  /** Used for background image transition when switching normal <-> freespin (full-bleed keyframes). Reserved for future use. */
+  // @ts-expect-error Reserved for future use - kept for background transition
+  const _getBackgroundTransitionAnimation = (style: 'fade' | 'slide' | 'zoom' | 'dissolve', duration: number) => {
+    switch (style) {
+      case 'fade':
+        return `bgFadeTransition ${duration}s ease-in-out both`;
+      case 'slide':
+        return `bgSlideInRight ${duration}s ease-in-out both`;
+      case 'zoom':
+        return `bgZoomIn ${duration}s ease-in-out both`;
+      case 'dissolve':
+        return `bgDissolveTransition ${duration}s ease-in-out both`;
+      default:
+        return `bgFadeTransition ${duration}s ease-in-out both`;
+    }
+  };
+  /** Reserved for inline background style. */
+  // @ts-expect-error Reserved for future use - kept for inline background style
+  const _getBackgroundStyle = () => {
     const currentBackground = isInFreeSpinMode
       ? (config.derivedBackgrounds?.freespin || backgroundUrl)
       : backgroundUrl;
@@ -4853,25 +5159,20 @@ export default function SlotMachinePreview(): JSX.Element {
     const fit = backgroundAdjustments.fit || 'cover';
     const scale = backgroundAdjustments.scale || 100;
 
-    // Map fit values to CSS background-size and apply scale
     let backgroundSize: string = 'cover';
 
     if (scale !== 100) {
-      // When scale is not 100%, use percentage values to apply the scale
       const scalePercent = `${scale}%`;
       if (fit === 'fill') {
         backgroundSize = `${scalePercent} ${scalePercent}`;
       } else {
-        // For cover, contain, and scale-down, use single percentage value
-        // This will scale the background while maintaining aspect ratio
         backgroundSize = scalePercent;
       }
     } else {
-      // When scale is 100%, use the fit value as-is
       if (fit === 'contain') backgroundSize = 'contain';
       else if (fit === 'fill') backgroundSize = '100% 100%';
       else if (fit === 'scale-down') backgroundSize = 'auto';
-      else backgroundSize = 'cover'; // default
+      else backgroundSize = 'cover';
     }
 
     return {
@@ -4879,18 +5180,60 @@ export default function SlotMachinePreview(): JSX.Element {
       backgroundSize: backgroundSize,
       backgroundPosition: `calc(50% + ${pos.x}px) calc(50% + ${pos.y}px)`,
       backgroundRepeat: 'no-repeat' as const,
-      backgroundAttachment: 'local' as const, // Local attachment prevents movement when buttons resize
+      backgroundAttachment: 'local' as const,
       width: '100%',
-      height: '100%' // Fill the preview container
+      height: '100%'
     };
   };
 
-  // Update background when free spin mode changes
+  /** Returns background style for a specific mode (for two-layer transition). */
+  const getBackgroundStyleForMode = (mode: 'normal' | 'freespin') => {
+    const base = config.theme?.generated;
+    const normalUrl = config.background?.backgroundImage || (base as { background?: string })?.background || null;
+    const freespinUrl = config.derivedBackgrounds?.freespin || (config as any)?.freeSpinBackgroundImage || (base as { freeSpinBackground?: string })?.freeSpinBackground || (base as { background?: string })?.background || null;
+    const currentBackground = mode === 'freespin' ? freespinUrl : normalUrl;
+
+    if (!currentBackground) {
+      return {
+        backgroundColor: '#2B2624'
+      };
+    }
+
+    const pos = backgroundAdjustments.position;
+    const fit = backgroundAdjustments.fit || 'cover';
+    const scale = backgroundAdjustments.scale || 100;
+
+    let backgroundSize: string = 'cover';
+
+    if (scale !== 100) {
+      const scalePercent = `${scale}%`;
+      if (fit === 'fill') {
+        backgroundSize = `${scalePercent} ${scalePercent}`;
+      } else {
+        backgroundSize = scalePercent;
+      }
+    } else {
+      if (fit === 'contain') backgroundSize = 'contain';
+      else if (fit === 'fill') backgroundSize = '100% 100%';
+      else if (fit === 'scale-down') backgroundSize = 'auto';
+      else backgroundSize = 'cover';
+    }
+
+    return {
+      backgroundImage: `url(${currentBackground})`,
+      backgroundSize: backgroundSize,
+      backgroundPosition: `calc(50% + ${pos.x}px) calc(50% + ${pos.y}px)`,
+      backgroundRepeat: 'no-repeat' as const,
+      backgroundAttachment: 'local' as const,
+      width: '100%',
+      height: '100%'
+    };
+  };
+
   useEffect(() => {
     if (isInFreeSpinMode && config.derivedBackgrounds?.freespin) {
       setBackgroundUrl(config.derivedBackgrounds.freespin);
     } else if (!isInFreeSpinMode) {
-      // Restore normal background
       const normalBackground = config.background?.backgroundImage || getBackgroundForMode();
       if (normalBackground) {
         setBackgroundUrl(normalBackground);
@@ -4898,47 +5241,66 @@ export default function SlotMachinePreview(): JSX.Element {
     }
   }, [isInFreeSpinMode, config.derivedBackgrounds?.freespin, config.background?.backgroundImage]);
 
-  // Initialize background music and ambience on mount and when audio files are available
+  /** After mode change, reveal the incoming layer so CSS transition runs (delay ensures start state is painted). */
+  useEffect(() => {
+    setBgTransitionRevealed(false);
+    const timeoutId = setTimeout(() => {
+      setBgTransitionRevealed(true);
+    }, 100);
+    return () => clearTimeout(timeoutId);
+  }, [isInFreeSpinMode]);
+
+  /** Inline transition styles for bg layer. Start state has no transition so it applies instantly; end state has transition so it animates in. */
+  const getBgTransitionOverlayStyle = (isIncoming: boolean, revealed: boolean): React.CSSProperties => {
+    if (!isIncoming) return {};
+    const style = (config as any)?.freespinTransition?.style || 'fade';
+    const duration = (config as any)?.freespinTransition?.duration ?? 3;
+    const t = `transform ${duration}s ease-in-out, opacity ${duration}s ease-in-out${style === 'dissolve' ? `, filter ${duration}s ease-in-out` : ''}`;
+    if (!revealed) {
+      switch (style) {
+        case 'slide': return { transform: 'translateX(100%)', transition: 'none' };
+        case 'zoom': return { transform: 'scale(0.15)', transition: 'none' };
+        case 'dissolve': return { opacity: 0, filter: 'blur(20px)', transition: 'none' };
+        case 'fade':
+        default: return { opacity: 0, transition: 'none' };
+      }
+    }
+    switch (style) {
+      case 'slide': return { transform: 'translateX(0)', transition: t };
+      case 'zoom': return { transform: 'scale(1)', transition: t };
+      case 'dissolve': return { opacity: 1, filter: 'blur(0)', transition: t };
+      case 'fade':
+      default: return { opacity: 1, transition: t };
+    }
+  };
+
   useEffect(() => {
     if (isSoundEnabled) {
-      // Check if audio files are available
       const latestAudioFiles = useGameStore.getState().audioFiles;
 
-      // Play background music (loop) if available
       if (latestAudioFiles.background?.bgm_main?.url) {
         playAudio('background', 'bgm_main', { loop: true, stopPrevious: true });
       }
-
-      // Play ambience (loop) if available
       if (latestAudioFiles.ambience?.amb_casino?.url) {
         playAudio('ambience', 'amb_casino', { loop: true, stopPrevious: true });
       }
     }
 
     return () => {
-      // Cleanup on unmount
       stopAllAudio();
     };
-  }, [isSoundEnabled, audioFiles, playAudio]); // Re-initialize when sound is toggled or audio files change
-
-  // Switch background music when entering/exiting free spin mode
+  }, [isSoundEnabled, audioFiles, playAudio]);
   useEffect(() => {
     if (!isSoundEnabled) return;
-
-    // Get latest audio files
     const latestAudioFiles = useGameStore.getState().audioFiles;
 
     if (isInFreeSpinMode) {
-      // Stop main background music
       stopAudio('background', 'bgm_main');
-      // Play alternate loop if available
       if (latestAudioFiles.background?.bgm_alt_loop?.url) {
         playAudio('background', 'bgm_alt_loop', { loop: true, stopPrevious: true });
       }
     } else {
-      // Stop alternate loop
       stopAudio('background', 'bgm_alt_loop');
-      // Resume main background music if available
       if (latestAudioFiles.background?.bgm_main?.url) {
         playAudio('background', 'bgm_main', { loop: true, stopPrevious: true });
       }
@@ -4948,7 +5310,6 @@ export default function SlotMachinePreview(): JSX.Element {
   const wheelSpin = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    // Start wheel spin
     setWheelSpinning(true);
 
     const segments = config.bonus?.wheel?.segments || 8;
@@ -4958,7 +5319,6 @@ export default function SlotMachinePreview(): JSX.Element {
     const hasLevelUp = config.bonus?.wheel?.levelUp || false;
     const hasRespin = config.bonus?.wheel?.respin || false;
 
-    // Determine winning segment (random)
     let winningSegment = Math.floor(Math.random() * segments);
     let segmentType: 'prize' | 'levelup' | 'respin' = 'prize';
     let segmentValue = segmentValues[winningSegment] || 50;
@@ -4971,15 +5331,12 @@ export default function SlotMachinePreview(): JSX.Element {
       segmentValue = 0;
     }
 
-    // Wheel rotation logic
     const anglePerSegment = 360 / segments;
     const baseRotation = 1440;
     const targetAngle = 360 - (winningSegment * anglePerSegment + anglePerSegment / 2);
     const finalRotation = baseRotation + targetAngle;
-    // Animate wheel
     setWheelRotation(finalRotation);
 
-    // Handle result after spin animation
     setTimeout(() => {
       setWheelSpinning(false);
       setWheelResult({ value: segmentValue, type: segmentType });
@@ -4989,7 +5346,6 @@ export default function SlotMachinePreview(): JSX.Element {
         setBalance(balance + prizeAmount);
         setWinAmount(prizeAmount);
 
-        // Calculate win tier and trigger particle effects for big, mega, and super wins
         const winTier = calculateWinTier(betAmount, prizeAmount);
         if (winTier !== 'small') {
           triggerParticleEffects(winTier);
@@ -5004,7 +5360,7 @@ export default function SlotMachinePreview(): JSX.Element {
     <div
       className="w-full h-screen flex flex-col relative"
       style={{
-        overflow: 'hidden', // Apply overflow on the style object instead
+        overflow: 'hidden',
       }}
     >
       {/* Header */}
@@ -5051,572 +5407,1300 @@ export default function SlotMachinePreview(): JSX.Element {
         </div>
       </div>
 
-      {/* Pixi Preview - Background applied here, only in preview area */}
-      <div
-        ref={containerRef}
-        className="flex-1 w-full relative"
-        style={{
-          ...getBackgroundStyle(), // Apply background to preview container only
-          zIndex: 1,
-          overflow: 'visible',
-          minHeight: 0, // Important for flex children to respect container bounds
-          flexShrink: 1, // Allow shrinking if needed
-          position: 'relative',
-          isolation: 'isolate' // Create stacking context to keep background stable
-        }}
-      >
-        {/* Logo Display */}
-        {logoUrl && (
-          <div
-            className="absolute z-40 pointer-events-none"
-            style={{
-              left: `${logoPositions[currentDevice].x}%`,
-              top: `${logoPositions[currentDevice].y}%`,
-              transform: `translate(-50%, -50%) scale(${logoScales[currentDevice] / 100})`,
-              transformOrigin: 'center center',
-              width: '400px',
-              height: '200px',
-              minWidth: '400px',
-              minHeight: '200px',
-              willChange: 'transform',
-              boxSizing: 'border-box'
-            }}
-          >
-            <img
-              src={logoUrl}
-              alt="Game Logo"
-              className="w-full h-full object-contain"
+      {/* Pixi Preview */}
+      <div className="flex-1 relative bg-black overflow-auto flex flex-col">
+        {/* Device/Browser Mockup Container */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: viewMode === 'desktop'
+            ? 'radial-gradient(ellipse at center, #1a1a2e 0%, #16213e 50%, #0f1419 100%)'
+            : 'linear-gradient(135deg, #000000 0%, #1a1a1a 25%, #0d0d0d 50%, #1a1a1a 75%, #000000 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: viewMode === 'desktop' ? '0' : '20px'
+        }}>
+          {viewMode === 'desktop' ? (
+            /* Desktop View - Full Screen */
+            <div
+              className="relative"
               style={{
-                filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5))',
+                zIndex: 1,
+                overflow: 'hidden',
                 width: '100%',
                 height: '100%',
-                objectFit: 'contain'
-              }}
-              onError={(e) => {
-                console.error('[SlotMachine] Failed to load logo:', logoUrl);
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-          </div>
-        )}
-
-        {showFreeSpinSummary && (
-          <div
-            className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[199] animate-fadeIn"
-            onClick={() => setShowFreeSpinSummary(false)}
-          >
-            <div
-              className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-2xl shadow-2xl max-w-md w-full mx-4 border-4 border-orange-400 animate-scaleIn"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-4">
-                {/* Header with Icon */}
-                <div className="flex flex-co items-center justify-center gap-4 mb-4">
-                  <div className=" bg-gradient-to-br from-orange-400 to-yellow-500 rounded-full flex items-center justify-center shadow-lg">
-                    <span className="text-4xl">🎰</span>
-                  </div>
-                  <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-yellow-600 text-center">
-                    Free Spins Complete!
-                  </h2>
-                </div>
-
-                {/* Total Wins Display */}
-                <div className="mb-4 bg-white rounded-xl p-6 shadow-inner">
-                  <div className="text-center">
-                    <p className="text-gray-600 text-sm mb-2">Your Total Winnings from Free Spins</p>
-                    <div className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-emerald-600">
-                      <NumberImageRenderer
-                        value={totalFreeSpinWins}
-                        imageHeight="2em"
-                        fallbackClassName="text-4xl font-bold"
-                      />
-                    </div>
-                    <p className="text-gray-500 text-xs mt-2">Added to your balance</p>
-                  </div>
-                </div>
-                {/* Action Button */}
-                <div className="flex justify-center">
-                  <button
-                    onClick={() => setShowFreeSpinSummary(false)}
-                    className="px-8 py-3 bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white rounded-lg font-bold shadow-lg transition-all transform hover:scale-105 text-lg"
-                  >
-                    Continue Playing 🎮
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Wheel Bonus Modal */}
-        {showWheelBonus && (
-          <div
-            className="absolute inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 animate-fadeIn p-2 sm:p-4"
-          >
-            <div
-              className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl shadow-2xl w-full border-4 border-purple-400 animate-scaleIn overflow-hidden flex flex-col"
-              style={{
-                maxWidth: 'min(90vw, 600px)',
-                maxHeight: 'min(50vh, 600px)',
-                height: 'auto'
+                minWidth: 0,
+                minHeight: 0,
+                position: 'relative',
+                isolation: 'isolate'
               }}
             >
-              <div className="p-2 sm:p-4 md:p-3 flex flex-col items-center" style={{ minHeight: 0, maxHeight: '100%' }}>
-                {/* Header */}
-                <div className="flex gap-2 items-center mb-2 sm:mb-3 flex-shrink-0">
-                  <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600 text-center">
-                    Wheel Bonus!
-                  </h2>
-                  <p className="text-gray-600 mt-1 text-xs sm:text-sm text-center">Spin the wheel to win amazing prizes!</p>
-                </div>
-
-                {/* Wheel Container */}
-                <div className="flex justify-center mb-2 sm:mb-3 flex-shrink-0" style={{ width: '100%' }}>
-                  <div
-                    className="relative aspect-square"
+              {/* Two-layer background: CSS transition driven by bgTransitionRevealed */}
+              <div
+                aria-hidden
+                className="absolute inset-0"
+                style={{
+                  ...getBackgroundStyleForMode('normal'),
+                  transformOrigin: 'center center',
+                  zIndex: isInFreeSpinMode ? 0 : 1,
+                  ...getBgTransitionOverlayStyle(!isInFreeSpinMode, bgTransitionRevealed)
+                }}
+              />
+              <div
+                aria-hidden
+                className="absolute inset-0"
+                style={{
+                  ...getBackgroundStyleForMode('freespin'),
+                  transformOrigin: 'center center',
+                  zIndex: isInFreeSpinMode ? 1 : 0,
+                  ...getBgTransitionOverlayStyle(isInFreeSpinMode, bgTransitionRevealed)
+                }}
+              />
+              {/* Game/canvas area: above background layers so symbols are always visible */}
+              <div
+                ref={containerRef}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  zIndex: 10
+                }}
+              />
+              {/* Logo Display */}
+              {logoUrl && (
+                <div
+                  ref={logoContainerRef}
+                  className="absolute z-40 pointer-events-none"
+                  style={{
+                    left: `${logoPositions[currentDevice].x}%`,
+                    top: `${logoPositions[currentDevice].y}%`,
+                    transform: `translate(-50%, -50%) scale(${logoScales[currentDevice] / 100})`,
+                    transformOrigin: 'center center',
+                    width: '400px',
+                    height: '200px',
+                    minWidth: '400px',
+                    minHeight: '200px',
+                    willChange: 'transform',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  <img
+                    src={logoUrl}
+                    alt="Game Logo"
+                    className="w-full h-full object-contain"
                     style={{
-                      width: 'min(60vw, 300px, calc(65vh - 250px))',
-                      maxWidth: '100%'
+                      filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5))',
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain'
+                    }}
+                    onError={(e) => {
+                      console.error('[SlotMachine] Failed to load logo:', logoUrl);
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                </div>
+              )}
+
+              {showFreeSpinSummary && (
+                <div
+                  className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[199] animate-fadeIn"
+                  onClick={() => setShowFreeSpinSummary(false)}
+                >
+                  <div
+                    className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-2xl shadow-2xl max-w-md w-full mx-4 border-4 border-orange-400 animate-scaleIn"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="p-4">
+                      {/* Header with Icon */}
+                      <div className="flex flex-co items-center justify-center gap-4 mb-4">
+                        <div className=" bg-gradient-to-br from-orange-400 to-yellow-500 rounded-full flex items-center justify-center shadow-lg">
+                          <span className="text-4xl">🎰</span>
+                        </div>
+                        <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-yellow-600 text-center">
+                          Free Spins Complete!
+                        </h2>
+                      </div>
+
+                      <div className="mb-4 bg-white rounded-xl p-6 shadow-inner">
+                        <div className="text-center">
+                          <p className="text-gray-600 text-sm mb-2">Your Total Winnings from Free Spins</p>
+                          <div className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-emerald-600">
+                            <NumberImageRenderer
+                              value={totalFreeSpinWins}
+                              imageHeight="2em"
+                              fallbackClassName="text-4xl font-bold"
+                            />
+                          </div>
+                          <p className="text-gray-500 text-xs mt-2">Added to your balance</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-center">
+                        <button
+                          onClick={() => setShowFreeSpinSummary(false)}
+                          className="px-8 py-3 bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white rounded-lg font-bold shadow-lg transition-all transform hover:scale-105 text-lg"
+                        >
+                          Continue Playing 🎮
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Wheel Bonus Modal */}
+              {showWheelBonus && (
+                <div
+                  className="absolute inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 animate-fadeIn p-2 sm:p-4"
+                >
+                  <div
+                    className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl shadow-2xl w-full border-4 border-purple-400 animate-scaleIn overflow-hidden flex flex-col"
+                    style={{
+                      maxWidth: 'min(90vw, 600px)',
+                      maxHeight: 'min(50vh, 600px)',
+                      height: 'auto'
                     }}
                   >
-                    <svg
-                      width="100%"
-                      height="100%"
-                      viewBox="0 0 400 400"
-                      style={{ position: 'relative' }}
-                    >
-                      {/* Rotating wheel segments group */}
-                      <g
-                        className="transition-transform duration-[3000ms] ease-out"
-                        style={{
-                          transform: `rotate(${wheelRotation}deg)`,
-                          transformOrigin: '200px 200px'
-                        }}
-                      >
-                        {(() => {
-                          const segments = config.bonus?.wheel?.segments || 8;
-                          const segmentValues = (config.bonus?.wheel as any)?.segmentValues || Array(segments).fill(50);
-                          const hasLevelUp = config.bonus?.wheel?.levelUp || false;
-                          const hasRespin = config.bonus?.wheel?.respin || false;
-                          const anglePerSegment = 360 / segments;
-                          const colors = [
-                            '#EF5350', '#42A5F5', '#66BB6A', '#FFA726',
-                            '#8D6E63', '#26A69A', '#EC407A', '#7E57C2',
-                            '#5C6BC0', '#FFB74D', '#9CCC65', '#4DD0E1',
-                            '#AB47BC', '#EF5350', '#42A5F5', '#66BB6A',
-                            '#FFA726', '#8D6E63', '#26A69A', '#EC407A'
-                          ];
+                    <div className="p-2 sm:p-4 md:p-3 flex flex-col items-center" style={{ minHeight: 0, maxHeight: '100%' }}>
+                      {/* Header */}
+                      <div className="flex gap-2 items-center mb-2 sm:mb-3 flex-shrink-0">
+                        <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600 text-center">
+                          Wheel Bonus!
+                        </h2>
+                        <p className="text-gray-600 mt-1 text-xs sm:text-sm text-center">Spin the wheel to win amazing prizes!</p>
+                      </div>
 
-                          return Array.from({ length: segments }).map((_, i) => {
-                            const startAngle = (i * anglePerSegment - 90) * (Math.PI / 180);
-                            const endAngle = ((i + 1) * anglePerSegment - 90) * (Math.PI / 180);
-                            const centerX = 200;
-                            const centerY = 200;
-                            const radius = 180;
+                      {/* Wheel Container */}
+                      <div className="flex justify-center mb-2 sm:mb-3 flex-shrink-0" style={{ width: '100%' }}>
+                        <div
+                          className="relative aspect-square"
+                          style={{
+                            width: 'min(60vw, 300px, calc(65vh - 250px))',
+                            maxWidth: '100%'
+                          }}
+                        >
+                          <svg
+                            width="100%"
+                            height="100%"
+                            viewBox="0 0 400 400"
+                            style={{ position: 'relative' }}
+                          >
+                            <g
+                              className="transition-transform duration-[3000ms] ease-out"
+                              style={{
+                                transform: `rotate(${wheelRotation}deg)`,
+                                transformOrigin: '200px 200px'
+                              }}
+                            >
+                              {(() => {
+                                const segments = config.bonus?.wheel?.segments || 8;
+                                const segmentValues = (config.bonus?.wheel as any)?.segmentValues || Array(segments).fill(50);
+                                const hasLevelUp = config.bonus?.wheel?.levelUp || false;
+                                const hasRespin = config.bonus?.wheel?.respin || false;
+                                const anglePerSegment = 360 / segments;
+                                const colors = [
+                                  '#EF5350', '#42A5F5', '#66BB6A', '#FFA726',
+                                  '#8D6E63', '#26A69A', '#EC407A', '#7E57C2',
+                                  '#5C6BC0', '#FFB74D', '#9CCC65', '#4DD0E1',
+                                  '#AB47BC', '#EF5350', '#42A5F5', '#66BB6A',
+                                  '#FFA726', '#8D6E63', '#26A69A', '#EC407A'
+                                ];
 
-                            // Determine segment type
-                            let segmentType: 'prize' | 'levelup' | 'respin' = 'prize';
-                            let segmentValue = segmentValues[i] || 50;
-                            let segmentColor = colors[i % colors.length];
+                                return Array.from({ length: segments }).map((_, i) => {
+                                  const startAngle = (i * anglePerSegment - 90) * (Math.PI / 180);
+                                  const endAngle = ((i + 1) * anglePerSegment - 90) * (Math.PI / 180);
+                                  const centerX = 200;
+                                  const centerY = 200;
+                                  const radius = 180;
 
-                            if (hasLevelUp && i === 2) {
-                              segmentType = 'levelup';
-                              segmentColor = '#FFD700';
-                            } else if (hasRespin && i === 5) {
-                              segmentType = 'respin';
-                              segmentColor = '#D1C4E9';
-                            }
+                                  let segmentType: 'prize' | 'levelup' | 'respin' = 'prize';
+                                  let segmentValue = segmentValues[i] || 50;
+                                  let segmentColor = colors[i % colors.length];
 
-                            // Create path for segment
-                            const x1 = centerX + radius * Math.cos(startAngle);
-                            const y1 = centerY + radius * Math.sin(startAngle);
-                            const x2 = centerX + radius * Math.cos(endAngle);
-                            const y2 = centerY + radius * Math.sin(endAngle);
-                            const largeArc = anglePerSegment > 180 ? 1 : 0;
+                                  if (hasLevelUp && i === 2) {
+                                    segmentType = 'levelup';
+                                    segmentColor = '#FFD700';
+                                  } else if (hasRespin && i === 5) {
+                                    segmentType = 'respin';
+                                    segmentColor = '#D1C4E9';
+                                  }
 
-                            return (
-                              <g key={i}>
-                                <path
-                                  d={`M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`}
-                                  fill={segmentColor}
-                                  stroke="#FFFFFF"
-                                  strokeWidth="2"
-                                />
-                                <text
-                                  x={centerX + (radius * 0.7) * Math.cos((startAngle + endAngle) / 2)}
-                                  y={centerY + (radius * 0.7) * Math.sin((startAngle + endAngle) / 2)}
-                                  textAnchor="middle"
-                                  dominantBaseline="middle"
-                                  fill="#FFFFFF"
-                                  fontSize="16"
-                                  fontWeight="bold"
-                                  className="pointer-events-none"
-                                >
-                                  {segmentType === 'levelup' ? 'LEVEL UP' :
-                                    segmentType === 'respin' ? 'RESPIN' :
-                                      `${segmentValue}x`}
-                                </text>
-                              </g>
-                            );
-                          });
-                        })()}
-                      </g>
+                                  const x1 = centerX + radius * Math.cos(startAngle);
+                                  const y1 = centerY + radius * Math.sin(startAngle);
+                                  const x2 = centerX + radius * Math.cos(endAngle);
+                                  const y2 = centerY + radius * Math.sin(endAngle);
+                                  const largeArc = anglePerSegment > 180 ? 1 : 0;
 
-                      {/* Fixed center circle - does not rotate */}
-                      <circle
-                        cx="200"
-                        cy="200"
-                        r="60"
-                        fill="#F8C630"
-                        stroke="#FFFFFF"
-                        strokeWidth="3"
-                        className="pointer-events-none"
-                      />
-                      <text
-                        x="200"
-                        y="200"
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fill="#FFFFFF"
-                        fontSize="20"
-                        fontWeight="bold"
-                        className="pointer-events-none"
-                      >
-                        SPIN
-                      </text>
-                    </svg>
+                                  return (
+                                    <g key={i}>
+                                      <path
+                                        d={`M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`}
+                                        fill={segmentColor}
+                                        stroke="#FFFFFF"
+                                        strokeWidth="2"
+                                      />
+                                      <text
+                                        x={centerX + (radius * 0.7) * Math.cos((startAngle + endAngle) / 2)}
+                                        y={centerY + (radius * 0.7) * Math.sin((startAngle + endAngle) / 2)}
+                                        textAnchor="middle"
+                                        dominantBaseline="middle"
+                                        fill="#FFFFFF"
+                                        fontSize="16"
+                                        fontWeight="bold"
+                                        className="pointer-events-none"
+                                      >
+                                        {segmentType === 'levelup' ? 'LEVEL UP' :
+                                          segmentType === 'respin' ? 'RESPIN' :
+                                            `${segmentValue}x`}
+                                      </text>
+                                    </g>
+                                  );
+                                });
+                              })()}
+                            </g>
 
-                    {/* Clickable overlay for center circle */}
-                    {!wheelSpinning && !wheelResult && (
-                      <div
-                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[30%] min-w-[50px] aspect-square rounded-full cursor-pointer z-20 hover:bg-yellow-400/20 transition-colors"
-                        onClick={wheelSpin}
-                        title="Click to spin the wheel"
-                      />
-                    )}
+                            <circle
+                              cx="200"
+                              cy="200"
+                              r="60"
+                              fill="#F8C630"
+                              stroke="#FFFFFF"
+                              strokeWidth="3"
+                              className="pointer-events-none"
+                            />
+                            <text
+                              x="200"
+                              y="200"
+                              textAnchor="middle"
+                              dominantBaseline="middle"
+                              fill="#FFFFFF"
+                              fontSize="20"
+                              fontWeight="bold"
+                              className="pointer-events-none"
+                            >
+                              SPIN
+                            </text>
+                          </svg>
 
-                    {/* Pointer - Fixed at top center */}
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1 z-10 pointer-events-none">
-                      <div className="w-0 h-0 border-l-[10px] sm:border-l-[12px] md:border-l-[15px] border-r-[10px] sm:border-r-[12px] md:border-r-[15px] border-t-[20px] sm:border-t-[24px] md:border-t-[30px] border-l-transparent border-r-transparent border-t-red-600"></div>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-center gap-2">
-                  {/* Result Display */}
-                  {wheelResult && (
-                    <div className="bg-white rounded-xl p-2 md:p-2 shadow-inner flex-shrink-0 w-full max-w-md">
-                      <div className="text-center">
-                        {wheelResult.type === 'levelup' ? (
-                          <div className="flex items-center justify-center gap-2">
-                            <p className="text-gray-600 text-xs">🎉 Level Up!</p>
-                            <div className="text-xl sm:text-2xl md:text-xs font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-600 to-orange-600">
-                              Advance to the next level!
-                            </div>
+                          {!wheelSpinning && !wheelResult && (
+                            <div
+                              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[30%] min-w-[50px] aspect-square rounded-full cursor-pointer z-20 hover:bg-yellow-400/20 transition-colors"
+                              onClick={wheelSpin}
+                              title="Click to spin the wheel"
+                            />
+                          )}
+
+                          <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1 z-10 pointer-events-none">
+                            <div className="w-0 h-0 border-l-[10px] sm:border-l-[12px] md:border-l-[15px] border-r-[10px] sm:border-r-[12px] md:border-r-[15px] border-t-[20px] sm:border-t-[24px] md:border-t-[30px] border-l-transparent border-r-transparent border-t-red-600"></div>
                           </div>
-                        ) : wheelResult.type === 'respin' ? (
-                          <div className="flex items-center justify-center gap-2">
-                            <p className="text-gray-600 text-xs">🔄 Respin!</p>
-                            <div className="text-xl sm:text-2xl md:text-xs font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600">
-                              Spin again for another chance!
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center gap-2">
-                            <p className="text-gray-600 text-xs">🎉 Your Prize</p>
-                            <div className="text-xl sm:text-2xl md:text-xs font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-emerald-600 flex items-center gap-1">
-                              <NumberImageRenderer value={wheelResult.value} imageHeight="1.2em" fallbackClassName="font-bold" /> x <NumberImageRenderer value={betAmount} imageHeight="1.2em" fallbackClassName="font-bold" /> = <NumberImageRenderer value={wheelResult.value * betAmount} imageHeight="1.2em" fallbackClassName="font-bold" />
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-center gap-2">
+                        {wheelResult && (
+                          <div className="bg-white rounded-xl p-2 md:p-2 shadow-inner flex-shrink-0 w-full max-w-md">
+                            <div className="text-center">
+                              {wheelResult.type === 'levelup' ? (
+                                <div className="flex items-center justify-center gap-2">
+                                  <p className="text-gray-600 text-xs">🎉 Level Up!</p>
+                                  <div className="text-xl sm:text-2xl md:text-xs font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-600 to-orange-600">
+                                    Advance to the next level!
+                                  </div>
+                                </div>
+                              ) : wheelResult.type === 'respin' ? (
+                                <div className="flex items-center justify-center gap-2">
+                                  <p className="text-gray-600 text-xs">🔄 Respin!</p>
+                                  <div className="text-xl sm:text-2xl md:text-xs font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600">
+                                    Spin again for another chance!
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-center gap-2">
+                                  <p className="text-gray-600 text-xs">🎉 Your Prize</p>
+                                  <div className="text-xl sm:text-2xl md:text-xs font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-emerald-600 flex items-center gap-1">
+                                    <NumberImageRenderer value={wheelResult.value} imageHeight="1.2em" fallbackClassName="font-bold" /> x <NumberImageRenderer value={betAmount} imageHeight="1.2em" fallbackClassName="font-bold" /> = <NumberImageRenderer value={wheelResult.value * betAmount} imageHeight="1.2em" fallbackClassName="font-bold" />
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}
+
+                        {/* Close Button */}
+                        <div className="flex justify-center flex-shrink-0">
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setShowWheelBonus(false);
+                              setWheelResult(null);
+                              setWheelRotation(0);
+                              setWheelSpinning(false);
+                              spinTimelinesRef.current.forEach(tl => {
+                                if (tl) tl.kill();
+                              });
+                              spinTimelinesRef.current = [];
+                              spinMetaRef.current = null;
+                              setIsSpinning(false);
+                              setTimeout(() => {
+                                spinJustCompletedRef.current = false;
+                              }, 1000);
+                              rafRef.current = null;
+                            }}
+                            className="px-3 py-1.5 sm:px-4 sm:py-2 md:px-3 md:py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-bold shadow-lg transition-all transform hover:scale-105 text-xs sm:text-sm md:text-xs cursor-pointer"
+                            type="button"
+                          >
+                            {wheelResult ? 'Continue Playing 🎮' : 'Close'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {isInFreeSpinMode && (() => {
+                const metrics = computeResponsiveMetrics();
+                const totalHeight = rows * metrics.freespinSpacingY;
+                const topPosition = metrics.offsetY + totalHeight;
+
+                return (
+                  <div
+                    className="absolute left-1/2 transform -translate-x-1/2 z-30 pointer-events-none"
+                    style={{
+                      top: `${topPosition}px`,
+                    }}
+                  >
+                    <div className="bg-black bg-opacity-40 px-4 py-2 rounded-lg border-2 border-orange-400">
+                      <span className="text-white text-lg font-bold">
+                        Remaining FreeSpins = {freeSpinsRemaining}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* UI Controls */}
+              <div
+                ref={uiControlsRef}
+                className='w-full'
+                style={{
+                  transform: `translate(${uiButtonAdjustments.position.x}px, ${uiButtonAdjustments.position.y}px)`,
+                  opacity: uiButtonAdjustments.visibility ? 1 : 0,
+                  pointerEvents: uiButtonAdjustments.visibility ? 'auto' : 'none',
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  zIndex: 100,
+                  backgroundColor: 'transparent',
+                  isolation: 'isolate'
+                }}
+              >
+                {uiType === "modern" && (
+                  <ModernUI
+                    onSpin={onSpin}
+                    BET_VALUES={betValues}
+                    toggleMenu={toggleMenu}
+                    handleDecreaseBet={handleDecreaseBet}
+                    handleIncreaseBet={handleIncreaseBet}
+                    isAutoplayActive={isAutoplayActive}
+                    toggleAutoplay={toggleAutoplay}
+                    onAutoplayToggle={toggleAutoplay}
+                    onMaxBet={handleMaxBet}
+                    toggleSound={toggleSound}
+                    isSoundEnabled={isSoundEnabled}
+                    toggleSettings={toggleSettings}
+                    customButtons={customButtons}
+                    buttonScale={uiButtonAdjustments.scale}
+                    buttonScales={uiButtonAdjustments.buttonScales}
+                    buttonPositions={uiButtonAdjustments.buttonPositions}
+                  />
+                )}
+                {uiType === "normal" && (
+                  <NormalDesign
+                    onSpin={onSpin}
+                    toggleMenu={toggleMenu}
+                    handleDecreaseBet={handleDecreaseBet}
+                    handleIncreaseBet={handleIncreaseBet}
+                    isAutoplayActive={isAutoplayActive}
+                    toggleAutoplay={toggleAutoplay}
+                    onAutoplayToggle={toggleAutoplay}
+                    onMaxBet={handleMaxBet}
+                    toggleSound={toggleSound}
+                    isSoundEnabled={isSoundEnabled}
+                    toggleSettings={toggleSettings}
+                    customButtons={customButtons}
+                    buttonScale={uiButtonAdjustments.scale}
+                    buttonScales={uiButtonAdjustments.buttonScales}
+                    buttonPositions={uiButtonAdjustments.buttonPositions}
+                  />
+                )}
+                {uiType === "ultimate" && (
+                  <UltimateDesign
+                    onSpin={onSpin}
+                    toggleMenu={toggleMenu}
+                    handleDecreaseBet={handleDecreaseBet}
+                    handleIncreaseBet={handleIncreaseBet}
+                    isAutoplayActive={isAutoplayActive}
+                    toggleAutoplay={toggleAutoplay}
+                    onAutoplayToggle={toggleAutoplay}
+                    toggleSound={toggleSound}
+                    isSoundEnabled={isSoundEnabled}
+                    toggleSettings={toggleSettings}
+                    customButtons={customButtons}
+                    buttonScale={uiButtonAdjustments.scale}
+                    buttonScales={uiButtonAdjustments.buttonScales}
+                    buttonPositions={uiButtonAdjustments.buttonPositions}
+                  />
+                )}
+                {uiType === "simple" && (
+                  <SimpleDesign
+                    onSpin={onSpin}
+                    toggleMenu={toggleMenu}
+                    handleDecreaseBet={handleDecreaseBet}
+                    handleIncreaseBet={handleIncreaseBet}
+                    isAutoplayActive={isAutoplayActive}
+                    toggleAutoplay={toggleAutoplay}
+                    onAutoplayToggle={toggleAutoplay}
+                    toggleSound={toggleSound}
+                    isSoundEnabled={isSoundEnabled}
+                    toggleSettings={toggleSettings}
+                    customButtons={customButtons}
+                    buttonScale={uiButtonAdjustments.scale}
+                    buttonScales={uiButtonAdjustments.buttonScales}
+                    buttonPositions={uiButtonAdjustments.buttonPositions}
+                  />
+                )}
+              </div>
+
+              {showWinTitle && currentWinTier !== 'small' && (() => {
+                const winTitleId = currentWinTier === 'big' ? 'big_win' :
+                  currentWinTier === 'mega' ? 'mega_win' :
+                    currentWinTier === 'super' ? 'super_win' : null;
+
+                let winTitleUrl = null;
+                if (winTitleId) {
+                  winTitleUrl = config.generatedAssets?.winTitles?.[winTitleId] || null;
+
+                  if (!winTitleUrl && config.winTitleConfigs?.[winTitleId]?.generatedUrl) {
+                    winTitleUrl = config.winTitleConfigs[winTitleId].generatedUrl;
+                    console.log('[SlotMachine] Found win title URL in winTitleConfigs during render:', winTitleId);
+                  }
+                }
+
+                const winTitleConfig = winTitleId ? (config.winTitleConfigs?.[winTitleId] || null) : null;
+
+                if (!winTitleUrl) {
+                  console.warn('[SlotMachine] Win title URL not found for:', {
+                    winTitleId,
+                    currentWinTier,
+                    showWinTitle,
+                    hasGeneratedAssets: !!config.generatedAssets,
+                    hasWinTitles: !!config.generatedAssets?.winTitles,
+                    winTitleKeys: config.generatedAssets?.winTitles ? Object.keys(config.generatedAssets.winTitles) : [],
+                    hasWinTitleConfigs: !!config.winTitleConfigs,
+                    winTitleConfigKeys: config.winTitleConfigs ? Object.keys(config.winTitleConfigs) : []
+                  });
+                  return null;
+                }
+                const titleImageSize = winTitleConfig?.titleImageSize || 100;
+                const titleSizeMultiplier = titleImageSize / 100;
+
+                const baseWidth = 400;
+                const baseHeight = 150;
+
+                const finalWidth = Math.round(baseWidth * titleSizeMultiplier);
+                const finalHeight = Math.round(baseHeight * titleSizeMultiplier);
+
+                const viewportWidth = window.innerWidth || 1920;
+                const viewportHeight = window.innerHeight || 1080;
+                const maxWidth = Math.min(finalWidth, viewportWidth * 0.8);
+                const maxHeight = Math.min(finalHeight, viewportHeight * 0.4);
+
+                console.log('[SlotMachine] Rendering win title:', {
+                  winTitleId,
+                  winTitleUrl: winTitleUrl ? `${winTitleUrl.substring(0, 50)}...` : 'null',
+                  titleImageSize,
+                  titleSizeMultiplier,
+                  baseWidth,
+                  baseHeight,
+                  finalWidth,
+                  finalHeight,
+                  maxWidth,
+                  maxHeight,
+                  viewportWidth,
+                  viewportHeight
+                });
+
+                return (
+                  <div
+                    className="absolute inset-0 z-[200] pointer-events-none"
+                    style={{
+                      animation: 'fadeInOut 3.5s ease-in-out forwards',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      pointerEvents: 'none'
+                    }}
+                  >
+                    <img
+                      src={winTitleUrl}
+                      alt={`${currentWinTier.toUpperCase()} WIN!`}
+                      className="object-contain"
+                      style={{
+                        width: maxWidth < finalWidth ? `${maxWidth}px` : `${finalWidth}px`,
+                        height: maxHeight < finalHeight ? `${maxHeight}px` : `${finalHeight}px`,
+                        minWidth: '200px',
+                        minHeight: '75px',
+                        filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5))',
+                        animation: 'winTitleScaleIn 0.5s ease-out forwards',
+                        display: 'block',
+                        position: 'relative',
+                        opacity: 1,
+                        visibility: 'visible',
+                        zIndex: 201
+                      }}
+                      onLoad={(e) => {
+                        const img = e.target as HTMLImageElement;
+                        console.log('[SlotMachine] Win title image loaded successfully', {
+                          winTitleId,
+                          naturalWidth: img.naturalWidth,
+                          naturalHeight: img.naturalHeight,
+                          computedWidth: window.getComputedStyle(img).width,
+                          computedHeight: window.getComputedStyle(img).height,
+                          offsetWidth: img.offsetWidth,
+                          offsetHeight: img.offsetHeight,
+                          clientWidth: img.clientWidth,
+                          clientHeight: img.clientHeight,
+                          isVisible: img.offsetWidth > 0 && img.offsetHeight > 0
+                        });
+                      }}
+                      onError={(e) => {
+                        const img = e.target as HTMLImageElement;
+                        console.error('[SlotMachine] Failed to load win title image:', {
+                          winTitleId,
+                          winTitleUrl: winTitleUrl ? `${winTitleUrl.substring(0, 100)}...` : 'null',
+                          error: e,
+                          imageSrc: img.src?.substring(0, 100),
+                          imageComplete: img.complete,
+                          imageNaturalWidth: img.naturalWidth,
+                          imageNaturalHeight: img.naturalHeight
+                        });
+                        setShowWinTitle(false);
+                        setShowWinDisplay(true);
+                      }}
+                    />
+                  </div>
+                );
+              })()}
+            </div>
+          ) : (
+            /* Mobile Phone Mockup */
+            <div
+              style={{
+                position: 'relative',
+                width: viewMode === 'mobile-landscape' ? '700px' : '450px',
+                height: viewMode === 'mobile-landscape' ? '400px' : '800px',
+                maxWidth: '100%',
+                maxHeight: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              {/* Phone Frame/Bezel */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background: 'linear-gradient(145deg, #2a2a2a 0%, #1a1a1a 50%, #0f0f0f 100%)',
+                  borderRadius: viewMode === 'mobile-landscape' ? '20px' : '40px',
+                  border: '8px solid #0a0a0a',
+                  boxShadow: `
+                    0 0 0 2px rgba(255, 255, 255, 0.05),
+                    0 30px 60px -15px rgba(0, 0, 0, 0.9),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+                    inset 0 -1px 0 rgba(0, 0, 0, 0.5)
+                  `,
+                  padding: viewMode === 'mobile-landscape' ? '12px 20px' : '20px 12px'
+                }}
+              >
+                {/* Top Bezel with Camera Notch (Portrait) */}
+                {viewMode === 'mobile' && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '8px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: '120px',
+                      height: '30px',
+                      background: '#000000',
+                      borderRadius: '0 0 20px 20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      zIndex: 10
+                    }}
+                  >
+                    {/* Camera Lens */}
+                    <div
+                      style={{
+                        width: '12px',
+                        height: '12px',
+                        borderRadius: '50%',
+                        background: 'radial-gradient(circle at 30% 30%, #1a1a1a, #000000)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.8)'
+                      }}
+                    />
+                    {/* Speaker Grille */}
+                    <div
+                      style={{
+                        width: '40px',
+                        height: '4px',
+                        borderRadius: '2px',
+                        background: 'linear-gradient(to right, #0a0a0a, #1a1a1a, #0a0a0a)',
+                        boxShadow: 'inset 0 1px 1px rgba(0, 0, 0, 0.9)'
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Landscape Camera (for landscape mode) */}
+                {viewMode === 'mobile-landscape' && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '8px',
+                      transform: 'translateY(-50%)',
+                      width: '30px',
+                      height: '120px',
+                      background: '#000000',
+                      borderRadius: '20px 0 0 20px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      zIndex: 10
+                    }}
+                  >
+                    {/* Camera Lens */}
+                    <div
+                      style={{
+                        width: '12px',
+                        height: '12px',
+                        borderRadius: '50%',
+                        background: 'radial-gradient(circle at 30% 30%, #1a1a1a, #000000)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.8)'
+                      }}
+                    />
+                    {/* Speaker Grille */}
+                    <div
+                      style={{
+                        width: '4px',
+                        height: '40px',
+                        borderRadius: '2px',
+                        background: 'linear-gradient(to bottom, #0a0a0a, #1a1a1a, #0a0a0a)',
+                        boxShadow: 'inset 1px 0 1px rgba(0, 0, 0, 0.9)'
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Screen Area - Contains PIXI Canvas */}
+                <div
+                  className="relative"
+                  style={{
+                    borderRadius: viewMode === 'mobile-landscape' ? '12px' : '32px',
+                    position: 'relative',
+                    boxShadow: 'inset 0 0 20px rgba(0, 0, 0, 0.8)',
+                    zIndex: 1,
+                    overflow: 'hidden',
+                    width: '100%',
+                    height: '100%',
+                    minWidth: 0,
+                    minHeight: 0,
+                    isolation: 'isolate'
+                  }}
+                >
+                  {/* Two-layer background: CSS transition driven by bgTransitionRevealed */}
+                  <div
+                    aria-hidden
+                    className="absolute inset-0"
+                    style={{
+                      ...getBackgroundStyleForMode('normal'),
+                      transformOrigin: 'center center',
+                      borderRadius: 'inherit',
+                      zIndex: isInFreeSpinMode ? 0 : 1,
+                      ...getBgTransitionOverlayStyle(!isInFreeSpinMode, bgTransitionRevealed)
+                    }}
+                  />
+                  <div
+                    aria-hidden
+                    className="absolute inset-0"
+                    style={{
+                      ...getBackgroundStyleForMode('freespin'),
+                      transformOrigin: 'center center',
+                      borderRadius: 'inherit',
+                      zIndex: isInFreeSpinMode ? 1 : 0,
+                      ...getBgTransitionOverlayStyle(isInFreeSpinMode, bgTransitionRevealed)
+                    }}
+                  />
+                  {/* Game/canvas area: above background layers so symbols are always visible */}
+                  <div
+                    ref={containerRef}
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      zIndex: 10,
+                      borderRadius: 'inherit'
+                    }}
+                  />
+                  {/* Logo Display */}
+                  {logoUrl && (
+                    <div
+                      ref={logoContainerRef}
+                      className="absolute z-40 pointer-events-none"
+                      style={{
+                        left: `${logoPositions[currentDevice].x}%`,
+                        top: `${logoPositions[currentDevice].y}%`,
+                        transform: `translate(-50%, -50%) scale(${logoScales[currentDevice] / 100})`,
+                        transformOrigin: 'center center',
+                        width: '400px',
+                        height: '200px',
+                        minWidth: '400px',
+                        minHeight: '200px',
+                        willChange: 'transform',
+                        boxSizing: 'border-box'
+                      }}
+                    >
+                      <img
+                        src={logoUrl}
+                        alt="Game Logo"
+                        className="w-full h-full object-contain"
+                        style={{
+                          filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5))',
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'contain'
+                        }}
+                        onError={(e) => {
+                          console.error('[SlotMachine] Failed to load logo:', logoUrl);
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {showFreeSpinSummary && (
+                    <div
+                      className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[199] animate-fadeIn"
+                      onClick={() => setShowFreeSpinSummary(false)}
+                    >
+                      <div
+                        className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-2xl shadow-2xl max-w-md w-full mx-4 border-4 border-orange-400 animate-scaleIn"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="p-4">
+                          {/* Header with Icon */}
+                          <div className="flex flex-co items-center justify-center gap-4 mb-4">
+                            <div className=" bg-gradient-to-br from-orange-400 to-yellow-500 rounded-full flex items-center justify-center shadow-lg">
+                              <span className="text-4xl">🎰</span>
+                            </div>
+                            <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-yellow-600 text-center">
+                              Free Spins Complete!
+                            </h2>
+                          </div>
+
+                          <div className="mb-4 bg-white rounded-xl p-6 shadow-inner">
+                            <div className="text-center">
+                              <p className="text-gray-600 text-sm mb-2">Your Total Winnings from Free Spins</p>
+                              <div className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-emerald-600">
+                                <NumberImageRenderer
+                                  value={totalFreeSpinWins}
+                                  imageHeight="2em"
+                                  fallbackClassName="text-4xl font-bold"
+                                />
+                              </div>
+                              <p className="text-gray-500 text-xs mt-2">Added to your balance</p>
+                            </div>
+                          </div>
+                          <div className="flex justify-center">
+                            <button
+                              onClick={() => setShowFreeSpinSummary(false)}
+                              className="px-8 py-3 bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white rounded-lg font-bold shadow-lg transition-all transform hover:scale-105 text-lg"
+                            >
+                              Continue Playing 🎮
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
 
-                  {/* Close Button */}
-                  <div className="flex justify-center flex-shrink-0">
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setShowWheelBonus(false);
-                        setWheelResult(null);
-                        setWheelRotation(0);
-                        setWheelSpinning(false);
-                        // Resume normal gameplay
-                        spinTimelinesRef.current.forEach(tl => {
-                          if (tl) tl.kill();
-                        });
-                        spinTimelinesRef.current = [];
-                        spinMetaRef.current = null;
-                        setIsSpinning(false);
-                        // Clear the spin completion flag after wheel closes
-                        setTimeout(() => {
-                          spinJustCompletedRef.current = false;
-                        }, 1000);
-                        rafRef.current = null;
-                      }}
-                      className="px-3 py-1.5 sm:px-4 sm:py-2 md:px-3 md:py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-bold shadow-lg transition-all transform hover:scale-105 text-xs sm:text-sm md:text-xs cursor-pointer"
-                      type="button"
+                  {/* Wheel Bonus Modal */}
+                  {showWheelBonus && (
+                    <div
+                      className="absolute inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 animate-fadeIn p-2 sm:p-4"
                     >
-                      {wheelResult ? 'Continue Playing 🎮' : 'Close'}
-                    </button>
+                      <div
+                        className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl shadow-2xl w-full border-4 border-purple-400 animate-scaleIn overflow-hidden flex flex-col"
+                        style={{
+                          maxWidth: 'min(90vw, 600px)',
+                          maxHeight: 'min(50vh, 600px)',
+                          height: 'auto'
+                        }}
+                      >
+                        <div className="p-2 sm:p-4 md:p-3 flex flex-col items-center" style={{ minHeight: 0, maxHeight: '100%' }}>
+                          {/* Header */}
+                          <div className="flex gap-2 items-center mb-2 sm:mb-3 flex-shrink-0">
+                            <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600 text-center">
+                              Wheel Bonus!
+                            </h2>
+                            <p className="text-gray-600 mt-1 text-xs sm:text-sm text-center">Spin the wheel to win amazing prizes!</p>
+                          </div>
+
+                          {/* Wheel Container */}
+                          <div className="flex justify-center mb-2 sm:mb-3 flex-shrink-0" style={{ width: '100%' }}>
+                            <div
+                              className="relative aspect-square"
+                              style={{
+                                width: 'min(60vw, 300px, calc(65vh - 250px))',
+                                maxWidth: '100%'
+                              }}
+                            >
+                              <svg
+                                width="100%"
+                                height="100%"
+                                viewBox="0 0 400 400"
+                                style={{ position: 'relative' }}
+                              >
+                                <g
+                                  className="transition-transform duration-[3000ms] ease-out"
+                                  style={{
+                                    transform: `rotate(${wheelRotation}deg)`,
+                                    transformOrigin: '200px 200px'
+                                  }}
+                                >
+                                  {(() => {
+                                    const segments = config.bonus?.wheel?.segments || 8;
+                                    const segmentValues = (config.bonus?.wheel as any)?.segmentValues || Array(segments).fill(50);
+                                    const hasLevelUp = config.bonus?.wheel?.levelUp || false;
+                                    const hasRespin = config.bonus?.wheel?.respin || false;
+                                    const anglePerSegment = 360 / segments;
+                                    const colors = [
+                                      '#EF5350', '#42A5F5', '#66BB6A', '#FFA726',
+                                      '#8D6E63', '#26A69A', '#EC407A', '#7E57C2',
+                                      '#5C6BC0', '#FFB74D', '#9CCC65', '#4DD0E1',
+                                      '#AB47BC', '#EF5350', '#42A5F5', '#66BB6A',
+                                      '#FFA726', '#8D6E63', '#26A69A', '#EC407A'
+                                    ];
+
+                                    return Array.from({ length: segments }).map((_, i) => {
+                                      const startAngle = (i * anglePerSegment - 90) * (Math.PI / 180);
+                                      const endAngle = ((i + 1) * anglePerSegment - 90) * (Math.PI / 180);
+                                      const centerX = 200;
+                                      const centerY = 200;
+                                      const radius = 180;
+
+                                      let segmentType: 'prize' | 'levelup' | 'respin' = 'prize';
+                                      let segmentValue = segmentValues[i] || 50;
+                                      let segmentColor = colors[i % colors.length];
+
+                                      if (hasLevelUp && i === 2) {
+                                        segmentType = 'levelup';
+                                        segmentColor = '#FFD700';
+                                      } else if (hasRespin && i === 5) {
+                                        segmentType = 'respin';
+                                        segmentColor = '#D1C4E9';
+                                      }
+
+                                      const x1 = centerX + radius * Math.cos(startAngle);
+                                      const y1 = centerY + radius * Math.sin(startAngle);
+                                      const x2 = centerX + radius * Math.cos(endAngle);
+                                      const y2 = centerY + radius * Math.sin(endAngle);
+                                      const largeArc = anglePerSegment > 180 ? 1 : 0;
+
+                                      return (
+                                        <g key={i}>
+                                          <path
+                                            d={`M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`}
+                                            fill={segmentColor}
+                                            stroke="#FFFFFF"
+                                            strokeWidth="2"
+                                          />
+                                          <text
+                                            x={centerX + (radius * 0.7) * Math.cos((startAngle + endAngle) / 2)}
+                                            y={centerY + (radius * 0.7) * Math.sin((startAngle + endAngle) / 2)}
+                                            textAnchor="middle"
+                                            dominantBaseline="middle"
+                                            fill="#FFFFFF"
+                                            fontSize="16"
+                                            fontWeight="bold"
+                                            className="pointer-events-none"
+                                          >
+                                            {segmentType === 'levelup' ? 'LEVEL UP' :
+                                              segmentType === 'respin' ? 'RESPIN' :
+                                                `${segmentValue}x`}
+                                          </text>
+                                        </g>
+                                      );
+                                    });
+                                  })()}
+                                </g>
+
+                                <circle
+                                  cx="200"
+                                  cy="200"
+                                  r="60"
+                                  fill="#F8C630"
+                                  stroke="#FFFFFF"
+                                  strokeWidth="3"
+                                  className="pointer-events-none"
+                                />
+                                <text
+                                  x="200"
+                                  y="200"
+                                  textAnchor="middle"
+                                  dominantBaseline="middle"
+                                  fill="#FFFFFF"
+                                  fontSize="20"
+                                  fontWeight="bold"
+                                  className="pointer-events-none"
+                                >
+                                  SPIN
+                                </text>
+                              </svg>
+
+                              {!wheelSpinning && !wheelResult && (
+                                <div
+                                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[30%] min-w-[50px] aspect-square rounded-full cursor-pointer z-20 hover:bg-yellow-400/20 transition-colors"
+                                  onClick={wheelSpin}
+                                  title="Click to spin the wheel"
+                                />
+                              )}
+
+                              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1 z-10 pointer-events-none">
+                                <div className="w-0 h-0 border-l-[10px] sm:border-l-[12px] md:border-l-[15px] border-r-[10px] sm:border-r-[12px] md:border-r-[15px] border-t-[20px] sm:border-t-[24px] md:border-t-[30px] border-l-transparent border-r-transparent border-t-red-600"></div>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-center gap-2">
+                            {wheelResult && (
+                              <div className="bg-white rounded-xl p-2 md:p-2 shadow-inner flex-shrink-0 w-full max-w-md">
+                                <div className="text-center">
+                                  {wheelResult.type === 'levelup' ? (
+                                    <div className="flex items-center justify-center gap-2">
+                                      <p className="text-gray-600 text-xs">🎉 Level Up!</p>
+                                      <div className="text-xl sm:text-2xl md:text-xs font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-600 to-orange-600">
+                                        Advance to the next level!
+                                      </div>
+                                    </div>
+                                  ) : wheelResult.type === 'respin' ? (
+                                    <div className="flex items-center justify-center gap-2">
+                                      <p className="text-gray-600 text-xs">🔄 Respin!</p>
+                                      <div className="text-xl sm:text-2xl md:text-xs font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600">
+                                        Spin again for another chance!
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center justify-center gap-2">
+                                      <p className="text-gray-600 text-xs">🎉 Your Prize</p>
+                                      <div className="text-xl sm:text-2xl md:text-xs font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-emerald-600 flex items-center gap-1">
+                                        <NumberImageRenderer value={wheelResult.value} imageHeight="1.2em" fallbackClassName="font-bold" /> x <NumberImageRenderer value={betAmount} imageHeight="1.2em" fallbackClassName="font-bold" /> = <NumberImageRenderer value={wheelResult.value * betAmount} imageHeight="1.2em" fallbackClassName="font-bold" />
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Close Button */}
+                            <div className="flex justify-center flex-shrink-0">
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setShowWheelBonus(false);
+                                  setWheelResult(null);
+                                  setWheelRotation(0);
+                                  setWheelSpinning(false);
+                                  spinTimelinesRef.current.forEach(tl => {
+                                    if (tl) tl.kill();
+                                  });
+                                  spinTimelinesRef.current = [];
+                                  spinMetaRef.current = null;
+                                  setIsSpinning(false);
+                                  setTimeout(() => {
+                                    spinJustCompletedRef.current = false;
+                                  }, 1000);
+                                  rafRef.current = null;
+                                }}
+                                className="px-3 py-1.5 sm:px-4 sm:py-2 md:px-3 md:py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-bold shadow-lg transition-all transform hover:scale-105 text-xs sm:text-sm md:text-xs cursor-pointer"
+                                type="button"
+                              >
+                                {wheelResult ? 'Continue Playing 🎮' : 'Close'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {isInFreeSpinMode && (() => {
+                    const metrics = computeResponsiveMetrics();
+                    const totalHeight = rows * metrics.freespinSpacingY;
+                    const topPosition = metrics.offsetY + totalHeight;
+
+                    return (
+                      <div
+                        className="absolute left-1/2 transform -translate-x-1/2 z-30 pointer-events-none"
+                        style={{
+                          top: `${topPosition}px`,
+                        }}
+                      >
+                        <div className="bg-black bg-opacity-40 px-4 py-2 rounded-lg border-2 border-orange-400">
+                          <span className="text-white text-lg font-bold">
+                            Remaining FreeSpins = {freeSpinsRemaining}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* UI Controls */}
+                  <div
+                    ref={uiControlsRef}
+                    className='w-full'
+                    style={{
+                      transform: `translate(${uiButtonAdjustments.position.x}px, ${uiButtonAdjustments.position.y}px)`,
+                      opacity: uiButtonAdjustments.visibility ? 1 : 0,
+                      pointerEvents: uiButtonAdjustments.visibility ? 'auto' : 'none',
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      zIndex: 100,
+                      backgroundColor: 'transparent',
+                      isolation: 'isolate'
+                    }}
+                  >
+                    {uiType === "modern" && (
+                      <ModernUI
+                        onSpin={onSpin}
+                        BET_VALUES={betValues}
+                        toggleMenu={toggleMenu}
+                        handleDecreaseBet={handleDecreaseBet}
+                        handleIncreaseBet={handleIncreaseBet}
+                        isAutoplayActive={isAutoplayActive}
+                        toggleAutoplay={toggleAutoplay}
+                        onAutoplayToggle={toggleAutoplay}
+                        onMaxBet={handleMaxBet}
+                        toggleSound={toggleSound}
+                        isSoundEnabled={isSoundEnabled}
+                        toggleSettings={toggleSettings}
+                        customButtons={customButtons}
+                        buttonScale={uiButtonAdjustments.scale}
+                        buttonScales={uiButtonAdjustments.buttonScales}
+                        buttonPositions={uiButtonAdjustments.buttonPositions}
+                      />
+                    )}
+                    {uiType === "normal" && (
+                      <NormalDesign
+                        onSpin={onSpin}
+                        toggleMenu={toggleMenu}
+                        handleDecreaseBet={handleDecreaseBet}
+                        handleIncreaseBet={handleIncreaseBet}
+                        isAutoplayActive={isAutoplayActive}
+                        toggleAutoplay={toggleAutoplay}
+                        onAutoplayToggle={toggleAutoplay}
+                        onMaxBet={handleMaxBet}
+                        toggleSound={toggleSound}
+                        isSoundEnabled={isSoundEnabled}
+                        toggleSettings={toggleSettings}
+                        customButtons={customButtons}
+                        buttonScale={uiButtonAdjustments.scale}
+                        buttonScales={uiButtonAdjustments.buttonScales}
+                        buttonPositions={uiButtonAdjustments.buttonPositions}
+                      />
+                    )}
+                    {uiType === "ultimate" && (
+                      <UltimateDesign
+                        onSpin={onSpin}
+                        toggleMenu={toggleMenu}
+                        handleDecreaseBet={handleDecreaseBet}
+                        handleIncreaseBet={handleIncreaseBet}
+                        isAutoplayActive={isAutoplayActive}
+                        toggleAutoplay={toggleAutoplay}
+                        onAutoplayToggle={toggleAutoplay}
+                        toggleSound={toggleSound}
+                        isSoundEnabled={isSoundEnabled}
+                        toggleSettings={toggleSettings}
+                        customButtons={customButtons}
+                        buttonScale={uiButtonAdjustments.scale}
+                        buttonScales={uiButtonAdjustments.buttonScales}
+                        buttonPositions={uiButtonAdjustments.buttonPositions}
+                      />
+                    )}
+                    {uiType === "simple" && (
+                      <SimpleDesign
+                        onSpin={onSpin}
+                        toggleMenu={toggleMenu}
+                        handleDecreaseBet={handleDecreaseBet}
+                        handleIncreaseBet={handleIncreaseBet}
+                        isAutoplayActive={isAutoplayActive}
+                        toggleAutoplay={toggleAutoplay}
+                        onAutoplayToggle={toggleAutoplay}
+                        toggleSound={toggleSound}
+                        isSoundEnabled={isSoundEnabled}
+                        toggleSettings={toggleSettings}
+                        customButtons={customButtons}
+                        buttonScale={uiButtonAdjustments.scale}
+                        buttonScales={uiButtonAdjustments.buttonScales}
+                        buttonPositions={uiButtonAdjustments.buttonPositions}
+                      />
+                    )}
                   </div>
+
+                  {showWinTitle && currentWinTier !== 'small' && (() => {
+                    const winTitleId = currentWinTier === 'big' ? 'big_win' :
+                      currentWinTier === 'mega' ? 'mega_win' :
+                        currentWinTier === 'super' ? 'super_win' : null;
+
+                    let winTitleUrl = null;
+                    if (winTitleId) {
+                      winTitleUrl = config.generatedAssets?.winTitles?.[winTitleId] || null;
+
+                      if (!winTitleUrl && config.winTitleConfigs?.[winTitleId]?.generatedUrl) {
+                        winTitleUrl = config.winTitleConfigs[winTitleId].generatedUrl;
+                        console.log('[SlotMachine] Found win title URL in winTitleConfigs during render:', winTitleId);
+                      }
+                    }
+
+                    const winTitleConfig = winTitleId ? (config.winTitleConfigs?.[winTitleId] || null) : null;
+
+                    if (!winTitleUrl) {
+                      console.warn('[SlotMachine] Win title URL not found for:', {
+                        winTitleId,
+                        currentWinTier,
+                        showWinTitle,
+                        hasGeneratedAssets: !!config.generatedAssets,
+                        hasWinTitles: !!config.generatedAssets?.winTitles,
+                        winTitleKeys: config.generatedAssets?.winTitles ? Object.keys(config.generatedAssets.winTitles) : [],
+                        hasWinTitleConfigs: !!config.winTitleConfigs,
+                        winTitleConfigKeys: config.winTitleConfigs ? Object.keys(config.winTitleConfigs) : []
+                      });
+                      return null;
+                    }
+                    const titleImageSize = winTitleConfig?.titleImageSize || 100;
+                    const titleSizeMultiplier = titleImageSize / 100;
+
+                    const baseWidth = 400;
+                    const baseHeight = 150;
+
+                    const finalWidth = Math.round(baseWidth * titleSizeMultiplier);
+                    const finalHeight = Math.round(baseHeight * titleSizeMultiplier);
+
+                    const viewportWidth = window.innerWidth || 1920;
+                    const viewportHeight = window.innerHeight || 1080;
+                    const maxWidth = Math.min(finalWidth, viewportWidth * 0.8);
+                    const maxHeight = Math.min(finalHeight, viewportHeight * 0.4);
+
+                    console.log('[SlotMachine] Rendering win title:', {
+                      winTitleId,
+                      winTitleUrl: winTitleUrl ? `${winTitleUrl.substring(0, 50)}...` : 'null',
+                      titleImageSize,
+                      titleSizeMultiplier,
+                      baseWidth,
+                      baseHeight,
+                      finalWidth,
+                      finalHeight,
+                      maxWidth,
+                      maxHeight,
+                      viewportWidth,
+                      viewportHeight
+                    });
+
+                    return (
+                      <div
+                        className="absolute inset-0 z-[200] pointer-events-none"
+                        style={{
+                          animation: 'fadeInOut 3.5s ease-in-out forwards',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          pointerEvents: 'none'
+                        }}
+                      >
+                        <img
+                          src={winTitleUrl}
+                          alt={`${currentWinTier.toUpperCase()} WIN!`}
+                          className="object-contain"
+                          style={{
+                            width: maxWidth < finalWidth ? `${maxWidth}px` : `${finalWidth}px`,
+                            height: maxHeight < finalHeight ? `${maxHeight}px` : `${finalHeight}px`,
+                            minWidth: '200px',
+                            minHeight: '75px',
+                            filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5))',
+                            animation: 'winTitleScaleIn 0.5s ease-out forwards',
+                            display: 'block',
+                            position: 'relative',
+                            opacity: 1,
+                            visibility: 'visible',
+                            zIndex: 201
+                          }}
+                          onLoad={(e) => {
+                            const img = e.target as HTMLImageElement;
+                            console.log('[SlotMachine] Win title image loaded successfully', {
+                              winTitleId,
+                              naturalWidth: img.naturalWidth,
+                              naturalHeight: img.naturalHeight,
+                              computedWidth: window.getComputedStyle(img).width,
+                              computedHeight: window.getComputedStyle(img).height,
+                              offsetWidth: img.offsetWidth,
+                              offsetHeight: img.offsetHeight,
+                              clientWidth: img.clientWidth,
+                              clientHeight: img.clientHeight,
+                              isVisible: img.offsetWidth > 0 && img.offsetHeight > 0
+                            });
+                          }}
+                          onError={(e) => {
+                            const img = e.target as HTMLImageElement;
+                            console.error('[SlotMachine] Failed to load win title image:', {
+                              winTitleId,
+                              winTitleUrl: winTitleUrl ? `${winTitleUrl.substring(0, 100)}...` : 'null',
+                              error: e,
+                              imageSrc: img.src?.substring(0, 100),
+                              imageComplete: img.complete,
+                              imageNaturalWidth: img.naturalWidth,
+                              imageNaturalHeight: img.naturalHeight
+                            });
+                            setShowWinTitle(false);
+                            setShowWinDisplay(true);
+                          }}
+                        />
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Free Spin Counter - Displayed below symbols (only in free spin mode) */}
-        {isInFreeSpinMode && (() => {
-          const metrics = computeResponsiveMetrics();
-          // Position below the symbols: offsetY + totalHeight + margin
-          const totalHeight = rows * metrics.freespinSpacingY;
-          const topPosition = metrics.offsetY + totalHeight; // 20px margin below symbols
-
-          return (
-            <div
-              className="absolute left-1/2 transform -translate-x-1/2 z-30 pointer-events-none"
-              style={{
-                top: `${topPosition}px`,
-              }}
-            >
-              <div className="bg-black bg-opacity-40 px-4 py-2 rounded-lg border-2 border-orange-400">
-                <span className="text-white text-lg font-bold">
-                  Remaining FreeSpins = {freeSpinsRemaining}
-                </span>
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* UI Controls - Positioned absolutely at bottom, over background */}
-        <div
-          ref={uiControlsRef}
-          className='w-full'
-          style={{
-            transform: `translate(${uiButtonAdjustments.position.x}px, ${uiButtonAdjustments.position.y}px)`,
-            opacity: uiButtonAdjustments.visibility ? 1 : 0,
-            pointerEvents: uiButtonAdjustments.visibility ? 'auto' : 'none',
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            zIndex: 100, // Higher z-index to ensure buttons are always on top
-            backgroundColor: 'transparent',
-            isolation: 'isolate' // Create new stacking context
-          }}
-        >
-          {uiType === "modern" && (
-            <ModernUI
-              onSpin={onSpin}
-              BET_VALUES={betValues}
-              toggleMenu={toggleMenu}
-              handleDecreaseBet={handleDecreaseBet}
-              handleIncreaseBet={handleIncreaseBet}
-              isAutoplayActive={isAutoplayActive}
-              toggleAutoplay={toggleAutoplay}
-              onAutoplayToggle={toggleAutoplay}
-              onMaxBet={handleMaxBet}
-              toggleSound={toggleSound}
-              isSoundEnabled={isSoundEnabled}
-              toggleSettings={toggleSettings}
-              customButtons={customButtons}
-              buttonScale={uiButtonAdjustments.scale}
-              buttonScales={uiButtonAdjustments.buttonScales}
-              buttonPositions={uiButtonAdjustments.buttonPositions}
-            />
-          )}
-          {uiType === "normal" && (
-            <NormalDesign
-              onSpin={onSpin}
-              toggleMenu={toggleMenu}
-              handleDecreaseBet={handleDecreaseBet}
-              handleIncreaseBet={handleIncreaseBet}
-              isAutoplayActive={isAutoplayActive}
-              toggleAutoplay={toggleAutoplay}
-              onAutoplayToggle={toggleAutoplay}
-              onMaxBet={handleMaxBet}
-              toggleSound={toggleSound}
-              isSoundEnabled={isSoundEnabled}
-              toggleSettings={toggleSettings}
-              customButtons={customButtons}
-              buttonScale={uiButtonAdjustments.scale}
-              buttonScales={uiButtonAdjustments.buttonScales}
-              buttonPositions={uiButtonAdjustments.buttonPositions}
-            />
-          )}
-          {uiType === "ultimate" && (
-            <UltimateDesign
-              onSpin={onSpin}
-              toggleMenu={toggleMenu}
-              handleDecreaseBet={handleDecreaseBet}
-              handleIncreaseBet={handleIncreaseBet}
-              isAutoplayActive={isAutoplayActive}
-              toggleAutoplay={toggleAutoplay}
-              onAutoplayToggle={toggleAutoplay}
-              toggleSound={toggleSound}
-              isSoundEnabled={isSoundEnabled}
-              toggleSettings={toggleSettings}
-              customButtons={customButtons}
-              buttonScale={uiButtonAdjustments.scale}
-              buttonScales={uiButtonAdjustments.buttonScales}
-              buttonPositions={uiButtonAdjustments.buttonPositions}
-            />
-          )}
-          {uiType === "simple" && (
-            <SimpleDesign
-              onSpin={onSpin}
-              toggleMenu={toggleMenu}
-              handleDecreaseBet={handleDecreaseBet}
-              handleIncreaseBet={handleIncreaseBet}
-              isAutoplayActive={isAutoplayActive}
-              toggleAutoplay={toggleAutoplay}
-              onAutoplayToggle={toggleAutoplay}
-              toggleSound={toggleSound}
-              isSoundEnabled={isSoundEnabled}
-              toggleSettings={toggleSettings}
-              customButtons={customButtons}
-              buttonScale={uiButtonAdjustments.scale}
-              buttonScales={uiButtonAdjustments.buttonScales}
-              buttonPositions={uiButtonAdjustments.buttonPositions}
-            />
           )}
         </div>
-
-        {/* Win Title Asset Display - Inside game container */}
-        {showWinTitle && currentWinTier !== 'small' && (() => {
-          const winTitleId = currentWinTier === 'big' ? 'big_win' :
-            currentWinTier === 'mega' ? 'mega_win' :
-              currentWinTier === 'super' ? 'super_win' : null;
-
-          // Comprehensive check for win title URL - check multiple possible locations
-          let winTitleUrl = null;
-          if (winTitleId) {
-            // First, try the standard location
-            winTitleUrl = config.generatedAssets?.winTitles?.[winTitleId] || null;
-
-            // If not found, also check winTitleConfigs for the URL
-            if (!winTitleUrl && config.winTitleConfigs?.[winTitleId]?.generatedUrl) {
-              winTitleUrl = config.winTitleConfigs[winTitleId].generatedUrl;
-              console.log('[SlotMachine] Found win title URL in winTitleConfigs during render:', winTitleId);
-            }
-          }
-
-          const winTitleConfig = winTitleId ? (config.winTitleConfigs?.[winTitleId] || null) : null;
-
-          if (!winTitleUrl) {
-            console.warn('[SlotMachine] Win title URL not found for:', {
-              winTitleId,
-              currentWinTier,
-              showWinTitle,
-              hasGeneratedAssets: !!config.generatedAssets,
-              hasWinTitles: !!config.generatedAssets?.winTitles,
-              winTitleKeys: config.generatedAssets?.winTitles ? Object.keys(config.generatedAssets.winTitles) : [],
-              hasWinTitleConfigs: !!config.winTitleConfigs,
-              winTitleConfigKeys: config.winTitleConfigs ? Object.keys(config.winTitleConfigs) : []
-            });
-            return null;
-          }
-
-          // Get titleImageSize from config (defaults to 100% if not set)
-          const titleImageSize = winTitleConfig?.titleImageSize || 100;
-          const titleSizeMultiplier = titleImageSize / 100;
-
-          // Base dimensions for win titles (these are the 100% size)
-          const baseWidth = 400;
-          const baseHeight = 150;
-
-          // Calculate final dimensions based on size multiplier
-          const finalWidth = Math.round(baseWidth * titleSizeMultiplier);
-          const finalHeight = Math.round(baseHeight * titleSizeMultiplier);
-
-          // Calculate max dimensions that respect the multiplier but don't exceed viewport
-          // Use viewport dimensions for proper scaling
-          const viewportWidth = window.innerWidth || 1920;
-          const viewportHeight = window.innerHeight || 1080;
-          const maxWidth = Math.min(finalWidth, viewportWidth * 0.8);
-          const maxHeight = Math.min(finalHeight, viewportHeight * 0.4);
-
-          console.log('[SlotMachine] Rendering win title:', {
-            winTitleId,
-            winTitleUrl: winTitleUrl ? `${winTitleUrl.substring(0, 50)}...` : 'null',
-            titleImageSize,
-            titleSizeMultiplier,
-            baseWidth,
-            baseHeight,
-            finalWidth,
-            finalHeight,
-            maxWidth,
-            maxHeight,
-            viewportWidth,
-            viewportHeight
-          });
-
-          return (
-            <div
-              className="absolute inset-0 z-[200] pointer-events-none"
-              style={{
-                animation: 'fadeInOut 3.5s ease-in-out forwards',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                pointerEvents: 'none'
-              }}
-            >
-              <img
-                src={winTitleUrl}
-                alt={`${currentWinTier.toUpperCase()} WIN!`}
-                className="object-contain"
-                style={{
-                  width: maxWidth < finalWidth ? `${maxWidth}px` : `${finalWidth}px`,
-                  height: maxHeight < finalHeight ? `${maxHeight}px` : `${finalHeight}px`,
-                  minWidth: '200px',
-                  minHeight: '75px',
-                  filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5))',
-                  animation: 'winTitleScaleIn 0.5s ease-out forwards',
-                  display: 'block',
-                  position: 'relative',
-                  opacity: 1,
-                  visibility: 'visible',
-                  zIndex: 201
-                }}
-                onLoad={(e) => {
-                  const img = e.target as HTMLImageElement;
-                  console.log('[SlotMachine] Win title image loaded successfully', {
-                    winTitleId,
-                    naturalWidth: img.naturalWidth,
-                    naturalHeight: img.naturalHeight,
-                    computedWidth: window.getComputedStyle(img).width,
-                    computedHeight: window.getComputedStyle(img).height,
-                    offsetWidth: img.offsetWidth,
-                    offsetHeight: img.offsetHeight,
-                    clientWidth: img.clientWidth,
-                    clientHeight: img.clientHeight,
-                    isVisible: img.offsetWidth > 0 && img.offsetHeight > 0
-                  });
-                }}
-                onError={(e) => {
-                  const img = e.target as HTMLImageElement;
-                  console.error('[SlotMachine] Failed to load win title image:', {
-                    winTitleId,
-                    winTitleUrl: winTitleUrl ? `${winTitleUrl.substring(0, 100)}...` : 'null',
-                    error: e,
-                    imageSrc: img.src?.substring(0, 100),
-                    imageComplete: img.complete,
-                    imageNaturalWidth: img.naturalWidth,
-                    imageNaturalHeight: img.naturalHeight
-                  });
-                  setShowWinTitle(false);
-                  setShowWinDisplay(true);
-                }}
-              />
-            </div>
-          );
-        })()}
       </div>
 
-      {/* Pick & Click Bonus Modal */}
       {showPickAndClick && (
         <div
           className="absolute inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 animate-fadeIn p-2 sm:p-4"
@@ -5630,7 +6714,6 @@ export default function SlotMachinePreview(): JSX.Element {
             }}
           >
             <div className="p-2 sm:p-4 md:p-3 flex flex-col items-center" style={{ minHeight: 0, maxHeight: '100%' }}>
-              {/* Header */}
               <div className="flex gap-2 items-center mb-2 sm:mb-3 flex-shrink-0">
                 <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-600 to-orange-600 text-center">
                   Pick & Click Bonus!
@@ -5643,7 +6726,6 @@ export default function SlotMachinePreview(): JSX.Element {
                 </p>
               </div>
 
-              {/* Grid Container */}
               <div className="flex justify-center mb-2 sm:mb-3 flex-shrink-0" style={{ width: '100%' }}>
                 <div className="grid gap-1.5 p-2 bg-[#0F1423] rounded-lg" style={{ maxWidth: '100%' }}>
                   {pickAndClickGrid.map((row, rowIndex) => (
@@ -5673,16 +6755,15 @@ export default function SlotMachinePreview(): JSX.Element {
                               </div>
                             );
                           } else {
-                            // Prize
                             const allPrizes = (config.bonus?.pickAndClick as any)?.prizeValues || [100];
                             const maxPrize = Math.max(...allPrizes);
                             const minPrize = Math.min(...allPrizes);
                             const range = maxPrize - minPrize;
                             bgColor = cell.value <= (minPrize + range * 0.33)
-                              ? 'bg-[#5C6BC0]' // Low prize
+                              ? 'bg-[#5C6BC0]'
                               : cell.value <= (minPrize + range * 0.66)
-                                ? 'bg-[#EF5350]' // Medium prize
-                                : 'bg-[#FFD700]'; // High prize
+                                ? 'bg-[#EF5350]'
+                                : 'bg-[#FFD700]';
 
                             content = (
                               <div className="flex flex-col items-center justify-center text-white">
@@ -5713,7 +6794,6 @@ export default function SlotMachinePreview(): JSX.Element {
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                {/* Total Win Display */}
                 {pickAndClickTotalWin > 0 && (
                   <div className="bg-white rounded-xl p-1 shadow-inner flex-shrink-0 w-full max-w-md">
                     <div className="text-center">
@@ -5725,14 +6805,12 @@ export default function SlotMachinePreview(): JSX.Element {
                   </div>
                 )}
 
-                {/* Close Button */}
                 <div className="flex justify-center flex-shrink-0">
                   <button
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       setShowPickAndClick(false);
-                      // Resume normal gameplay
                       spinTimelinesRef.current.forEach(tl => {
                         if (tl) tl.kill();
                       });
@@ -5757,19 +6835,17 @@ export default function SlotMachinePreview(): JSX.Element {
         </div>
       )}
 
-      {/* Free Spin Announcement */}
+      {/* Free Spin Announcement - always fades in/out, centered */}
       {showFreeSpinAnnouncement && (
         <div
-          className="absolute left-1/2 top-1/2 z-50 pointer-events-none"
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none"
           style={{
-            animation: getTransitionAnimation(announcementTransitionStyle, announcementTransitionDuration)
+            animation: 'fadeInOut 3s ease-in-out forwards'
           }}
         >
-          {/* Only show image if it exists and is not empty */}
           {(config as any)?.freeSpinAnnouncementImage &&
             typeof (config as any).freeSpinAnnouncementImage === 'string' &&
             (config as any).freeSpinAnnouncementImage.trim() !== '' ? (
-            // Show ONLY the image - no basic announcement
             <img
               src={(config as any).freeSpinAnnouncementImage}
               alt="Free Spins Announcement"
@@ -5779,13 +6855,11 @@ export default function SlotMachinePreview(): JSX.Element {
                 minHeight: '150px'
               }}
               onError={() => {
-                // If image fails to load, hide the announcement
                 console.warn('Failed to load free spin announcement image');
                 setShowFreeSpinAnnouncement(false);
               }}
             />
           ) : (
-            // Only show basic announcement when image is NOT available
             <div
               className="px-[32px] py-[24px] bg-gradient-to-r from-orange-500 to-yellow-500 text-white rounded-[16px] font-bold text-center shadow-2xl"
               style={{
@@ -5876,9 +6950,11 @@ export default function SlotMachinePreview(): JSX.Element {
 
       {/* Win Display */}
       {winAmount > 0 && showWinDisplay && config.winDisplayImage && (() => {
-        // Get win display position and scale for current device
         const position = winDisplayConfig.positions[currentDevice] || { x: 50, y: 50 };
         const scale = winDisplayConfig.scales[currentDevice] || 100;
+
+        const textPosition = winDisplayTextConfig.positions[currentDevice] || { x: 50, y: 50 };
+        const textScale = winDisplayTextConfig.scales[currentDevice] || 100;
 
         return (
           <div
@@ -5887,10 +6963,8 @@ export default function SlotMachinePreview(): JSX.Element {
               left: `${position.x}%`,
               top: `${position.y}%`,
               transform: `translate(-50%, -50%) scale(${scale / 100})`,
-              // animation: 'fadeInOut 3.5s ease-in-out forwards'
             }}
             onClick={() => {
-              // Skip animation and jump to final amount
               if (winAmountAnimationRef.current) {
                 winAmountAnimationRef.current.kill();
                 winAmountAnimationRef.current = null;
@@ -5910,14 +6984,17 @@ export default function SlotMachinePreview(): JSX.Element {
                   minWidth: '200px',
                   minHeight: '100px'
                 }}
-                onError={(e) => {
+                onError={(_e) => {
                   console.warn('Failed to load win display image:', config.winDisplayImage);
-                  // Could optionally show fallback text here
                 }}
               />
               {/* Win Amount Overlay */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-white font-bold text-center drop-hadow-lg">
+              <div className="absolute" style={{
+                left: `${textPosition.x}%`,
+                top: `${textPosition.y}%`,
+                transform: `translate(-50%, -50%) scale(${textScale / 100})`,
+              }}>
+                <div className="text-white font-bold text-center drop-shadow-lg">
                   <div
                     className="text-2xl md:text-3xl lg:text-4xl"
                     style={{
@@ -5925,7 +7002,7 @@ export default function SlotMachinePreview(): JSX.Element {
                       textShadow: '2px 2px 4px rgba(0,0,0,0.8), 0 0 10px rgba(255,255,255,0.3)'
                     }}
                   >
-                    Win: <NumberImageRenderer
+                    {winDisplayTextConfig.showWinText && 'Win: '}<NumberImageRenderer
                       value={animatedWinAmount}
                       imageHeight="1.2em"
                       fallbackClassName="font-bold"
