@@ -122,29 +122,46 @@ const ProfessionalLoadingPreview = React.forwardRef<ProfessionalLoadingPreviewRe
   useEffect(() => {
     if (!pixiContainerRef.current) return;
 
-    // Initialize PIXI Application
-    // Start with arbitrary size, will be resized immediately by the ResizeObserver effect
-    const app = new PIXI.Application({
-      width: 800,
-      height: 450,
-      backgroundColor: parseInt(loadingConfig.backgroundColor.replace('#', ''), 16),
-      antialias: true,
-      resolution: window.devicePixelRatio || 1,
-      autoDensity: true,
-    });
+    // Initialize PIXI Application using modern API
+    const initPixiApp = async () => {
+      try {
+        const app = await PIXI.Application.init({
+          width: 800,
+          height: 450,
+          backgroundColor: parseInt(loadingConfig.backgroundColor.replace('#', ''), 16),
+          antialias: true,
+          resolution: window.devicePixelRatio || 1,
+          autoDensity: true,
+        });
 
-    pixiAppRef.current = app;
+        if (!app) {
+          console.error('Failed to initialize PIXI Application');
+          return;
+        }
 
-    // Ensure canvas plays nice
-    const canvas = app.view as HTMLCanvasElement;
-    canvas.style.display = 'block';
-    canvas.style.width = '100%';
-    canvas.style.height = '100%';
+        pixiAppRef.current = app;
 
-    pixiContainerRef.current.appendChild(canvas);
+        // Ensure canvas plays nice using modern API
+        const canvas = app.canvas;
+        if (!canvas) {
+          console.error('PIXI Application canvas is undefined');
+          return;
+        }
+        
+        canvas.style.display = 'block';
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
 
-    // Initial setup
-    setupLoadingScreen(app);
+        pixiContainerRef.current?.appendChild(canvas);
+
+        // Initial setup
+        setupLoadingScreen(app);
+      } catch (error) {
+        console.error('Error initializing PIXI Application:', error);
+      }
+    };
+
+    initPixiApp();
 
     return () => {
       if (pixiAppRef.current) {
