@@ -1,17 +1,18 @@
 import { useCallback, useState, useEffect, useRef } from "react";
+import JSZip from "jszip";
 import { PresetConfig, SymbolConfig } from '../../../types/EnhancedAnimationLabStep4';
+import type { SymbolSpineAsset } from '../../../types';
 import { useGameStore } from "../../../store";
 import SymbolCarouselItem from "../../enhanced-animation-lab/Symbol-caraousel-Item";
 import { Button } from "../../Button";
-import { Loader, Sparkles, Upload } from "lucide-react";
+import { Loader, Sparkles, Upload, FileArchive, Play } from "lucide-react";
 import { LAYOUT_TEMPLATES } from "../../enhanced-animation-lab/Layout-Animation-Template";
 import enhancedOpenaiClient from "../../../utils/enhancedOpenaiClient";
 import { PREDEFINED_SYMBOLS } from '../../../utils/predefinedSymbols';
 import { cropImageSides } from '../../../utils/cropExtendedImage';
 import { PRESET_CONFIGURATIONS, getDefaultDescription, getPresetPredefinedSymbols } from '../../../utils/symbolGenerationHelper';
-import { parseSpineZip } from '../../../utils/spine-import-utils';
-import SpinePlayer from '../../spine/SpinePlayer';
 import { motion, AnimatePresence } from 'framer-motion';
+import SpineSymbolPreview from "../../enhanced-animation-lab/SpineSymbolPreview";
 
 interface EnhancedAnimationLabProps {
     layoutMode?: 'full' | 'creation' | 'animation';
@@ -34,10 +35,11 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
     const [prompt, setPrompt] = useState('');
     const [customText, setCustomText] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
-    const [isPreviewPlaying, setIsPreviewPlaying] = useState(true); // State for Spine playback control
     const [selectedLayoutTemplate, setSelectedLayoutTemplate] = useState<'text-top' | 'text-bottom' | 'text-overlay'>('text-bottom');
     const [hasManualOverride, setHasManualOverride] = useState(false);
     const carouselRef = useRef<HTMLDivElement>(null);
+    const spineSymbolZipInputRef = useRef<HTMLInputElement>(null);
+    const selectedSymbolPlayWinRef = useRef<(() => void) | null>(null);
 
     const getSymbolSpecificContentType = (): { contentType: string; label: string } => {
         if (!selectedSymbol) return { contentType: 'symbol-only', label: 'Symbol + Wild (4 letters)' };
@@ -57,13 +59,21 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
         if (selectedPreset && selectedPreset !== 'Classic' && selectedPreset !== lastPresetRef.current) {
             lastPresetRef.current = selectedPreset;
             const presetSymbols = getPresetPredefinedSymbols(selectedPreset);
+            const preset = PRESET_CONFIGURATIONS.find(p => p.name === selectedPreset);
+            const current = config?.theme?.generated?.symbols as Record<string, string | SymbolSpineAsset> | undefined;
+            const merged: Record<string, string | SymbolSpineAsset> = {};
+            const presetKeys = preset?.symbols.map(s => getSymbolStorageKey(s.type)) ?? [];
+            presetKeys.forEach(key => {
+                if (current && current[key] !== undefined) merged[key] = current[key];
+                else merged[key] = presetSymbols[key] ?? (PREDEFINED_SYMBOLS as Record<string, string>)[key] ?? '';
+            });
             updateConfig({
                 theme: {
                     ...config.theme,
                     generated: {
                         background: config.theme?.generated?.background || null,
                         frame: config.theme?.generated?.frame || null,
-                        symbols: presetSymbols,
+                        symbols: merged,
                         bonusSymbols: config.theme?.generated?.bonusSymbols
                     }
                 }
@@ -77,12 +87,14 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
         const preset = PRESET_CONFIGURATIONS.find(p => p.name === selectedPreset);
         if (!preset) return [];
 
-        const gameStoreSymbols = config?.theme?.generated?.symbols || {};
+        const raw = config?.theme?.generated?.symbols;
+        const symbolsRecord = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as Record<string, string | SymbolSpineAsset>;
         const theme = config?.gameTheme || 'default';
         return preset.symbols.map(symbolDef => {
             const storageKey = symbolDef.type.toLowerCase().replace(/\s+/g, '');
-            const symbolsRecord = gameStoreSymbols as Record<string, string>;
-            const imageUrl = symbolsRecord[storageKey];
+            const val = symbolsRecord[storageKey];
+            const imageUrl = typeof val === 'string' ? val : undefined;
+            const spineAsset = val && typeof val === 'object' && 'atlasUrl' in val ? (val as SymbolSpineAsset) : undefined;
             return {
                 id: storageKey,
                 name: symbolDef.type.charAt(0).toUpperCase() + symbolDef.type.slice(1),
@@ -94,7 +106,8 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
                 importance: symbolDef.importance,
                 rarity: symbolDef.rarity,
                 defaultDescription: getDefaultDescription(symbolDef.type, theme),
-                imageUrl
+                imageUrl,
+                spineAsset
             } as SymbolConfig;
         });
     };
@@ -113,8 +126,10 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
     }, [selectedSymbol, hasManualOverride]);
 
     useEffect(() => {
-        const symbols = config?.theme?.generated?.symbols || {};
-        const symbolUrls = Object.values(symbols).filter(url => url && url !== '');
+        const raw = config?.theme?.generated?.symbols;
+        const symbolUrls = raw && typeof raw === 'object' && !Array.isArray(raw)
+            ? Object.values(raw).filter((v): v is string => typeof v === 'string' && v !== '')
+            : [];
 
         if (symbolUrls.length > 0) {
             window.dispatchEvent(new CustomEvent('symbolsChanged', {
@@ -129,21 +144,18 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
         }
     }, [config?.theme?.generated?.symbols, config?.gameId]);
 
-    // Helper function to initialize symbol slots with ONLY preset-specific symbols
+    // Helper: build symbol map for preset, preserving existing uploads (image or Spine)
     const initializeEmptySymbolSlots = useCallback((preset: PresetConfig) => {
-        const symbolSlots: Record<string, string> = {};
-        const existingSymbols = config?.theme?.generated?.symbols || {};
-        const existingSymbolsRecord = existingSymbols as Record<string, string>;
+        const symbolSlots: Record<string, string | SymbolSpineAsset> = {};
+        const raw = config?.theme?.generated?.symbols;
+        const existing = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as Record<string, string | SymbolSpineAsset>;
         const predefinedSymbolsRecord = PREDEFINED_SYMBOLS as Record<string, string>;
-
-        // Get keys for this preset only
         const presetKeys = preset.symbols.map(s => s.type.toLowerCase().replace(/\s+/g, ''));
 
-        // Build symbol object with ONLY preset-specific symbols
         presetKeys.forEach(key => {
-            // Priority: 1) Existing generated symbol, 2) Predefined symbol, 3) Empty string
-            if (existingSymbolsRecord[key] && existingSymbolsRecord[key] !== '') {
-                symbolSlots[key] = existingSymbolsRecord[key];
+            const existingVal = existing[key];
+            if (existingVal !== undefined) {
+                symbolSlots[key] = existingVal;
             } else {
                 symbolSlots[key] = predefinedSymbolsRecord[key] || '';
             }
@@ -326,6 +338,14 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
         return enhancedPrompt;
     }, [selectedSymbol, prompt, config?.gameTheme, symbolType, contentType, customText, size, selectedLayoutTemplate]);
 
+    // Revoke blob URLs for a Spine asset to avoid memory leaks (only revoke blob: URLs)
+    const revokeSpineAssetBlobUrls = (asset: SymbolSpineAsset | undefined) => {
+        if (!asset) return;
+        if (asset.atlasUrl?.startsWith('blob:')) URL.revokeObjectURL(asset.atlasUrl);
+        if (asset.skelUrl?.startsWith('blob:')) URL.revokeObjectURL(asset.skelUrl);
+        if (asset.textureUrl?.startsWith('blob:')) URL.revokeObjectURL(asset.textureUrl);
+    };
+
     // Handle symbol upload
     const handleUploadSymbol = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -342,12 +362,15 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
 
                 console.log(`[Step5] Uploading symbol with key: ${storageKey}, type: ${selectedSymbol.gameSymbolType}`);
 
-                // Update the symbol in the store
-                const currentSymbols = config?.theme?.generated?.symbols || {};
-                const updatedSymbols = {
-                    ...currentSymbols,
-                    [storageKey]: base64String
-                };
+                // Revoke previous Spine blob URLs if this slot had a zip (unified symbols)
+                const rawSym = config?.theme?.generated?.symbols as Record<string, string | SymbolSpineAsset> | undefined;
+                const prevVal = rawSym?.[storageKey];
+                if (prevVal && typeof prevVal === 'object' && 'atlasUrl' in prevVal) revokeSpineAssetBlobUrls(prevVal as SymbolSpineAsset);
+
+                const currentSymbols = (config?.theme?.generated?.symbols && typeof config.theme.generated.symbols === 'object' && !Array.isArray(config.theme.generated.symbols))
+                    ? (config.theme.generated.symbols as Record<string, string | SymbolSpineAsset>)
+                    : {};
+                const updatedSymbols = { ...currentSymbols, [storageKey]: base64String };
 
                 updateConfig({
                     theme: {
@@ -365,7 +388,7 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
                 setTimeout(() => {
                     window.dispatchEvent(new CustomEvent('symbolsChanged', {
                         detail: {
-                            symbols: Object.values(updatedSymbols).filter(url => url && url !== ''),
+                            symbols: Object.values(updatedSymbols).filter((v): v is string => typeof v === 'string' && v !== ''),
                             symbolKey: storageKey,
                             symbolUrl: base64String,
                             gameId: config?.gameId || 'default',
@@ -390,37 +413,98 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
         }
     };
 
-    // Handle Spine ZIP Upload
-    const handleUploadSpine = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    // Handle animated (Spine) symbol ZIP upload – same format as character: .atlas, .skel or .json, and texture
+    const handleSpineSymbolZipUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        if (!file || !selectedSymbol) {
+        if (!file || !selectedSymbol) return;
+        if (!file.name.toLowerCase().endsWith('.zip')) {
+            alert('Please select a ZIP file containing Spine assets (.atlas, .skel or .json, and texture image).');
+            event.target.value = '';
             return;
         }
-
         try {
-            console.log(`[Step5] Processing Spine ZIP: ${file.name}`);
-            const spineResult = await parseSpineZip(file);
+            const zip = await JSZip.loadAsync(file);
+            const names = Object.keys(zip.files).filter(n => !n.startsWith('__MACOSX'));
+            const atlasEntry = names.find(n => n.toLowerCase().endsWith('.atlas'));
+            const skelEntry = names.find(n => n.toLowerCase().endsWith('.skel'));
+            const jsonEntry = names.find(n => n.toLowerCase().endsWith('.json'));
+            const imageEntries = names.filter(n => {
+                const entry = zip.files[n];
+                if (entry?.dir) return false;
+                const lower = n.toLowerCase();
+                return lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp');
+            });
+            if (!atlasEntry) {
+                alert('ZIP must contain a .atlas file.');
+                event.target.value = '';
+                return;
+            }
+            if (!skelEntry && !jsonEntry) {
+                alert('ZIP must contain a .skel or .json skeleton file.');
+                event.target.value = '';
+                return;
+            }
+            if (imageEntries.length === 0) {
+                alert('ZIP must contain at least one image (.png, .webp, etc.).');
+                event.target.value = '';
+                return;
+            }
+            const atlasText = await zip.files[atlasEntry].async('text');
+            const firstLine = atlasText.trim().split(/[\r\n]+/)[0]?.trim() || '';
+            const atlasPageName = firstLine || undefined;
+            const matchingImage = atlasPageName
+                ? imageEntries.find(entry => entry.replace(/^.*[/\\]/, '') === atlasPageName)
+                : null;
+            const imageEntry = matchingImage || imageEntries[0];
+            const textureName = atlasPageName || imageEntry.split(/[/\\]/).pop() || imageEntry;
 
-            // Store in config
-            // We store the full spine data in `presetSymbol` with a convention key `_spine`
+            const atlasBlob = await zip.files[atlasEntry].async('blob');
+            const atlasUrl = URL.createObjectURL(atlasBlob);
+            const skelOrJsonEntry = skelEntry || jsonEntry!;
+            const skelBlob = await zip.files[skelOrJsonEntry].async('blob');
+            const skelUrl = URL.createObjectURL(skelBlob);
+            const imgBlob = await zip.files[imageEntry].async('blob');
+            const textureUrl = URL.createObjectURL(imgBlob);
+
+            const storageKey = getSymbolStorageKey(selectedSymbol.gameSymbolType || '');
+            const raw = config?.theme?.generated?.symbols as Record<string, string | SymbolSpineAsset> | undefined;
+            const currentSymbols = (raw && typeof raw === 'object') ? { ...raw } : {};
+            const prev = currentSymbols[storageKey];
+            if (prev && typeof prev === 'object' && 'atlasUrl' in prev) revokeSpineAssetBlobUrls(prev as SymbolSpineAsset);
+
+            currentSymbols[storageKey] = { atlasUrl, skelUrl, textureUrl, textureName };
+
             updateConfig({
                 theme: {
                     ...config.theme,
-                    presetSymbol: {
-                        ...config.theme?.presetSymbol,
-                        [`${selectedSymbol.gameSymbolType}_spine`]: spineResult // Store stringified JSON or object
+                    generated: {
+                        background: config.theme?.generated?.background || null,
+                        frame: config.theme?.generated?.frame || null,
+                        symbols: currentSymbols,
+                        bonusSymbols: config.theme?.generated?.bonusSymbols
                     }
-                    // NOTE: We deliberately DO NOT overwrite 'generated.symbols' with the spine spritesheet
-                    // to keep the visual preview clean with the original high-res static image.
                 }
             });
-
-            alert(`Spine Animation "${file.name}" imported successfully!`);
-
-        } catch (error) {
-            console.error('❌ Spine upload error:', error);
-            alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            // Single source of truth: SlotMachine reacts to config via effect; event only notifies for optional re-render
+            setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('symbolsChanged', {
+                    detail: {
+                        symbols: Object.values(currentSymbols).filter((v): v is string => typeof v === 'string' && v !== ''),
+                        symbolKey: storageKey,
+                        gameId: config?.gameId || 'default',
+                        source: 'symbol-spine-upload',
+                        forceRefresh: true,
+                        spineAsset: currentSymbols[storageKey] as SymbolSpineAsset,
+                        timestamp: Date.now()
+                    }
+                }));
+            }, 100);
+            alert('Animated symbol loaded. It will appear in the slot reels.');
+        } catch (err) {
+            console.error('Spine symbol ZIP error:', err);
+            alert(err instanceof Error ? err.message : 'Failed to read ZIP.');
         }
+        event.target.value = '';
     };
 
     // Handle symbol generation
@@ -589,7 +673,7 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
                                     <div className="text-sm text-gray-600 uw:text-2xl">
                                         <span className="font-medium">{selectedPreset}</span> preset •
                                         <span className="ml-1">{presetSymbols.length} symbols</span>
-                                        <span className="ml-1">({presetSymbols.filter(s => s.imageUrl).length} generated)</span>
+                                        <span className="ml-1">({presetSymbols.filter(s => s.imageUrl || s.spineAsset).length} generated)</span>
 
                                     </div>
                                     <button
@@ -714,7 +798,6 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
                                                             setHasManualOverride(false);
                                                         }}
                                                         progress={0}
-                                                        spineData={config?.theme?.presetSymbol?.[`${symbol.gameSymbolType}_spine`]} // Pass Spine data
                                                     />
                                                 </motion.div>
                                             );
@@ -730,6 +813,48 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
                                 →
                             </button>
                         </div>
+
+                        {/* Selected symbol preview below carousel - full symbol (image or Spine) */}
+                        {selectedSymbol && (
+                            <div className="mt-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                                <h3 className="text-sm font-semibold text-gray-700 mb-3 uw:text-xl">Selected symbol preview</h3>
+                                <div className="flex flex-col sm:flex-row items-center gap-4">
+                                    <div className="flex-shrink-0 w-[160px] h-[160px] uw:w-[220px] uw:h-[220px] bg-white rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden">
+                                        {selectedSymbol.spineAsset ? (
+                                            <SpineSymbolPreview
+                                                asset={selectedSymbol.spineAsset}
+                                                width={160}
+                                                height={160}
+                                                idle={true}
+                                                playWinRef={selectedSymbolPlayWinRef}
+                                            />
+                                        ) : selectedSymbol.imageUrl ? (
+                                            <img
+                                                src={selectedSymbol.imageUrl}
+                                                alt={selectedSymbol.name}
+                                                className="max-w-full max-h-full object-contain p-2"
+                                            />
+                                        ) : (
+                                            <div className="text-gray-400 text-sm">No symbol</div>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <span className="text-sm font-medium text-gray-700 uw:text-lg">{selectedSymbol.name} ({selectedSymbol.gameSymbolType})</span>
+                                        {selectedSymbol.spineAsset && (
+                                            <button
+                                                type="button"
+                                                onClick={() => selectedSymbolPlayWinRef.current?.()}
+                                                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors uw:text-lg uw:px-4 uw:py-3"
+                                            >
+                                                <Play className="w-4 h-4 uw:w-5 uw:h-5" />
+                                                Play animation
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                     </div>
                     {/* Extended Symbol Previews */}
                     {selectedSymbol && selectedSymbol.gameSymbolType && config?.theme?.presetSymbol?.[`${selectedSymbol.gameSymbolType}_extended`] && (
@@ -820,77 +945,28 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
                                         </div>
                                         <div className='p-4'>
                                             {selectedSymbol ? (
-                                                <div className="flex flex-col gap-4">
-                                                    {/* Spine Preview if available */}
-                                                    {config?.theme?.presetSymbol?.[`${selectedSymbol.gameSymbolType}_spine`] ? (
-                                                        <div className="w-full h-64 bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center border border-gray-700 relative">
-                                                            <div className="absolute top-2 right-2 px-2 py-1 bg-green-600 text-white text-xs font-bold rounded uppercase tracking-wider z-20">
-                                                                Spine Active
+                                                <div className="flex items-center justify-between p-3 uw:p-6 bg-gray-50 rounded-lg border">
+                                                    <div className="flex items-center gap-3 uw:gap-6">
+                                                        <div className="w-3 h-3 uw:w-6 uw:h-6 bg-blue-500 rounded-full"></div>
+                                                        <div>
+                                                            <div className="font-medium text-gray-900 uw:text-3xl">
+                                                                {selectedSymbol.name}
                                                             </div>
-
-                                                            <div className="relative z-10">
-                                                                <SpinePlayer
-                                                                    spineData={config.theme.presetSymbol[`${selectedSymbol.gameSymbolType}_spine`]}
-                                                                    width={250}
-                                                                    height={250}
-                                                                    animationName="idle" // Default, maybe customizable later
-                                                                    isPlaying={isPreviewPlaying} // Control playback
-                                                                />
-                                                            </div>
-
-                                                            {/* Playback Controls */}
-                                                            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-2 z-20">
-                                                                <button
-                                                                    onClick={() => setIsPreviewPlaying(true)}
-                                                                    className={`p-2 rounded-full ${isPreviewPlaying ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'} transition-colors`}
-                                                                    title="Play Animation"
-                                                                >
-                                                                    <span className="text-xl">▶</span>
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => setIsPreviewPlaying(false)}
-                                                                    className={`p-2 rounded-full ${!isPreviewPlaying ? 'bg-red-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'} transition-colors`}
-                                                                    title="Stop Animation"
-                                                                >
-                                                                    <span className="text-xl">⏹</span>
-                                                                </button>
+                                                            <div className="text-sm text-gray-600 uw:text-3xl">
+                                                                Preset Type: {
+                                                                    selectedSymbol.contentType === 'symbol-wild' ? 'Wild Symbol' :
+                                                                        selectedSymbol.contentType === 'symbol-scatter' ? 'Scatter Symbol' :
+                                                                            selectedSymbol.contentType === 'text-only' ? 'Text Only' :
+                                                                                selectedSymbol.contentType === 'custom-text' ? 'Custom Text Symbol' :
+                                                                                    selectedSymbol.contentType?.startsWith('symbol-') ? 'Symbol + Text' :
+                                                                                        'Symbol Only'
+                                                                }
                                                             </div>
                                                         </div>
-                                                    ) : (
-                                                        <div className="flex items-center justify-between p-3 uw:p-6 bg-gray-50 rounded-lg border">
-                                                            <div className="flex items-center gap-3 uw:gap-6">
-                                                                <div className="w-12 h-12 uw:w-24 uw:h-24 bg-gray-200 rounded-md overflow-hidden flex items-center justify-center">
-                                                                    {config?.theme?.generated?.symbols?.[getSymbolStorageKey(selectedSymbol.gameSymbolType || '')] ? (
-                                                                        <img
-                                                                            src={config.theme.generated.symbols[getSymbolStorageKey(selectedSymbol.gameSymbolType || '')]}
-                                                                            alt="Symbol"
-                                                                            className="w-full h-full object-contain"
-                                                                        />
-                                                                    ) : (
-                                                                        <div className="w-3 h-3 uw:w-6 uw:h-6 bg-blue-500 rounded-full"></div>
-                                                                    )}
-                                                                </div>
-                                                                <div>
-                                                                    <div className="font-medium text-gray-900 uw:text-3xl">
-                                                                        {selectedSymbol.name}
-                                                                    </div>
-                                                                    <div className="text-sm text-gray-600 uw:text-3xl">
-                                                                        Preset Type: {
-                                                                            selectedSymbol.contentType === 'symbol-wild' ? 'Wild Symbol' :
-                                                                                selectedSymbol.contentType === 'symbol-scatter' ? 'Scatter Symbol' :
-                                                                                    selectedSymbol.contentType === 'text-only' ? 'Text Only' :
-                                                                                        selectedSymbol.contentType === 'custom-text' ? 'Custom Text Symbol' :
-                                                                                            selectedSymbol.contentType?.startsWith('symbol-') ? 'Symbol + Text' :
-                                                                                                'Symbol Only'
-                                                                        }
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            <div className="text-xs text-gray-500 bg-white px-2 py-1 uw:px-4 uw:py-2 uw:text-3xl rounded border">
-                                                                {selectedSymbol.gameSymbolType?.toUpperCase() || 'SYMBOL'}
-                                                            </div>
-                                                        </div>
-                                                    )}
+                                                    </div>
+                                                    <div className="text-xs text-gray-500 bg-white px-2 py-1 uw:px-4 uw:py-2 uw:text-3xl rounded border">
+                                                        {selectedSymbol.gameSymbolType?.toUpperCase() || 'SYMBOL'}
+                                                    </div>
                                                 </div>
                                             ) : (
                                                 <div className="text-center text-gray-500 py-4">
@@ -1190,46 +1266,33 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
                                                 </label>
                                             </div>
 
-                                            {/* Spine Import Button */}
                                             <div
                                                 className="
-                                                    flex items-center justify-center 
-                                                    border border-gray-300 
-                                                    hover:bg-gray-100 
-                                                    bg-white 
-                                                    rounded-md 
-                                                    transition-colors 
-                                                    w-full
-                                                    p-2 uw:p-4
-                                                "
+    flex items-center justify-center 
+    border border-gray-300 
+    hover:bg-gray-100 
+    bg-white 
+    rounded-md 
+    transition-colors 
+    w-full
+    p-2 uw:p-4
+  "
                                             >
                                                 <input
+                                                    ref={spineSymbolZipInputRef}
                                                     type="file"
                                                     accept=".zip"
-                                                    onChange={handleUploadSpine}
+                                                    onChange={handleSpineSymbolZipUpload}
                                                     className="hidden"
-                                                    id="spine-upload"
+                                                    id="symbol-spine-upload"
                                                     disabled={isProcessing || !selectedSymbol}
                                                 />
-
                                                 <label
-                                                    htmlFor="spine-upload"
-                                                    className="
-                                                    w-full 
-                                                    flex items-center justify-center 
-                                                    cursor-pointer 
-                                                    p-1 uw:py-5
-                                                    text-sm uw:text-3xl
-                                                    gap-2 uw:gap-6
-                                                    "
+                                                    htmlFor="symbol-spine-upload"
+                                                    className="w-full flex items-center justify-center cursor-pointer p-1 uw:py-5 text-sm uw:text-3xl gap-2 uw:gap-6"
                                                 >
-                                                    <span className="text-xl uw:text-4xl">🎬</span>
-
-                                                    {isProcessing ? (
-                                                        <span className="uw:text-3xl">Processing...</span>
-                                                    ) : (
-                                                        <span className="uw:text-3xl">Upload Spine ZIP</span>
-                                                    )}
+                                                    <FileArchive size={16} className="w-4 h-4 uw:w-10 uw:h-10" />
+                                                    <span className="uw:text-3xl">Upload Animated (ZIP)</span>
                                                 </label>
                                             </div>
 

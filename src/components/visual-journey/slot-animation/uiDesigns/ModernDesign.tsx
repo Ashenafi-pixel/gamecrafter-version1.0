@@ -113,11 +113,10 @@ export const ModernUI: React.FC<PlayNGoStyleUIProps> = ({
 
     return (
         <div
-            className={`w-full flex items-center justify-between px-2 py-2 bg-transparent  ${className}`}
-            style={{ height: "80px" }}
+            className={`w-full min-h-[80px] h-auto lg:h-[80px] flex flex-wrap lg:flex-nowrap items-center justify-between gap-y-2 px-2 py-2 bg-transparent ${className}`}
         >
             {/* Left Section - Menu & Info */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 min-w-0">
                 {/* Menu Button */}
                 <button
                     onClick={toggleMenu}
@@ -151,7 +150,7 @@ export const ModernUI: React.FC<PlayNGoStyleUIProps> = ({
             </div>
 
             {/* Center Section - Bet Controls */}
-            <div className="flex items-center">
+            <div className="flex items-center min-w-0">
                 {/* Decrease Bet */}
                 <button
                     onClick={handleDecreaseBet}
@@ -214,7 +213,7 @@ export const ModernUI: React.FC<PlayNGoStyleUIProps> = ({
             </div>
 
             {/* Right Section - Auto, Sound, Settings */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 min-w-0">
                 {/* Sound */}
                 <button
                     onClick={toggleSound}
@@ -253,14 +252,14 @@ export const ModernUI: React.FC<PlayNGoStyleUIProps> = ({
                 </button>
             </div>
             {/* Bottom Section - Autoplay & Spin */}
-            <div className="flex items-center justify-center gap-4 uw:gap-8 pl-3 uw:pl-6">
+            <div className="flex items-center justify-center gap-4 uw:gap-8 basis-full lg:basis-auto pl-0 lg:pl-3 uw:pl-6">
                 {/* Autoplay */}
                 <button
                     onClick={() => {
                         toggleAutoplay?.();
                         onAutoplayToggle?.();
                     }}
-                    className={`flex items-center justify-center w-10 h-10 uw:w-14 uw:h-14 rounded-full ml-2 uw:ml-4 ${customButtons?.autoplayButton ? "bg-[#1a1a1a]" : "bg-[#f6c343] hover:bg-[#ffd24d]"} border border-[#333] shadow-inner hover:brightness-110 active:scale-95 transition ${isAutoplayActive ? "ring-2 ring-yellow-400" : ""}`}
+                    className={`flex items-center justify-center w-10 h-10 uw:w-14 uw:h-14 rounded-full ${customButtons?.autoplayButton ? "bg-[#1a1a1a]" : "bg-[#f6c343] hover:bg-[#ffd24d]"} border border-[#333] shadow-inner hover:brightness-110 active:scale-95 transition ${isAutoplayActive ? "ring-2 ring-yellow-400" : ""}`}
                     style={{ transform: `scale(${autoplayScale}) translate(${autoplayPosition.x}px, ${autoplayPosition.y}px)` }}
                 >
                     {customButtons?.autoplayButton ? (
@@ -275,7 +274,7 @@ export const ModernUI: React.FC<PlayNGoStyleUIProps> = ({
                 {/* SPIN Button */}
                 <button
                     onClick={onSpin}
-                    className={`w-24 h-24 uw:w-32 uw:h-32 mb-8 rounded-full flex flex-col items-center justify-center gap-2 uw:gap-3 text-black font-bold ${customButtons?.spinButton ? "" : isSpinning ? "border-4 border-red-500 bg-gradient-to-b from-red-400 to-red-600" : "border-4 border-[#6bff60] bg-gradient-to-b from-[#6bff60] to-[#3adb31]"} shadow-inner hover:scale-105 active:scale-100 transition`}
+                    className={`w-24 h-24 uw:w-32 uw:h-32 mb-0 lg:mb-8 rounded-full flex flex-col items-center justify-center gap-2 uw:gap-3 text-black font-bold ${customButtons?.spinButton ? "" : isSpinning ? "border-4 border-red-500 bg-gradient-to-b from-red-400 to-red-600" : "border-4 border-[#6bff60] bg-gradient-to-b from-[#6bff60] to-[#3adb31]"} shadow-inner hover:scale-105 active:scale-100 transition`}
                     style={{ transform: `scale(${spinScale}) translate(${spinPosition.x}px, ${spinPosition.y}px)` }}
                     aria-label={isSpinning ? "Stop Spin" : "Spin"}
                 >
