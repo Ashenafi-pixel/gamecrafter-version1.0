@@ -1,0 +1,1263 @@
+{
+	"info": {
+		"_postman_id": "938809b6-5f63-40a0-9a3f-54b2ed081f93",
+		"name": "LATAM Crypto - Platform & RGS",
+		"description": "Platform (Next.js) auth, balance, debit/credit/bet/win and RGS game launch, round start. Use Login to get token, Game Launch to get session_id.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "44637949",
+		"_collection_link": "https://interstellar-crater-124420.postman.co/workspace/Social-Pay~950a3306-8373-4a1c-92cb-1f516df410d5/collection/44637949-938809b6-5f63-40a0-9a3f-54b2ed081f93?action=share&source=collection_link&creator=44637949"
+	},
+	"item": [
+		{
+			"name": "Platform (Next.js)",
+			"item": [
+				{
+					"name": "Auth",
+					"item": [
+						{
+							"name": "Register",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"username\": \"demo\",\n  \"password\": \"Demo123!\"\n}"
+								},
+								"url": {
+									"raw": "{{platform_url}}/api/auth/register",
+									"host": [
+										"{{platform_url}}"
+									],
+									"path": [
+										"api",
+										"auth",
+										"register"
+									]
+								},
+								"description": "Create a new user. Returns token and user. Username min 2 chars, password min 6."
+							},
+							"response": []
+						},
+						{
+							"name": "Login",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"var json = pm.response.json();",
+											"if (json.token) { pm.collectionVariables.set('token', json.token); }"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"username\": \"demo\",\n  \"password\": \"Demo123!\"\n}"
+								},
+								"url": {
+									"raw": "{{platform_url}}/api/auth/login",
+									"host": [
+										"{{platform_url}}"
+									],
+									"path": [
+										"api",
+										"auth",
+										"login"
+									]
+								},
+								"description": "Get JWT. Saves token to collection variable for subsequent requests."
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Balance (JWT)",
+					"item": [
+						{
+							"name": "Get Balance",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{platform_url}}/api/balance",
+									"host": [
+										"{{platform_url}}"
+									],
+									"path": [
+										"api",
+										"balance"
+									]
+								},
+								"description": "Returns balances (USD, BTC, ETH). Requires Authorization: Bearer <token>."
+							},
+							"response": []
+						},
+						{
+							"name": "Debit",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"currency\": \"USD\",\n  \"amount\": 10\n}"
+								},
+								"url": {
+									"raw": "{{platform_url}}/api/balance/debit",
+									"host": [
+										"{{platform_url}}"
+									],
+									"path": [
+										"api",
+										"balance",
+										"debit"
+									]
+								},
+								"description": "Subtract amount. Currency: USD | BTC | ETH. Returns updated balances."
+							},
+							"response": []
+						},
+						{
+							"name": "Credit",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"currency\": \"USD\",\n  \"amount\": 50\n}"
+								},
+								"url": {
+									"raw": "{{platform_url}}/api/balance/credit",
+									"host": [
+										"{{platform_url}}"
+									],
+									"path": [
+										"api",
+										"balance",
+										"credit"
+									]
+								},
+								"description": "Add amount. Currency: USD | BTC | ETH. Returns updated balances."
+							},
+							"response": []
+						},
+						{
+							"name": "Bet",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"currency\": \"USD\",\n  \"amount\": 5,\n  \"gameName\": \"Scratch\",\n  \"gameProvider\": \"Crypto LATAM\"\n}"
+								},
+								"url": {
+									"raw": "{{platform_url}}/api/balance/bet",
+									"host": [
+										"{{platform_url}}"
+									],
+									"path": [
+										"api",
+										"balance",
+										"bet"
+									]
+								},
+								"description": "Place a bet (debit + record for rollback). Optional: gameName, gameProvider. Returns betId and balances."
+							},
+							"response": []
+						},
+						{
+							"name": "Win",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"currency\": \"USD\",\n  \"amount\": 10,\n  \"gameName\": \"Scratch\",\n  \"gameProvider\": \"Crypto LATAM\"\n}"
+								},
+								"url": {
+									"raw": "{{platform_url}}/api/balance/win",
+									"host": [
+										"{{platform_url}}"
+									],
+									"path": [
+										"api",
+										"balance",
+										"win"
+									]
+								},
+								"description": "Credit win amount. Optional: gameName, gameProvider. Returns balances."
+							},
+							"response": []
+						},
+						{
+							"name": "Rollback",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"betId\": \"<paste betId from Bet response>\"\n}"
+								},
+								"url": {
+									"raw": "{{platform_url}}/api/balance/rollback",
+									"host": [
+										"{{platform_url}}"
+									],
+									"path": [
+										"api",
+										"balance",
+										"rollback"
+									]
+								},
+								"description": "Refund a pending bet. Bet must be pending and owned by user. Returns balances."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Transactions",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{platform_url}}/api/balance/transactions?limit=20&page=1",
+									"host": [
+										"{{platform_url}}"
+									],
+									"path": [
+										"api",
+										"balance",
+										"transactions"
+									],
+									"query": [
+										{
+											"key": "limit",
+											"value": "20",
+											"description": "Default 20, max 100"
+										},
+										{
+											"key": "page",
+											"value": "1"
+										}
+									]
+								},
+								"description": "Transaction history (credit/debit). Query: limit (optional), page (optional)."
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Operator Transaction API (session)",
+					"item": [
+						{
+							"name": "Operator Balance",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{platform_url}}/api/operator/transaction?action=balance&player_id={{player_id}}&session_id={{session_id}}",
+									"host": [
+										"{{platform_url}}"
+									],
+									"path": [
+										"api",
+										"operator",
+										"transaction"
+									],
+									"query": [
+										{
+											"key": "action",
+											"value": "balance"
+										},
+										{
+											"key": "player_id",
+											"value": "{{player_id}}",
+											"description": "User UUID or username"
+										},
+										{
+											"key": "session_id",
+											"value": "{{session_id}}",
+											"description": "From Game Launch response"
+										}
+									]
+								},
+								"description": "Balance by session (no JWT). Set session_id from Game Launch, player_id = user id or username."
+							},
+							"response": []
+						},
+						{
+							"name": "Operator Debit and Credit",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{platform_url}}/api/operator/transaction?action=debit_and_credit&player_id={{player_id}}&session_id={{session_id}}&round_id=round-{{$timestamp}}&tx_id=tx-{{$timestamp}}&bet_amount=5&win_amount=0&round_status=completed&game_code=130300314&device_type=desktop&api_version=1.0",
+									"host": [
+										"{{platform_url}}"
+									],
+									"path": [
+										"api",
+										"operator",
+										"transaction"
+									],
+									"query": [
+										{
+											"key": "action",
+											"value": "debit_and_credit"
+										},
+										{
+											"key": "player_id",
+											"value": "{{player_id}}"
+										},
+										{
+											"key": "session_id",
+											"value": "{{session_id}}"
+										},
+										{
+											"key": "round_id",
+											"value": "round-{{$timestamp}}"
+										},
+										{
+											"key": "tx_id",
+											"value": "tx-{{$timestamp}}"
+										},
+										{
+											"key": "bet_amount",
+											"value": "5"
+										},
+										{
+											"key": "win_amount",
+											"value": "0",
+											"description": "0 for loss"
+										},
+										{
+											"key": "round_status",
+											"value": "completed"
+										},
+										{
+											"key": "game_code",
+											"value": "130300314",
+											"description": "Game ID (e.g. 130300314 Asian Dynasty)"
+										},
+										{
+											"key": "device_type",
+											"value": "desktop"
+										},
+										{
+											"key": "api_version",
+											"value": "1.0"
+										}
+									]
+								},
+								"description": "Instant game: debit bet + credit win in one call. Same session_id/player_id as launch. game_code = game_id (e.g. 130300314)."
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Brand Management (Operators CRUD)",
+					"item": [
+						{
+							"name": "List Brands",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{platform_url}}/api/operator/brands?is_active=true",
+									"host": [
+										"{{platform_url}}"
+									],
+									"path": [
+										"api",
+										"operator",
+										"brands"
+									],
+									"query": [
+										{
+											"key": "is_active",
+											"value": "true",
+											"description": "optional: true | false"
+										}
+									]
+								},
+								"description": "List all operators (brands). Optional ?is_active=true|false."
+							},
+							"response": []
+						},
+						{
+							"name": "Create Brand",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"New Casino\",\n  \"code\": \"newcasino\",\n  \"domain\": \"https://newcasino.io\",\n  \"logo_url\": null,\n  \"is_active\": true,\n  \"allowed_embed_domains\": [\"newcasino.io\", \"www.newcasino.io\"],\n  \"embed_referer_required\": true\n}"
+								},
+								"url": {
+									"raw": "{{platform_url}}/api/operator/brands",
+									"host": [
+										"{{platform_url}}"
+									],
+									"path": [
+										"api",
+										"operator",
+										"brands"
+									]
+								},
+								"description": "Create operator (brand). Required: name, code. Optional: operator_id (100000-999999), domain, logo_url, is_active, allowed_embed_domains, embed_referer_required."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Brand",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{platform_url}}/api/operator/brands/100001",
+									"host": [
+										"{{platform_url}}"
+									],
+									"path": [
+										"api",
+										"operator",
+										"brands",
+										"100001"
+									]
+								},
+								"description": "Get one operator by operator_id."
+							},
+							"response": []
+						},
+						{
+							"name": "Update Brand",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"Demo Operator Updated\",\n  \"domain\": \"http://localhost:3000\",\n  \"embed_referer_required\": false\n}"
+								},
+								"url": {
+									"raw": "{{platform_url}}/api/operator/brands/100001",
+									"host": [
+										"{{platform_url}}"
+									],
+									"path": [
+										"api",
+										"operator",
+										"brands",
+										"100001"
+									]
+								},
+								"description": "Update operator. Body: any of name, code, domain, logo_url, is_active, allowed_embed_domains, embed_referer_required."
+							},
+							"response": []
+						},
+						{
+							"name": "Deactivate Brand",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{platform_url}}/api/operator/brands/100002",
+									"host": [
+										"{{platform_url}}"
+									],
+									"path": [
+										"api",
+										"operator",
+										"brands",
+										"100002"
+									]
+								},
+								"description": "Soft-delete: set is_active = false. Use operator_id of a brand you created (not 100001 if you need it)."
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "RGS (Go)",
+			"item": [
+				{
+					"name": "Health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{rgs_url}}/health",
+							"host": [
+								"{{rgs_url}}"
+							],
+							"path": [
+								"health"
+							]
+						},
+						"description": "RGS health check."
+					},
+					"response": []
+				},
+				{
+					"name": "Game Launch",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var json = pm.response.json();",
+									"if (json.session_id) { pm.collectionVariables.set('session_id', json.session_id); }",
+									"if (json.game_url) { pm.collectionVariables.set('game_url', json.game_url); }"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{rgs_url}}/game/launch?country=ET&currency=USD&device_type=desktop&game_id=130300314&game_mode=real&language=es&partner_id=100001&player_id={{player_id}}&reality_check_elapsed=0&reality_check_interval=60&home_url=https://example.com/games&exit_url=https://example.com/exit&history_url=https://example.com/history",
+							"host": [
+								"{{rgs_url}}"
+							],
+							"path": [
+								"game",
+								"launch"
+							],
+							"query": [
+								{
+									"key": "country",
+									"value": "ET",
+									"description": "Player country (ISO 3166-1 alpha-2)"
+								},
+								{
+									"key": "currency",
+									"value": "USD",
+									"description": "ISO 4217"
+								},
+								{
+									"key": "device_type",
+									"value": "desktop",
+									"description": "desktop | mobile"
+								},
+								{
+									"key": "game_id",
+									"value": "130300314",
+									"description": "Asian Dynasty (numeric only)"
+								},
+								{
+									"key": "game_mode",
+									"value": "real",
+									"description": "real | demo"
+								},
+								{
+									"key": "language",
+									"value": "es",
+									"description": "e.g. es, en_US"
+								},
+								{
+									"key": "partner_id",
+									"value": "100001",
+									"description": "Operator ID from operators table"
+								},
+								{
+									"key": "player_id",
+									"value": "{{player_id}}",
+									"description": "Player identifier"
+								},
+								{
+									"key": "reality_check_elapsed",
+									"value": "0"
+								},
+								{
+									"key": "reality_check_interval",
+									"value": "60"
+								},
+								{
+									"key": "home_url",
+									"value": "https://example.com/games",
+									"description": "Redirect after game exit"
+								},
+								{
+									"key": "exit_url",
+									"value": "https://example.com/exit",
+									"description": "Reality check / exit URL"
+								},
+								{
+									"key": "history_url",
+									"value": "https://example.com/history",
+									"description": "Player game history (regulatory)"
+								}
+							]
+						},
+						"description": "Start a game session (RGS GET). Returns long game_url (Groove-style) with all params in query string, and session_id. Saves session_id and game_url to collection variables. partner_id must exist in operators table. When game_url is opened (GET), RGS validates session, URL game_id match, and operator embed policy (allowed_embed_domains, embed_referer_required)."
+					},
+					"response": []
+				},
+				{
+					"name": "Platform Game Launch (POST)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var json = pm.response.json();",
+									"if (json.session_id) { pm.collectionVariables.set('session_id', json.session_id); }",
+									"if (json.game_url) { pm.collectionVariables.set('game_url', json.game_url); }"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"country\": \"ET\",\n  \"currency\": \"USD\",\n  \"device_type\": \"desktop\",\n  \"game_id\": \"130300314\",\n  \"game_mode\": \"real\",\n  \"language\": \"es\",\n  \"partner_id\": \"100001\",\n  \"player_id\": \"demo\",\n  \"reality_check_elapsed\": 0,\n  \"reality_check_interval\": 60,\n  \"home_url\": \"https://example.com/games\",\n  \"exit_url\": \"https://example.com/exit\",\n  \"history_url\": \"https://example.com/history\"\n}"
+						},
+						"url": {
+							"raw": "{{platform_url}}/api/rgs/launch",
+							"host": [
+								"{{platform_url}}"
+							],
+							"path": [
+								"api",
+								"rgs",
+								"launch"
+							]
+						},
+						"description": "Launch via Platform (Next.js). Requires Authorization: Bearer {{token}}. Body: country, currency, device_type, game_id, partner_id, player_id (optional, defaults to token user), home_url, exit_url, history_url. Returns { success, game_url, session_id }. Saves session_id and game_url to collection variables."
+					},
+					"response": []
+				},
+				{
+					"name": "RGS Balance (JWT)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{rgs_url}}/rgs/balance",
+							"host": [
+								"{{rgs_url}}"
+							],
+							"path": [
+								"rgs",
+								"balance"
+							]
+						},
+						"description": "Balance via platform JWT. Alternative: ?token={{token}}"
+					},
+					"response": []
+				},
+				{
+					"name": "RGS Tx Balance (session)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{rgs_url}}/rgs/tx/balance?session_id={{session_id}}&game_code=130300314&device_type=desktop",
+							"host": [
+								"{{rgs_url}}"
+							],
+							"path": [
+								"rgs",
+								"tx",
+								"balance"
+							],
+							"query": [
+								{
+									"key": "session_id",
+									"value": "{{session_id}}",
+									"description": "From Game Launch"
+								},
+								{
+									"key": "game_code",
+									"value": "130300314",
+									"description": "Game ID (e.g. 130300314 Asian Dynasty)"
+								},
+								{
+									"key": "device_type",
+									"value": "desktop"
+								}
+							]
+						},
+						"description": "Balance by session (operator API). session_id from Game Launch. game_code = game_id (e.g. 130300314). Requires OPERATOR_ENDPOINT configured."
+					},
+					"response": []
+				},
+				{
+					"name": "Round Start (Hi/Lo style)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"token\": \"{{token}}\",\n  \"currency\": \"USD\",\n  \"amount\": 5,\n  \"roundId\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{rgs_url}}/rgs/round/start",
+							"host": [
+								"{{rgs_url}}"
+							],
+							"path": [
+								"rgs",
+								"round",
+								"start"
+							]
+						},
+						"description": "Uses JWT token. For scratch use Scratch Round Start with session_id as token."
+					},
+					"response": []
+				},
+				{
+					"name": "Scratch Round Start",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"token\": \"{{session_id}}\",\n  \"currency\": \"USD\",\n  \"amount\": 5,\n  \"roundId\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{rgs_url}}/rgs/providers/default/games/scratch/round/start",
+							"host": [
+								"{{rgs_url}}"
+							],
+							"path": [
+								"rgs",
+								"providers",
+								"default",
+								"games",
+								"scratch",
+								"round",
+								"start"
+							]
+						},
+						"description": "Start a scratch round. token = session_id from Game Launch. Uses Operator Transaction API when OPERATOR_ENDPOINT is set."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Backoffice (RGS Admin)",
+			"item": [
+				{
+					"name": "List Operators",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Admin-Key",
+								"value": "{{admin_key}}"
+							}
+						],
+						"url": {
+							"raw": "{{rgs_url}}/rgs/admin/operators",
+							"host": [
+								"{{rgs_url}}"
+							],
+							"path": [
+								"rgs",
+								"admin",
+								"operators"
+							]
+						},
+						"description": "List operators. Optional query: is_active=true|false. Requires ADMIN_API_KEY when set."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Operator",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Admin-Key",
+								"value": "{{admin_key}}"
+							}
+						],
+						"url": {
+							"raw": "{{rgs_url}}/rgs/admin/operators/100001",
+							"host": [
+								"{{rgs_url}}"
+							],
+							"path": [
+								"rgs",
+								"admin",
+								"operators",
+								"100001"
+							]
+						},
+						"description": "Get one operator by operator_id (100000-999999)."
+					},
+					"response": []
+				},
+				{
+					"name": "List Providers",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Admin-Key",
+								"value": "{{admin_key}}"
+							}
+						],
+						"url": {
+							"raw": "{{rgs_url}}/rgs/admin/providers",
+							"host": [
+								"{{rgs_url}}"
+							],
+							"path": [
+								"rgs",
+								"admin",
+								"providers"
+							]
+						},
+						"description": "List providers. Optional query: is_active=true|false."
+					},
+					"response": []
+				},
+				{
+					"name": "List Games",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Admin-Key",
+								"value": "{{admin_key}}"
+							}
+						],
+						"url": {
+							"raw": "{{rgs_url}}/rgs/admin/games",
+							"host": [
+								"{{rgs_url}}"
+							],
+							"path": [
+								"rgs",
+								"admin",
+								"games"
+							]
+						},
+						"description": "List games. Optional query: provider_id, game_id, status, enabled."
+					},
+					"response": []
+				},
+				{
+					"name": "Import Game ZIP",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/zip",
+								"disabled": true
+							}
+						],
+						"url": {
+							"raw": "{{rgs_url}}/rgs/admin/games/import-zip?game_id=130300314",
+							"host": [
+								"{{rgs_url}}"
+							],
+							"path": [
+								"rgs",
+								"admin",
+								"games",
+								"import-zip"
+							],
+							"query": [
+								{
+									"key": "game_id",
+									"value": "130300314"
+								}
+							]
+						},
+						"description": "Import a GameCrafter bundle ZIP (no admin key required).\n\nHow to use in Postman:\n1. Set URL: {{rgs_url}}/rgs/admin/games/import-zip?game_id=<your_game_id>\n2. Body tab → select 'Binary' → Click 'Select file' and choose your .zip bundle.\n3. Send. Persists game name, RTP, bet limits to games and game_house_edges."
+					},
+					"response": [
+						{
+							"name": "Import Game ZIP",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/zip",
+										"disabled": true
+									}
+								],
+								"body": {
+									"mode": "file",
+									"file": {
+										"src": "/home/ashenafi-alemu/Downloads/alazar-supreme_20260211_bundle.zip"
+									}
+								},
+								"url": {
+									"raw": "{{rgs_url}}/rgs/admin/games/import-zip?game_id=130300315",
+									"host": [
+										"{{rgs_url}}"
+									],
+									"path": [
+										"rgs",
+										"admin",
+										"games",
+										"import-zip"
+									],
+									"query": [
+										{
+											"key": "game_id",
+											"value": "130300315"
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": null,
+							"header": [
+								{
+									"key": "Access-Control-Allow-Headers",
+									"value": "Content-Type, Authorization, X-Admin-Key"
+								},
+								{
+									"key": "Access-Control-Allow-Methods",
+									"value": "GET, POST, PATCH, DELETE, OPTIONS"
+								},
+								{
+									"key": "Access-Control-Allow-Origin",
+									"value": "*"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								},
+								{
+									"key": "Date",
+									"value": "Sat, 14 Feb 2026 16:22:16 GMT"
+								},
+								{
+									"key": "Content-Length",
+									"value": "62"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"ok\": true,\n    \"game_id\": \"130300315\",\n    \"message\": \"bundle imported\"\n}"
+						}
+					]
+				},
+				{
+					"name": "List Game House Edges",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Admin-Key",
+								"value": "{{admin_key}}"
+							}
+						],
+						"url": {
+							"raw": "{{rgs_url}}/rgs/admin/game-house-edges",
+							"host": [
+								"{{rgs_url}}"
+							],
+							"path": [
+								"rgs",
+								"admin",
+								"game-house-edges"
+							]
+						},
+						"description": "List game_house_edges. Optional query: game_id, game_type, is_active."
+					},
+					"response": []
+				},
+				{
+					"name": "List Game Import Config",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Admin-Key",
+								"value": "{{admin_key}}"
+							}
+						],
+						"url": {
+							"raw": "{{rgs_url}}/rgs/admin/game-import-config",
+							"host": [
+								"{{rgs_url}}"
+							],
+							"path": [
+								"rgs",
+								"admin",
+								"game-import-config"
+							]
+						},
+						"description": "List game_import_config. Optional query: operator_id."
+					},
+					"response": []
+				},
+				{
+					"name": "List Sessions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Admin-Key",
+								"value": "{{admin_key}}"
+							}
+						],
+						"url": {
+							"raw": "{{rgs_url}}/rgs/admin/sessions",
+							"host": [
+								"{{rgs_url}}"
+							],
+							"path": [
+								"rgs",
+								"admin",
+								"sessions"
+							]
+						},
+						"description": "List game_sessions. Optional query: operator_id, game_id, is_active, limit."
+					},
+					"response": []
+				},
+				{
+					"name": "List Wallet Transactions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Admin-Key",
+								"value": "{{admin_key}}"
+							}
+						],
+						"url": {
+							"raw": "{{rgs_url}}/rgs/admin/wallet-transactions",
+							"host": [
+								"{{rgs_url}}"
+							],
+							"path": [
+								"rgs",
+								"admin",
+								"wallet-transactions"
+							]
+						},
+						"description": "List wallet_transactions. Optional query: operator_id, session_id, user_id, limit."
+					},
+					"response": []
+				},
+				{
+					"name": "List Users",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Admin-Key",
+								"value": "{{admin_key}}"
+							}
+						],
+						"url": {
+							"raw": "{{rgs_url}}/rgs/admin/users",
+							"host": [
+								"{{rgs_url}}"
+							],
+							"path": [
+								"rgs",
+								"admin",
+								"users"
+							]
+						},
+						"description": "List users. Optional query: operator_id, status, limit."
+					},
+					"response": []
+				},
+				{
+					"name": "List Currencies",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Admin-Key",
+								"value": "{{admin_key}}"
+							}
+						],
+						"url": {
+							"raw": "{{rgs_url}}/rgs/admin/currencies",
+							"host": [
+								"{{rgs_url}}"
+							],
+							"path": [
+								"rgs",
+								"admin",
+								"currencies"
+							]
+						},
+						"description": "List currency_config (read-only)."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "platform_url",
+			"value": "http://localhost:3000"
+		},
+		{
+			"key": "rgs_url",
+			"value": "http://localhost:8081"
+		},
+		{
+			"key": "token",
+			"value": ""
+		},
+		{
+			"key": "session_id",
+			"value": ""
+		},
+		{
+			"key": "player_id",
+			"value": "demo"
+		},
+		{
+			"key": "game_url",
+			"value": ""
+		},
+		{
+			"key": "admin_key",
+			"value": ""
+		}
+	]
+}
