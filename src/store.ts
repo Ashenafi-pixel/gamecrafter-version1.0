@@ -1,8 +1,11 @@
 import { create } from 'zustand';
-import { GameConfig, AnimationWorkspace, DeviceProfile, MaskPreviewMode, UiDesigns, CrashConfig } from './types';
+import { GameConfig, AnimationWorkspace, DeviceProfile, MaskPreviewMode, CrashConfig } from './types';
 import { CONFIG_DEFAULTS } from './utils/configDefaults';
 import { DEFAULT_CLASSIC_SYMBOLS } from './utils/predefinedSymbols';
 import BambooImage from './assets/WinDisplay/bamboo.png'
+import { packs } from './components/visual-journey/steps-working/Step11_EnhancedAudio/data';
+
+export type UiDesigns = "modern" | "ultimate" | "normal" | "simple";
 
 export interface Studio {
   id: string;
@@ -14,6 +17,11 @@ export interface Studio {
     preloader?: any; // Default preloader config for games in this studio
   };
 }
+const defaultAudioVolumes = packs.reduce((acc, pack) => {
+  const key = pack.key === 'reel' ? 'reels' : pack.key;
+  acc[key as string] = pack.defaultVolume ?? 0.5;
+  return acc;
+}, {} as Record<string, number>);
 
 interface GameStore {
   // UI State
@@ -158,6 +166,8 @@ interface GameStore {
   // UI Buttons
   setIsAutoplayActive: (isAutoPlayActive: boolean) => void;
   setVolume: (volume: number) => void;
+  audioChannelVolumes: Record<string, number>;
+  setAudioChannelVolume: (category: string, volume: number) => void;
   setTurboMode: (turboMode: boolean) => void;
   setShowAnimations: (showAnimations: boolean) => void;
   setIsSoundEnabled: (isSoundEnabled: boolean) => void;
@@ -466,6 +476,10 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   // UI buttons
   setIsAutoplayActive: (isAutoplayActive: boolean) => set({ isAutoplayActive }),
   setVolume: (volume: number) => set({ volume }),
+  audioChannelVolumes: defaultAudioVolumes,
+  setAudioChannelVolume: (category: string, volume: number) => set((state) => ({
+    audioChannelVolumes: { ...state.audioChannelVolumes, [category]: volume }
+  })),
   setTurboMode: (turboMode: boolean) => set({ turboMode }),
   setShowAnimations: (showAnimations: boolean) => set({ showAnimations }),
   setIsSoundEnabled: (isSoundEnabled: boolean) => set({ isSoundEnabled }),

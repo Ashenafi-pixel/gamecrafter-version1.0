@@ -99,7 +99,7 @@ export const NormalDesign: React.FC<NormalDesignProps> = ({
             }}
         >
             {/* Left Section */}
-            <div className="flex items-center gap-4 uw:gap-8 flex-1">
+            <div className="flex items-center gap-4 uw:gap-8 flex-1 min-w-0">
                 <button
                     className="cursor-pointer flex items-center justify-center w-[50px] uw:w-[60px] h-[50px] uw:h-[60px] bg-transparent border-none p-0"
                     onClick={toggleMenu}
@@ -145,7 +145,7 @@ export const NormalDesign: React.FC<NormalDesignProps> = ({
                 </div>
                 {/* Autoplay Button (left cluster, spaced from center) */}
                 <button
-                    className={`flex flex-col items-center gap-1 cursor-pointer ml-10 uw:ml-48 pr-1 mr-8 uw:mr-8 ${isAutoplayActive ? 'text-yellow-400' : ''}`}
+                    className={`flex flex-col items-center gap-1 cursor-pointer ml-auto pr-1 ${isAutoplayActive ? 'text-yellow-400' : ''}`}
                     onClick={() => {
                         toggleAutoplay?.();
                         onAutoplayToggle?.();
@@ -185,11 +185,10 @@ export const NormalDesign: React.FC<NormalDesignProps> = ({
                 </button>
             </div>
 
-            {/* Center Section - Spin Controls (Centered) */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                {/* Spin Button (centered) */}
+            {/* Center Section - Spin Controls (in-flow, so side sections never overlap) */}
+            <div className="flex items-center justify-center px-2">
                 <div
-                    className="relative pointer-events-auto"
+                    className="relative"
                     style={{ transform: `translate(${spinPosition.x}px, ${spinPosition.y}px)` }}
                 >
                     <button
@@ -248,7 +247,7 @@ export const NormalDesign: React.FC<NormalDesignProps> = ({
             </div>
 
             {/* Right Section */}
-            <div className="flex items-center gap-4 uw:gap-8 flex-1  justify-end">
+            <div className="flex items-center gap-4 uw:gap-8 flex-1 justify-end min-w-0">
                 {!isSpinning && 
                 <div className="flex flex-col items-center ">
                     <div className="text-xs uw:text-2xl font-medium uppercase">Last Win</div>

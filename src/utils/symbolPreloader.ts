@@ -60,8 +60,8 @@ class SymbolPreloader {
       });
     } else if (typeof generated === 'object') {
       Object.entries(generated).forEach(([key, url]) => {
-        if (url && url !== '') {
-          symbolsToLoad.push({ key: `generated_${key}`, url: url as string });
+        if (typeof url === 'string' && url !== '') {
+          symbolsToLoad.push({ key: `generated_${key}`, url });
         }
       });
     }

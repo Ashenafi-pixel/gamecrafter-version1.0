@@ -33,7 +33,10 @@ export type Pack = {
     label: string;
     placeholder?: string;
     defaultPrompt?: string;
+    maxDuration?: number;
+    defaultDuration?: number;
   }>;
+  defaultVolume?: number;
 };
 
 export type ThemePreset = "Candy Land" | "Ancient Egypt" | "Western" | "Cyberpunk" | "Aztec" | "Custom";

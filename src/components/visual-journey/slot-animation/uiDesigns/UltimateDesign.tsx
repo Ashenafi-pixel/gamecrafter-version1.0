@@ -89,21 +89,21 @@ export const UltimateDesign: React.FC<UltimateDesignProps> = ({
     return (
         <div
             data-testid="slot-ui"
-            className={`slot-game-ui w-full justify-between flex gap-3 items-center px-3 text-white relative ${className}`}
+            className={`slot-game-ui w-full min-h-[88px] flex flex-wrap items-center gap-x-3 gap-y-2 px-3 text-white relative ${className}`}
             style={{
 
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
-                height: '88px',
                 zIndex: 100,
                 pointerEvents: 'auto',
                 overflow: 'visible'
             }}
         >
             {/* Left Section */}
-            <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1">
+            <div className="flex items-center gap-x-3 gap-y-1 flex-1 min-w-0">
+                {/* Buttons (2 lines for more space) */}
+                <div className="grid grid-cols-2 gap-x-1 gap-y-1 place-items-center shrink-0">
                     {/* Hamburger Menu Icon */}
                     <button
                         className="cursor-pointer flex items-center justify-center"
@@ -172,45 +172,13 @@ export const UltimateDesign: React.FC<UltimateDesignProps> = ({
                             </svg>
                         )}
                     </button>
-                </div>
-                {/* Info Button */}
-                <div className="flex items-center">
-                    <div className="cursor-pointer">
+                    {/* Info Button */}
+                    <div className="cursor-pointer flex items-center justify-center w-9 h-9">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                     </div>
-                </div>
-                {/* Balance and Bet Section */}
-                <div className='flex gap-6'>
-                <div className="flex flex-col items-centr gap-1 mb-0">
-                    {/* Balance Display - Stacked */}
-                    <div className="flex  items-center gap-2">
-                    <div className="text-sm font-bold text-orange-500 uppercase tracking-wide">CREDIT :</div>
-                    <div className="font-bold text-sm text-white">
-                        {balance.toFixed(2)}
-                    </div>
-                    </div>
-                    {/* Bet Section - Stacked */}
-                    <div className="flex gap-2 items-center">
-                    <span className="text-sm font-bold text-orange-500 uppercase tracking-wide">BET :</span>
-                    <span className="font-bold text-sm text-white">
-                        {betAmount.toFixed(2)}
-                    </span>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2 mb-0">
-                    <span className="text-sm font-bold text-orange-500 uppercase tracking-wide">Last Win :</span>
-                    <span className="font-bold text-sm text-white">
-                         {winAmount.toFixed(2)}
-                    </span> 
-                </div>
-                </div>
-            </div>
-
-            <div className='flex items-center gap-2'>
-                {/* Settings Button */}
-                <div className="flex items-center">
+                    {/* Settings Button */}
                     <button
                         className="cursor-pointer"
                         onClick={toggleSettings}
@@ -247,89 +215,113 @@ export const UltimateDesign: React.FC<UltimateDesignProps> = ({
                             </svg>
                         )}
                     </button>
-
-                    
                 </div>
-                 <button
-                        className={`flex flex-col items-center gap-1 cursor-pointer ${isAutoplayActive ? 'text-yellow-400' : ''}`}
-                        onClick={() => {
-                            toggleAutoplay?.();
-                            onAutoplayToggle?.();
-                        }}
-                        aria-label="Auto Spin"
-                        style={{ transform: `scale(${autoplayScale}) translate(${autoplayPosition.x}px, ${autoplayPosition.y}px)` }}
-                    >
-                        {customButtons?.autoplayButton ? (
-                            <>
-                                <div
+                {/* Balance and Bet Section */}
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+                    <div className="flex items-center gap-x-6 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-orange-500 uppercase tracking-wide">CREDIT :</span>
+                            <span className="font-bold text-sm text-white">
+                                {balance.toFixed(2)}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2 whitespace-nowrap">
+                            <span className="text-sm font-bold text-orange-500 uppercase tracking-wide">LAST WIN :</span>
+                            <span className="font-bold text-sm text-white">
+                                {winAmount.toFixed(2)}
+                            </span>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-orange-500 uppercase tracking-wide">BET :</span>
+                        <span className="font-bold text-sm text-white">
+                            {betAmount.toFixed(2)}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 justify-end ml-auto min-w-0">
+                <button
+                    className={`flex flex-col items-center gap-1 cursor-pointer shrink-0 ${isAutoplayActive ? 'text-yellow-400' : ''}`}
+                    onClick={() => {
+                        toggleAutoplay?.();
+                        onAutoplayToggle?.();
+                    }}
+                    aria-label="Auto Spin"
+                    style={{ transform: `scale(${autoplayScale}) translate(${autoplayPosition.x}px, ${autoplayPosition.y}px)` }}
+                >
+                    {customButtons?.autoplayButton ? (
+                        <>
+                            <div
+                                style={{
+                                    width: '36px',
+                                    height: '36px',
+                                    backgroundColor: 'transparent',
+                                    border: 'none',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                }}
+                            >
+                                <img
+                                    src={customButtons.autoplayButton}
+                                    alt="Autoplay"
                                     style={{
-                                        width: '36px',
-                                        height: '36px',
-                                        backgroundColor: 'transparent',
-                                        border: 'none',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
+                                        width: '100%',
+                                        height: '100%',
+                                        objectFit: 'contain',
+                                        filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))'
                                     }}
-                                >
-                                    <img
-                                        src={customButtons.autoplayButton}
-                                        alt="Autoplay"
-                                        style={{
-                                            width: '100%',
-                                            height: '100%',
-                                            objectFit: 'contain',
-                                            filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))'
-                                        }}
-                                        onError={(e) => {
-                                            console.error('[SlotGameUI] Failed to load autoplay button:', customButtons.autoplayButton);
-                                            e.currentTarget.style.display = 'none';
-                                        }}
-                                    />
-                                </div>
-                            </>
-                        ) : (
-                            <>
-                                <div
-                                    className={`
+                                    onError={(e) => {
+                                        console.error('[SlotGameUI] Failed to load autoplay button:', customButtons.autoplayButton);
+                                        e.currentTarget.style.display = 'none';
+                                    }}
+                                />
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div
+                                className={`
                                               relative w-10 h-10 rounded-full
                                               flex items-center justify-center
                                               transition-all duration-300
                                               ${isAutoplayActive
-                                            ? 'bg-yellow-400 shadow-[0_0_12px_rgba(255,200,0,0.8)] scale-105'
-                                            : 'bg-black/60 hover:bg-black/80'}
+                                        ? 'bg-yellow-400 shadow-[0_0_12px_rgba(255,200,0,0.8)] scale-105'
+                                        : 'bg-black/60 hover:bg-black/80'}
                                                     `}
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        className={`w-5 h-5 transition-transform duration-500
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className={`w-5 h-5 transition-transform duration-500
                                           ${isAutoplayActive ? 'rotate-180 text-black' : 'text-white'}
                                         `}
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                        strokeWidth={2}
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            d="M4 4v6h6M20 20v-6h-6M5 19a9 9 0 0014-7M19 5a9 9 0 00-14 7"
-                                        />
-                                    </svg>
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d="M4 4v6h6M20 20v-6h-6M5 19a9 9 0 0014-7M19 5a9 9 0 00-14 7"
+                                    />
+                                </svg>
 
-                                    {isAutoplayActive && (
-                                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full" />
-                                    )}
-                                </div>
+                                {isAutoplayActive && (
+                                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full" />
+                                )}
+                            </div>
 
-                            </>
-                        )}
-                    </button>
-                <div className="w-8 h-8 rounded-full bg-black/60 flex items-center justify-center">
+                        </>
+                    )}
+                </button>
+                <div className="w-8 h-8 rounded-full bg-black/60 flex items-center justify-center shrink-0">
                     <Minus className='w-4 h-4 cursor-pointer' onClick={handleDecreaseBet} />
                 </div>
                 {/* Center Section - Spin Controls (Centered) */}
-                <div className=" flex flex-col items-center">
+                <div className="flex flex-col items-center shrink-0">
                     {/* Spin Button (centered) */}
                     <button
                         className={`spin-btn 
@@ -384,17 +376,11 @@ export const UltimateDesign: React.FC<UltimateDesignProps> = ({
                             </div>
                         )}
                     </button>
-                    {/* Auto Spin Button */}
-                   
-
                 </div>
-                <div className="w-8 h-8 rounded-full bg-black/60 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-black/60 flex items-center justify-center shrink-0">
                     <Plus className='w-4 h-4 cursor-pointer' onClick={handleIncreaseBet} />
                 </div>
             </div>
-
-            {/* Right Section */}
-
         </div>
     );
 };
