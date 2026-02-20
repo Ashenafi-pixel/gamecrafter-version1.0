@@ -59,13 +59,21 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
         if (selectedPreset && selectedPreset !== 'Classic' && selectedPreset !== lastPresetRef.current) {
             lastPresetRef.current = selectedPreset;
             const presetSymbols = getPresetPredefinedSymbols(selectedPreset);
+            const preset = PRESET_CONFIGURATIONS.find(p => p.name === selectedPreset);
+            const current = config?.theme?.generated?.symbols as Record<string, string | SymbolSpineAsset> | undefined;
+            const merged: Record<string, string | SymbolSpineAsset> = {};
+            const presetKeys = preset?.symbols.map(s => getSymbolStorageKey(s.type)) ?? [];
+            presetKeys.forEach(key => {
+                if (current && current[key] !== undefined) merged[key] = current[key];
+                else merged[key] = presetSymbols[key] ?? (PREDEFINED_SYMBOLS as Record<string, string>)[key] ?? '';
+            });
             updateConfig({
                 theme: {
                     ...config.theme,
                     generated: {
                         background: config.theme?.generated?.background || null,
                         frame: config.theme?.generated?.frame || null,
-                        symbols: presetSymbols,
+                        symbols: merged,
                         bonusSymbols: config.theme?.generated?.bonusSymbols
                     }
                 }
@@ -79,14 +87,14 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
         const preset = PRESET_CONFIGURATIONS.find(p => p.name === selectedPreset);
         if (!preset) return [];
 
-        const gameStoreSymbols = config?.theme?.generated?.symbols || {};
-        const spineAssets = (config?.theme?.generated?.symbolSpineAssets || {}) as Record<string, SymbolSpineAsset>;
+        const raw = config?.theme?.generated?.symbols;
+        const symbolsRecord = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as Record<string, string | SymbolSpineAsset>;
         const theme = config?.gameTheme || 'default';
         return preset.symbols.map(symbolDef => {
             const storageKey = symbolDef.type.toLowerCase().replace(/\s+/g, '');
-            const symbolsRecord = gameStoreSymbols as Record<string, string>;
-            const imageUrl = symbolsRecord[storageKey];
-            const spineAsset = spineAssets[storageKey];
+            const val = symbolsRecord[storageKey];
+            const imageUrl = typeof val === 'string' ? val : undefined;
+            const spineAsset = val && typeof val === 'object' && 'atlasUrl' in val ? (val as SymbolSpineAsset) : undefined;
             return {
                 id: storageKey,
                 name: symbolDef.type.charAt(0).toUpperCase() + symbolDef.type.slice(1),
@@ -99,7 +107,7 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
                 rarity: symbolDef.rarity,
                 defaultDescription: getDefaultDescription(symbolDef.type, theme),
                 imageUrl,
-                spineAsset: spineAsset || undefined
+                spineAsset
             } as SymbolConfig;
         });
     };
@@ -118,8 +126,10 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
     }, [selectedSymbol, hasManualOverride]);
 
     useEffect(() => {
-        const symbols = config?.theme?.generated?.symbols || {};
-        const symbolUrls = Object.values(symbols).filter(url => url && url !== '');
+        const raw = config?.theme?.generated?.symbols;
+        const symbolUrls = raw && typeof raw === 'object' && !Array.isArray(raw)
+            ? Object.values(raw).filter((v): v is string => typeof v === 'string' && v !== '')
+            : [];
 
         if (symbolUrls.length > 0) {
             window.dispatchEvent(new CustomEvent('symbolsChanged', {
@@ -134,21 +144,18 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
         }
     }, [config?.theme?.generated?.symbols, config?.gameId]);
 
-    // Helper function to initialize symbol slots with ONLY preset-specific symbols
+    // Helper: build symbol map for preset, preserving existing uploads (image or Spine)
     const initializeEmptySymbolSlots = useCallback((preset: PresetConfig) => {
-        const symbolSlots: Record<string, string> = {};
-        const existingSymbols = config?.theme?.generated?.symbols || {};
-        const existingSymbolsRecord = existingSymbols as Record<string, string>;
+        const symbolSlots: Record<string, string | SymbolSpineAsset> = {};
+        const raw = config?.theme?.generated?.symbols;
+        const existing = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as Record<string, string | SymbolSpineAsset>;
         const predefinedSymbolsRecord = PREDEFINED_SYMBOLS as Record<string, string>;
-
-        // Get keys for this preset only
         const presetKeys = preset.symbols.map(s => s.type.toLowerCase().replace(/\s+/g, ''));
 
-        // Build symbol object with ONLY preset-specific symbols
         presetKeys.forEach(key => {
-            // Priority: 1) Existing generated symbol, 2) Predefined symbol, 3) Empty string
-            if (existingSymbolsRecord[key] && existingSymbolsRecord[key] !== '') {
-                symbolSlots[key] = existingSymbolsRecord[key];
+            const existingVal = existing[key];
+            if (existingVal !== undefined) {
+                symbolSlots[key] = existingVal;
             } else {
                 symbolSlots[key] = predefinedSymbolsRecord[key] || '';
             }
@@ -331,6 +338,14 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
         return enhancedPrompt;
     }, [selectedSymbol, prompt, config?.gameTheme, symbolType, contentType, customText, size, selectedLayoutTemplate]);
 
+    // Revoke blob URLs for a Spine asset to avoid memory leaks (only revoke blob: URLs)
+    const revokeSpineAssetBlobUrls = (asset: SymbolSpineAsset | undefined) => {
+        if (!asset) return;
+        if (asset.atlasUrl?.startsWith('blob:')) URL.revokeObjectURL(asset.atlasUrl);
+        if (asset.skelUrl?.startsWith('blob:')) URL.revokeObjectURL(asset.skelUrl);
+        if (asset.textureUrl?.startsWith('blob:')) URL.revokeObjectURL(asset.textureUrl);
+    };
+
     // Handle symbol upload
     const handleUploadSymbol = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -347,14 +362,15 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
 
                 console.log(`[Step5] Uploading symbol with key: ${storageKey}, type: ${selectedSymbol.gameSymbolType}`);
 
-                // Update the symbol in the store
-                const currentSymbols = config?.theme?.generated?.symbols || {};
-                const updatedSymbols = {
-                    ...currentSymbols,
-                    [storageKey]: base64String
-                };
-                const currentSpine = config?.theme?.generated?.symbolSpineAssets || {};
-                const { [storageKey]: _removed, ...restSpine } = currentSpine as Record<string, unknown>;
+                // Revoke previous Spine blob URLs if this slot had a zip (unified symbols)
+                const rawSym = config?.theme?.generated?.symbols as Record<string, string | SymbolSpineAsset> | undefined;
+                const prevVal = rawSym?.[storageKey];
+                if (prevVal && typeof prevVal === 'object' && 'atlasUrl' in prevVal) revokeSpineAssetBlobUrls(prevVal as SymbolSpineAsset);
+
+                const currentSymbols = (config?.theme?.generated?.symbols && typeof config.theme.generated.symbols === 'object' && !Array.isArray(config.theme.generated.symbols))
+                    ? (config.theme.generated.symbols as Record<string, string | SymbolSpineAsset>)
+                    : {};
+                const updatedSymbols = { ...currentSymbols, [storageKey]: base64String };
 
                 updateConfig({
                     theme: {
@@ -363,7 +379,6 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
                             background: config.theme?.generated?.background || null,
                             frame: config.theme?.generated?.frame || null,
                             symbols: updatedSymbols,
-                            symbolSpineAssets: Object.keys(restSpine).length ? restSpine : undefined,
                             bonusSymbols: config.theme?.generated?.bonusSymbols
                         }
                     }
@@ -373,7 +388,7 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
                 setTimeout(() => {
                     window.dispatchEvent(new CustomEvent('symbolsChanged', {
                         detail: {
-                            symbols: Object.values(updatedSymbols).filter(url => url && url !== ''),
+                            symbols: Object.values(updatedSymbols).filter((v): v is string => typeof v === 'string' && v !== ''),
                             symbolKey: storageKey,
                             symbolUrl: base64String,
                             gameId: config?.gameId || 'default',
@@ -452,10 +467,12 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
             const textureUrl = URL.createObjectURL(imgBlob);
 
             const storageKey = getSymbolStorageKey(selectedSymbol.gameSymbolType || '');
-            const currentSymbols = (config?.theme?.generated?.symbols || {}) as Record<string, string>;
-            const currentSpine = config?.theme?.generated?.symbolSpineAssets || {};
-            const updatedSymbols = { ...currentSymbols, [storageKey]: '' };
-            const updatedSpine = { ...currentSpine, [storageKey]: { atlasUrl, skelUrl, textureUrl, textureName } };
+            const raw = config?.theme?.generated?.symbols as Record<string, string | SymbolSpineAsset> | undefined;
+            const currentSymbols = (raw && typeof raw === 'object') ? { ...raw } : {};
+            const prev = currentSymbols[storageKey];
+            if (prev && typeof prev === 'object' && 'atlasUrl' in prev) revokeSpineAssetBlobUrls(prev as SymbolSpineAsset);
+
+            currentSymbols[storageKey] = { atlasUrl, skelUrl, textureUrl, textureName };
 
             updateConfig({
                 theme: {
@@ -463,21 +480,21 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
                     generated: {
                         background: config.theme?.generated?.background || null,
                         frame: config.theme?.generated?.frame || null,
-                        symbols: updatedSymbols,
-                        symbolSpineAssets: updatedSpine,
+                        symbols: currentSymbols,
                         bonusSymbols: config.theme?.generated?.bonusSymbols
                     }
                 }
             });
+            // Single source of truth: SlotMachine reacts to config via effect; event only notifies for optional re-render
             setTimeout(() => {
                 window.dispatchEvent(new CustomEvent('symbolsChanged', {
                     detail: {
-                        symbols: Object.values(updatedSymbols).filter(url => url && url !== ''),
+                        symbols: Object.values(currentSymbols).filter((v): v is string => typeof v === 'string' && v !== ''),
                         symbolKey: storageKey,
                         gameId: config?.gameId || 'default',
                         source: 'symbol-spine-upload',
                         forceRefresh: true,
-                        spineAsset: updatedSpine[storageKey],
+                        spineAsset: currentSymbols[storageKey] as SymbolSpineAsset,
                         timestamp: Date.now()
                     }
                 }));
@@ -656,7 +673,7 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
                                     <div className="text-sm text-gray-600 uw:text-2xl">
                                         <span className="font-medium">{selectedPreset}</span> preset •
                                         <span className="ml-1">{presetSymbols.length} symbols</span>
-                                        <span className="ml-1">({presetSymbols.filter(s => s.imageUrl).length} generated)</span>
+                                        <span className="ml-1">({presetSymbols.filter(s => s.imageUrl || s.spineAsset).length} generated)</span>
 
                                     </div>
                                     <button

@@ -29,10 +29,13 @@ export type ThemeConfig = {
   selectedThemeId?: string
   generated?: {
     background?: string | null;
-    symbols?: string[] | Record<string, string>; // Support both array (legacy) and object (new key-based) formats - includes bonus symbols
+    /** Single source: each key is either image URL (string) or Spine zip asset (SymbolSpineAsset). Replaces separate symbolSpineAssets. */
+    symbols?: string[] | Record<string, string | SymbolSpineAsset>;
     frame?: string | null;
+    /** @deprecated Prefer symbols[key] for Spine assets. Kept for backward compat read-only. */
     symbolSpineAssets?: Record<string, SymbolSpineAsset>;
-    symbolPaytables?: Record<string, { pay3: number; pay4?: number; pay5?: number; pay6?: number; pay7?: number }>; // Paytable values for each symbol (dynamic based on reel count)
+    symbolPaytables?: Record<string, { pay3: number; pay4?: number; pay5?: number; pay6?: number; pay7?: number }>;
+    bonusSymbols?: unknown;
   };
   presetSymbol?: Record<string, string>; // {symbolType}_extended -> base64 (e.g., wild_extended, high1_extended)
 };

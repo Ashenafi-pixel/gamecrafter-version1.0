@@ -13,7 +13,7 @@ export interface SpineSymbolPreviewProps {
 
 const uniqueId = () => `spine_preview_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
-/** Clone blob URLs so we get separate PixiJS Assets cache entries (Option 1: isolate from SlotMachine). */
+/** Clone blob URLs so we get separate PixiJS Assets cache entries. */
 async function cloneAssetUrls(asset: SymbolSpineAsset): Promise<{ atlasUrl: string; skelUrl: string; textureUrl: string }> {
   const [atlasBlob, skelBlob, texBlob] = await Promise.all([
     fetch(asset.atlasUrl).then((r) => r.blob()),
@@ -51,6 +51,8 @@ export function SpineSymbolPreview({ asset, width, height, playWinRef, idle = tr
   const spineRef = useRef<Spine | null>(null);
   const idsRef = useRef<{ skel: string; atlas: string; texture: string } | null>(null);
   const clonedUrlsRef = useRef<{ atlasUrl: string; skelUrl: string; textureUrl: string } | null>(null);
+  // Guard flag: set to false the instant cleanup begins so the ticker callback exits immediately.
+  const isAliveRef = useRef(false);
 
   const playWin = useCallback(() => {
     const spine = spineRef.current;
@@ -83,6 +85,8 @@ export function SpineSymbolPreview({ asset, width, height, playWinRef, idle = tr
     if (!container || !asset?.atlasUrl || !asset.skelUrl || !asset.textureUrl || !asset.textureName) return;
 
     let cancelled = false;
+    isAliveRef.current = true;
+
     const id = uniqueId();
     const skelId = `spine_preview_skel_${id}`;
     const atlasId = `spine_preview_atlas_${id}`;
@@ -117,19 +121,18 @@ export function SpineSymbolPreview({ asset, width, height, playWinRef, idle = tr
         (app.canvas as HTMLCanvasElement).style.width = '100%';
         (app.canvas as HTMLCanvasElement).style.height = '100%';
 
-        // Use cloned URLs so PixiJS cache is separate from SlotMachine (Option 1).
-        PIXI.Assets.add({ alias: texId, src: cloned.textureUrl, loadParser: 'loadTextures' });
+        PIXI.Assets.add({ alias: texId, src: cloned.textureUrl, parser: 'loadTextures' });
         const loadedTex = (await PIXI.Assets.load(texId)) as PIXI.Texture;
         const textureSource = loadedTex?.source ?? null;
         PIXI.Assets.add({
           alias: atlasId,
           src: cloned.atlasUrl,
-          loadParser: 'spineTextureAtlasLoader',
+          parser: 'spineTextureAtlasLoader',
           data: {
             images: textureSource ? { [asset.textureName]: textureSource } : { [asset.textureName]: cloned.textureUrl },
           },
         });
-        PIXI.Assets.add({ alias: skelId, src: cloned.skelUrl, loadParser: 'spineSkeletonLoader' });
+        PIXI.Assets.add({ alias: skelId, src: cloned.skelUrl, parser: 'spineSkeletonLoader' });
         await PIXI.Assets.load([skelId, atlasId]);
         if (cancelled) return;
 
@@ -146,13 +149,18 @@ export function SpineSymbolPreview({ asset, width, height, playWinRef, idle = tr
           spine.state?.setAnimation(0, name, true);
         }
 
+        // Ticker: guard with isAliveRef so it exits immediately on teardown,
+        // before the batcher ever tries to process the Spine's geometry.
         const ticker = (t: { deltaTime: number }) => {
-          if (spineRef.current && !(spineRef.current as any).destroyed) {
-            spineRef.current.update(t.deltaTime / 60);
+          if (!isAliveRef.current) return;
+          const s = spineRef.current;
+          if (s && !(s as any).destroyed) {
+            s.update(t.deltaTime / 60);
           }
         };
         app.ticker.add(ticker);
 
+        // Return inner cleanup so React ef can remove the ticker if effect re-runs.
         return () => {
           app.ticker.remove(ticker);
         };
@@ -163,49 +171,73 @@ export function SpineSymbolPreview({ asset, width, height, playWinRef, idle = tr
 
     return () => {
       cancelled = true;
+
+      // ── Step 1: Kill the isAlive flag FIRST.
+      // The ticker callback checks this at its very first line, so it will
+      // exit before calling spine.update() or anything that touches geometry.
+      isAliveRef.current = false;
+
       const app = appRef.current;
       const spine = spineRef.current;
+      const ids = idsRef.current;
+      const clonedUrls = clonedUrlsRef.current;
 
-      // Stop ticker and remove canvas immediately so no render runs during teardown.
-      if (app) {
-        app.ticker.stop();
-        if (app.canvas?.parentNode) app.canvas.parentNode.removeChild(app.canvas);
-      }
+      // Clear refs immediately so nothing else can accidentally use them.
       appRef.current = null;
       spineRef.current = null;
-      const ids = idsRef.current;
       idsRef.current = null;
-      const clonedUrls = clonedUrlsRef.current;
       clonedUrlsRef.current = null;
 
-      // Option 4: Double rAF so we're fully past any render before destroying.
+      // ── Step 2: Hide the spine immediately.
+      // PixiJS BatcherPipe skips invisible objects entirely — even if a render
+      // pass has already started, it will skip this node before touching geometry.
+      if (spine && !(spine as any).destroyed) {
+        spine.visible = false;
+      }
+
+      // ── Step 3: Detach from stage synchronously.
+      // Removes the node from the scene graph so the current (or next) render
+      // pass won't enumerate it at all.
+      if (spine?.parent) {
+        spine.parent.removeChild(spine);
+      }
+
+      // ── Step 4: Stop the ticker so no new frames start.
+      if (app) {
+        app.ticker.stop();
+        // Detach canvas from DOM immediately.
+        if (app.canvas?.parentNode) {
+          app.canvas.parentNode.removeChild(app.canvas);
+        }
+      }
+
+      // ── Step 5: Double-rAF — wait for any in-flight GPU commands to flush,
+      // then safely destroy everything.
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-        try {
-          if (spine?.parent) spine.parent.removeChild(spine);
-          if (spine && !(spine as any).destroyed) spine.destroy({ children: true });
-          if (ids) {
-            void PIXI.Assets.unload(ids.skel).catch(() => {});
-            void PIXI.Assets.unload(ids.atlas).catch(() => {});
-            void PIXI.Assets.unload(ids.texture).catch(() => {});
+          try {
+            if (spine && !(spine as any).destroyed) spine.destroy({ children: true });
+            if (ids) {
+              void PIXI.Assets.unload(ids.skel).catch(() => { });
+              void PIXI.Assets.unload(ids.atlas).catch(() => { });
+              void PIXI.Assets.unload(ids.texture).catch(() => { });
+            }
+            if (clonedUrls) {
+              URL.revokeObjectURL(clonedUrls.atlasUrl);
+              URL.revokeObjectURL(clonedUrls.skelUrl);
+              URL.revokeObjectURL(clonedUrls.textureUrl);
+            }
+            if (app) {
+              try { app.destroy(true); } catch (_) { /* already destroyed */ }
+            }
+          } catch (e) {
+            console.warn('[SpineSymbolPreview] Teardown error (non-fatal):', e);
           }
-          if (clonedUrls) {
-            URL.revokeObjectURL(clonedUrls.atlasUrl);
-            URL.revokeObjectURL(clonedUrls.skelUrl);
-            URL.revokeObjectURL(clonedUrls.textureUrl);
-          }
-          if (app) {
-            try { app.destroy(true); } catch (_) { /* already destroyed */ }
-          }
-        } catch (e) {
-          console.warn('[SpineSymbolPreview] Teardown error (non-fatal):', e);
-        }
         });
       });
     };
   }, [asset?.atlasUrl, asset?.skelUrl, asset?.textureUrl, asset?.textureName, width, height, idle]);
 
-  // Option 6: Use isolation styles to create separate stacking context (avoids parent transform/overflow affecting WebGL).
   return (
     <div
       ref={containerRef}

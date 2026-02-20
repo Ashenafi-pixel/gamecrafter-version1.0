@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as PIXI from "pixi.js";
 import { Assets, FillGradient } from "pixi.js";
 import { GlowFilter } from "pixi-filters/glow";
@@ -186,10 +186,23 @@ export default function SlotMachinePreview(): JSX.Element {
   } = useGameStore();
   const { isSidebarCollapsed } = useSidebarStore();
   const symbolsRaw = config.theme?.generated?.symbols;
-  const symbols: Record<string, string> = (typeof symbolsRaw === 'object' && !Array.isArray(symbolsRaw) && Object.keys(symbolsRaw).length > 0)
-    ? symbolsRaw
-    : (DEFAULT_CLASSIC_SYMBOLS as Record<string, string>);
-  const symbolSpineAssets: Record<string, SymbolSpineAsset> = (config.theme?.generated?.symbolSpineAssets as Record<string, SymbolSpineAsset>) || {};
+  const { symbols, symbolSpineAssets } = useMemo(() => {
+    if (typeof symbolsRaw === 'object' && !Array.isArray(symbolsRaw) && Object.keys(symbolsRaw).length > 0) {
+      const textures: Record<string, string> = {};
+      const spine: Record<string, SymbolSpineAsset> = {};
+      for (const [k, v] of Object.entries(symbolsRaw)) {
+        if (typeof v === 'string') textures[k] = v;
+        else if (v && typeof v === 'object' && 'atlasUrl' in v) spine[k] = v as SymbolSpineAsset;
+      }
+      return { symbols: textures, symbolSpineAssets: spine };
+    }
+    return { symbols: DEFAULT_CLASSIC_SYMBOLS as Record<string, string>, symbolSpineAssets: {} as Record<string, SymbolSpineAsset> };
+  }, [symbolsRaw]);
+  /** All symbol keys (texture + Spine) so Spine-only symbols like wild appear in the grid. */
+  const symbolKeys = useMemo(
+    () => [...new Set([...Object.keys(symbols), ...Object.keys(symbolSpineAssets)])],
+    [symbols, symbolSpineAssets]
+  );
   const rows = config.reels?.layout?.rows ?? 3;
   const reels = config.reels?.layout?.reels ?? 5;
 
@@ -239,6 +252,8 @@ export default function SlotMachinePreview(): JSX.Element {
   const winningSpineTickerRef = useRef<((t: { deltaTime: number }) => void) | null>(null);
   /** When true, we're paused for step transition - don't run renderGrid/resize logic (avoids BatcherPipe geometry null). */
   const pausedForTeardownRef = useRef<boolean>(false);
+  /** When true, Spine pool teardown is in progress - skip resize/render to avoid BatcherPipe/validateRenderables errors. */
+  const spineTeardownInProgressRef = useRef<boolean>(false);
 
   // Symbol animation refs for win-based animations
   const activeSymbolAnimationsRef = useRef<Map<string, {
@@ -712,6 +727,10 @@ export default function SlotMachinePreview(): JSX.Element {
       loopingAudioRef.current.clear();
     };
   }, [stopAllAudio]);
+
+  // NOTE: PAUSE_SLOT / RESUME_SLOT event listeners are registered inside the main
+  // event-listener useEffect (around line 4810) together with all other custom events.
+  // Do NOT add a second listener here — it would be a duplicate and cause double-stops.
 
   const [currentGrid, setCurrentGrid] = useState<string[][]>(() => createRandomGrid());
   const [renderSize, setRenderSize] = useState({ width: 800, height: 400 });
@@ -1815,7 +1834,7 @@ export default function SlotMachinePreview(): JSX.Element {
 
 
   function createRandomGrid(): string[][] {
-    const allKeys = Object.keys(symbols);
+    const allKeys = symbolKeys;
     const keys = allKeys;
 
     return Array.from({ length: reels }, () =>
@@ -2151,32 +2170,84 @@ export default function SlotMachinePreview(): JSX.Element {
     texturesRef.current = map;
   }, [symbols, symbolSpineAssets]);
 
+  // Defer destroy pool instances and unload PIXI asset IDs after 2 rAFs to avoid BatcherPipe/crash
+  const deferDestroyPoolAndUnload = (key: string, pool: Spine[], toUnload: { skel: string; atlas: string; texture?: string }) => {
+    const toDestroy = [...pool];
+    toDestroy.forEach(s => {
+      if (s && !(s as any).destroyed && s.parent) {
+        s.parent.removeChild(s);
+        s.visible = false;
+      }
+    });
+    spineSymbolPoolRef.current.set(key, []);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        toDestroy.forEach(s => {
+          try {
+            if (s && !(s as any).destroyed) s.destroy({ children: true });
+          } catch (_) { /* already destroyed, ignore */ }
+        });
+        const ids: string[] = [toUnload.skel, toUnload.atlas, toUnload.texture].filter((id): id is string => Boolean(id));
+        if (ids.length > 0) PIXI.Assets.unload(ids);
+      });
+    });
+  };
+
   // Load Spine assets for animated symbols (same format as character: atlas, skel, texture)
   const loadSpineSymbolAssets = useCallback(async () => {
-    const assets = (useGameStore.getState().config?.theme?.generated?.symbolSpineAssets || {}) as Record<string, SymbolSpineAsset>;
-    const keys = Object.keys(assets);
-    if (keys.length === 0) return;
-
+    const raw = useGameStore.getState().config?.theme?.generated?.symbols;
+    const assets: Record<string, SymbolSpineAsset> = {};
+    if (typeof raw === 'object' && !Array.isArray(raw)) {
+      for (const [k, v] of Object.entries(raw)) {
+        if (v && typeof v === 'object' && 'atlasUrl' in v) assets[k] = v as SymbolSpineAsset;
+      }
+    }
+    const currentKeys = Object.keys(assets);
     const ids = spineSymbolAssetIdsRef.current;
     const lastUrls = lastSpineSymbolUrlsRef.current;
 
-    for (const key of keys) {
+    let didTeardown = false;
+
+    // Remove Spine symbols that are no longer in config: destroy pool and unload PIXI assets (deferred)
+    const existingKeys = Object.keys(ids);
+    for (const key of existingKeys) {
+      if (currentKeys.includes(key)) continue;
+      didTeardown = true;
+      const prev = ids[key];
+      const pool = spineSymbolPoolRef.current.get(key) || [];
+      if (prev) deferDestroyPoolAndUnload(key, pool, prev);
+      delete ids[key];
+      delete lastUrls[key];
+    }
+
+    for (const key of currentKeys) {
       const asset = assets[key];
       if (!asset?.atlasUrl || !asset.skelUrl || !asset.textureUrl || !asset.textureName) continue;
       const urlKey = `${asset.atlasUrl}|${asset.skelUrl}`;
       if (lastUrls[key] === urlKey && ids[key]) continue;
 
       try {
+        didTeardown = true;
         const prev = ids[key];
-        // Option 5: Don't unload Spine assets - avoids corrupting shared/cached resources.
-        // Destroy pool instances but leave Assets in cache (they may be referenced elsewhere).
-        if (prev) {
-          // Only clear our refs; do NOT unload - prevents BatcherPipe geometry null.
-        }
         const pool = spineSymbolPoolRef.current.get(key);
-        if (pool) {
-          pool.forEach(s => { if (s.parent) s.parent.removeChild(s); s.destroy({ children: true }); });
+        if (pool && pool.length > 0) {
+          const toDestroy = [...pool];
+          toDestroy.forEach(s => {
+            if (s && !(s as any).destroyed && s.parent) {
+              s.parent.removeChild(s);
+              s.visible = false;
+            }
+          });
           spineSymbolPoolRef.current.set(key, []);
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              toDestroy.forEach(s => {
+                try {
+                  if (s && !(s as any).destroyed) s.destroy({ children: true });
+                } catch (_) { /* already destroyed, ignore */ }
+              });
+            });
+          });
         }
 
         const unique = `sym_${key}_${Date.now()}`;
@@ -2184,23 +2255,47 @@ export default function SlotMachinePreview(): JSX.Element {
         const atlasId = `spine_sym_atlas_${unique}`;
         const texId = `spine_sym_tex_${unique}`;
 
-        PIXI.Assets.add({ alias: skelId, src: asset.skelUrl, loadParser: 'spineSkeletonLoader' });
-        PIXI.Assets.add({ alias: texId, src: asset.textureUrl, loadParser: 'loadTextures' });
+        PIXI.Assets.add({ alias: skelId, src: asset.skelUrl, parser: 'spineSkeletonLoader' });
+        PIXI.Assets.add({ alias: texId, src: asset.textureUrl, parser: 'loadTextures' });
         const loadedTex = await PIXI.Assets.load(texId) as PIXI.Texture;
         const textureSource = loadedTex?.source ?? null;
         PIXI.Assets.add({
           alias: atlasId,
           src: asset.atlasUrl,
-          loadParser: 'spineTextureAtlasLoader',
+          parser: 'spineTextureAtlasLoader',
           data: { images: textureSource ? { [asset.textureName]: textureSource } : { [asset.textureName]: asset.textureUrl } }
         });
         await PIXI.Assets.load([skelId, atlasId]);
 
         ids[key] = { skel: skelId, atlas: atlasId, texture: texId };
         lastUrls[key] = urlKey;
+
+        // Deferred unload of previous asset IDs for this key (avoids memory leak when replacing zip)
+        if (prev) {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              const toUnload: string[] = [prev.skel, prev.atlas, prev.texture].filter((id): id is string => Boolean(id));
+              if (toUnload.length > 0) PIXI.Assets.unload(toUnload);
+            });
+          });
+        }
       } catch (err) {
         console.error(`[SlotMachine] Failed to load Spine symbol ${key}:`, err);
       }
+    }
+
+    if (didTeardown) {
+      spineTeardownInProgressRef.current = true;
+      const app = appRef.current;
+      if (app?.ticker) app.ticker.stop();
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            spineTeardownInProgressRef.current = false;
+            if (appRef.current?.ticker) appRef.current.ticker.start();
+          });
+        });
+      });
     }
   }, []);
 
@@ -2363,8 +2458,8 @@ export default function SlotMachinePreview(): JSX.Element {
       blurFiltersRef.current.delete(rc);
     }
     const keys = isInFreeSpinMode && config.bonus?.freeSpins?.retriggers === false
-      ? Object.keys(symbols).filter(key => key !== 'scatter')
-      : Object.keys(symbols);
+      ? symbolKeys.filter(key => key !== 'scatter')
+      : symbolKeys;
     if (!symbolsArr || symbolsArr.length === 0) {
       symbolsArr = Array.from({ length: rows }, () => keys[Math.floor(Math.random() * keys.length)]);
     }
@@ -2449,8 +2544,8 @@ export default function SlotMachinePreview(): JSX.Element {
     }
     if (!reelSymbolSequencesRef.current[reelIndex] || reelSymbolSequencesRef.current[reelIndex].length === 0) {
       const keys = isInFreeSpinMode && config.bonus?.freeSpins?.retriggers === false
-        ? Object.keys(symbols).filter(key => key !== 'scatter')
-        : Object.keys(symbols);
+        ? symbolKeys.filter(key => key !== 'scatter')
+        : symbolKeys;
 
       const minScrollSymbols = 30;
       const sequenceLength = minScrollSymbols + rows + 10;
@@ -2467,8 +2562,8 @@ export default function SlotMachinePreview(): JSX.Element {
 
     if (symbolSequence.length < minRequiredLength) {
       const availableKeys = isInFreeSpinMode && config.bonus?.freeSpins?.retriggers === false
-        ? Object.keys(symbols).filter(key => key !== 'scatter')
-        : Object.keys(symbols);
+        ? symbolKeys.filter(key => key !== 'scatter')
+        : symbolKeys;
 
       while (symbolSequence.length < minRequiredLength) {
         symbolSequence.push(availableKeys[Math.floor(Math.random() * availableKeys.length)]);
@@ -2873,7 +2968,7 @@ export default function SlotMachinePreview(): JSX.Element {
       quickStopRef.current?.();
       return;
     }
-    if (!Object.keys(symbols).length) return;
+    if (!symbolKeys.length) return;
 
     cleanupSymbolAnimations();
 
@@ -2909,8 +3004,8 @@ export default function SlotMachinePreview(): JSX.Element {
     setShowWinDisplay(false);
 
     const keys = isInFreeSpinMode && config.bonus?.freeSpins?.retriggers === false
-      ? Object.keys(symbols).filter(key => key !== 'scatter')
-      : Object.keys(symbols);
+      ? symbolKeys.filter(key => key !== 'scatter')
+      : symbolKeys;
 
     // Use reel strips from MathWizard when available (store-based connection)
     const latestConfig = useGameStore.getState().config as { theme?: { generated?: { reelStrips?: Array<{ reelIndex: number; symbols: string[]; length: number }> } } };
@@ -2962,8 +3057,8 @@ export default function SlotMachinePreview(): JSX.Element {
     const reelDelay = 300; // Increased delay between reels
 
     const keys = isInFreeSpinMode && config.bonus?.freeSpins?.retriggers === false
-      ? Object.keys(symbols).filter(key => key !== 'scatter')
-      : Object.keys(symbols);
+      ? symbolKeys.filter(key => key !== 'scatter')
+      : symbolKeys;
     if (keys.length === 0) {
       console.error('[startGSAPSpin] No symbols available! Cannot start spin.');
       setIsSpinning(false);
@@ -3481,7 +3576,7 @@ export default function SlotMachinePreview(): JSX.Element {
 
   useEffect(() => {
     const updateSize = () => {
-      if (pausedForTeardownRef.current) return;
+      if (pausedForTeardownRef.current || spineTeardownInProgressRef.current) return;
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       setRenderSize({ width: rect.width, height: rect.height });
@@ -3492,7 +3587,7 @@ export default function SlotMachinePreview(): JSX.Element {
     let resizeObserver: ResizeObserver | null = null;
     if (containerRef.current && typeof ResizeObserver !== 'undefined') {
       resizeObserver = new ResizeObserver((entries) => {
-        if (pausedForTeardownRef.current) return; // Don't trigger layout during step transition
+        if (pausedForTeardownRef.current || spineTeardownInProgressRef.current) return;
         for (const entry of entries) {
           const { width, height } = entry.contentRect;
           if (width > 0 && height > 0) {
@@ -3873,17 +3968,32 @@ export default function SlotMachinePreview(): JSX.Element {
           rc.addChild(symbolContainer);
         }
       } else if (currentSymbolCount > requiredSymbolCount) {
+        const toDestroyLater: PIXI.Container[] = [];
         for (let r = currentSymbolCount - 1; r >= requiredSymbolCount; r--) {
-          const symbolContainer = rc.children[r];
+          const symbolContainer = rc.children[r] as PIXI.Container;
           if (symbolContainer && symbolContainer.parent) {
             if (symbolContainer.children.length > 1) {
               const spine = symbolContainer.children[1] as Spine;
-              const poolKey = (spine as any).__symbolKey;
-              if (poolKey) returnSpineToPool(poolKey, spine);
+              if (spine && !(spine as any).destroyed) {
+                const poolKey = (spine as any).__symbolKey;
+                if (poolKey) returnSpineToPool(poolKey, spine);
+                spine.parent?.removeChild(spine);
+              }
             }
             symbolContainer.parent.removeChild(symbolContainer);
-            symbolContainer.destroy({ children: true });
+            toDestroyLater.push(symbolContainer);
           }
+        }
+        if (toDestroyLater.length > 0) {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              toDestroyLater.forEach(c => {
+                try {
+                  if (c && !(c as any).destroyed) c.destroy({ children: true });
+                } catch (_) { /* ignore */ }
+              });
+            });
+          });
         }
       }
     }
@@ -3898,8 +4008,8 @@ export default function SlotMachinePreview(): JSX.Element {
     if (!currentGrid || currentGrid.length !== currentReels ||
       (currentGrid[0] && currentGrid[0].length !== currentRows)) {
       const availableKeys = isInFreeSpinMode && config.bonus?.freeSpins?.retriggers === false
-        ? Object.keys(symbols).filter(key => key !== 'scatter')
-        : Object.keys(symbols);
+        ? symbolKeys.filter(key => key !== 'scatter')
+        : symbolKeys;
       const newGrid = Array.from({ length: currentReels }, () =>
         Array.from({ length: currentRows }, () => {
           return availableKeys.length > 0 ? availableKeys[Math.floor(Math.random() * availableKeys.length)] : 'low1';
@@ -3907,7 +4017,7 @@ export default function SlotMachinePreview(): JSX.Element {
       );
       setCurrentGrid(newGrid);
     }
-  }, [reels, rows, config.reels?.layout?.reels, config.reels?.layout?.rows, symbols]);
+  }, [reels, rows, config.reels?.layout?.reels, config.reels?.layout?.rows, symbolKeys]);
 
   // Resize PIXI app and move canvas when viewMode changes
   useEffect(() => {
@@ -3928,11 +4038,15 @@ export default function SlotMachinePreview(): JSX.Element {
           }
 
           const rect = containerRef.current.getBoundingClientRect();
-          if (rect.width > 0 && rect.height > 0 && !pausedForTeardownRef.current) {
+          if (rect.width > 0 && rect.height > 0 && !pausedForTeardownRef.current && !spineTeardownInProgressRef.current) {
             setRenderSize({ width: rect.width, height: rect.height });
-            appRef.current.renderer.resize(rect.width, rect.height);
-            renderGrid();
-            updateSpinePosition();
+            try {
+              appRef.current.renderer.resize(rect.width, rect.height);
+              renderGrid();
+              updateSpinePosition();
+            } catch (e) {
+              console.warn('[SlotMachine] Resize/render skipped (teardown or invalid state):', e);
+            }
           }
         }
       }, 150);
@@ -3944,41 +4058,44 @@ export default function SlotMachinePreview(): JSX.Element {
     const currentSymbols = config.theme?.generated?.symbols;
     const hasSymbols = currentSymbols && typeof currentSymbols === 'object' && !Array.isArray(currentSymbols) && Object.keys(currentSymbols).length > 0;
     if (!hasSymbols) {
-      if (previousSymbolsRef.current === '') {
-        previousSymbolsRef.current = '{}';
-      }
+      if (previousSymbolsRef.current === '') previousSymbolsRef.current = '{}';
       return;
     }
 
     const currentSymbolsStr = JSON.stringify(currentSymbols);
+    if (currentSymbolsStr === previousSymbolsRef.current) return;
+    previousSymbolsRef.current = currentSymbolsStr;
 
-    if (currentSymbolsStr !== previousSymbolsRef.current) {
-      previousSymbolsRef.current = currentSymbolsStr;
-      preloadTextures().then(() => loadSpineSymbolAssets()).then(() => {
-        if (appRef.current) {
-          renderGrid();
-        }
-      }).catch(error => {
-        console.error('[SlotMachine] Error reloading textures:', error);
-      });
-    }
+    preloadTextures().then(() => loadSpineSymbolAssets()).then(() => {
+      if (appRef.current) {
+        renderGrid();
+      }
+    }).catch(error => {
+      console.error('[SlotMachine] Error reloading textures:', error);
+    });
   }, [config.theme?.generated?.symbols, preloadTextures, loadSpineSymbolAssets]);
 
   // Delayed retry for texture load - handles async config/store hydration when opening project first time
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (Object.keys(symbols).length > 0 && appRef.current) {
+      if (symbolKeys.length > 0 && appRef.current) {
         preloadTextures().then(() => loadSpineSymbolAssets()).then(() => {
           if (appRef.current) renderGrid();
         }).catch(() => { });
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [symbols, preloadTextures, loadSpineSymbolAssets]);
+  }, [symbolKeys, preloadTextures, loadSpineSymbolAssets]);
 
   useEffect(() => {
-    if (pausedForTeardownRef.current) return; // Don't modify stage during step transition
-    if (appRef.current && reelContainersRef.current?.length) renderGrid();
+    if (pausedForTeardownRef.current || spineTeardownInProgressRef.current) return;
+    if (appRef.current && reelContainersRef.current?.length) {
+      try {
+        renderGrid();
+      } catch (e) {
+        console.warn('[SlotMachine] renderGrid skipped:', e);
+      }
+    }
   }, [currentGrid, renderSize, gridAdjustments, frameConfig, maskControls, isSpinning]);
 
   // Reposition Spine character when preview size or layout changes
@@ -4667,75 +4784,14 @@ export default function SlotMachinePreview(): JSX.Element {
       }
     };
 
-    const handleSymbolsChanged = async (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const detail = customEvent.detail;
-      try {
-        await new Promise(resolve => setTimeout(resolve, 200));
-
-        const latestConfig = useGameStore.getState().config;
-        const latestSymbolsRaw = latestConfig?.theme?.generated?.symbols;
-        const latestSymbols: Record<string, string> = (typeof latestSymbolsRaw === 'object' && !Array.isArray(latestSymbolsRaw))
-          ? latestSymbolsRaw
-          : {};
-        if (detail.forceRefresh) {
-          console.log('[SlotMachine] Force refresh requested, reloading all textures');
-        }
-
-        await SymbolPreloader.waitForReady();
-        const map: Record<string, PIXI.Texture> = {};
-
-        for (const [k, url] of Object.entries(latestSymbols)) {
-          if (!url || url === '') {
-            continue;
-          }
-          let texture: PIXI.Texture | null = null;
-
-          if (detail.forceRefresh && detail.symbolKey === k) {
-            try {
-              texture = await Assets.load(url) as PIXI.Texture;
-            } catch (error) {
-              console.error(`[SlotMachine] Failed to force-load symbol ${k}:`, error);
-            }
-          } else {
-            // Prefer texture for this config URL (uploaded symbol) so spin keeps new symbol
-            texture = SymbolPreloader.getTexture(url) || null;
-            if (!texture) {
-              texture = await SymbolPreloader.waitForSymbol(url, 10000);
-              if (!texture) {
-                try {
-                  const newTexture = await Assets.load(url) as PIXI.Texture;
-                  if (newTexture) texture = newTexture;
-                } catch (error) {
-                  console.error(`[SlotMachine] Failed to load symbol ${k}:`, error);
-                }
-              }
-            }
-            if (!texture) {
-              texture = SymbolPreloader.getTexture(k);
-            }
-          }
-
-          if (texture) {
-            map[k] = texture;
-          } else {
-            const predefinedTexture = SymbolPreloader.getTexture(k);
-            if (predefinedTexture) {
-              map[k] = predefinedTexture;
-            } else {
-              console.warn(`⚠️ Symbol ${k} not available, using fallback`);
-              map[k] = PIXI.Texture.WHITE;
-            }
-          }
-        }
-        await loadSpineSymbolAssets();
-        texturesRef.current = map;
-        if (appRef.current) {
+    // Single source of truth: symbol/spine reload is done by the effect (config.theme.generated). This handler
+    // only triggers a re-render so the grid updates if the effect hasn't run yet (e.g. store from different tab).
+    const handleSymbolsChanged = () => {
+      setTimeout(() => {
+        if (appRef.current && reelContainersRef.current?.length && renderGrid) {
           renderGrid();
         }
-      } catch (error) {
-        console.error('[SlotMachine] Error reloading textures after symbols change:', error);
-      }
+      }, 150);
     };
 
     window.addEventListener('backgroundUpdated', handleBackgroundUpdated as EventListener);
@@ -4761,6 +4817,35 @@ export default function SlotMachinePreview(): JSX.Element {
       pausedForTeardownRef.current = true;
       const app = appRef.current;
       const container = containerRef.current;
+
+      // ── FIRST: detach all Spine symbol instances from the scene graph.
+      // Spine uses stencil/clipping masks; if the ticker processes a Spine
+      // that gets destroyed (by loadSpineSymbolAssets), the batcher encounters
+      // null geometry → StencilMaskPipe.pop → null.clear crash.
+      spineSymbolPoolRef.current.forEach(pool => {
+        pool.forEach(s => {
+          if (s && !(s as any).destroyed && s.parent) {
+            s.parent.removeChild(s);
+            s.visible = false;
+          }
+        });
+      });
+      // Also sweep Spine children still attached to reel containers.
+      reelContainersRef.current.forEach(rc => {
+        if (!rc || rc.destroyed) return;
+        [...rc.children].forEach(child => {
+          const c = child as PIXI.Container;
+          if (!c.children) return;
+          [...c.children].forEach(grandchild => {
+            if (grandchild instanceof Spine && !(grandchild as any).destroyed) {
+              c.removeChild(grandchild);
+              grandchild.visible = false;
+            }
+          });
+        });
+      });
+
+      // ── THEN: stop the ticker so no new frames start.
       if (app && container) {
         app.ticker.stop();
         if (app.canvas?.parentNode) app.canvas.parentNode.removeChild(app.canvas);
