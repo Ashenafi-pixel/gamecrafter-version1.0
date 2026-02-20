@@ -1,5 +1,6 @@
 import { SymbolConfig } from "../../types/EnhancedAnimationLabStep4";
-import SpinePlayer from "../spine/SpinePlayer"; // Import SpinePlayer
+import SpinePlayer from "../spine/SpinePlayer";
+import SpineSymbolPreview from "./SpineSymbolPreview";
 
 interface SymbolCarouselItemProps {
   symbol: SymbolConfig;
@@ -86,6 +87,15 @@ const SymbolCarouselItem: React.FC<SymbolCarouselItemProps> = ({
               isPlaying={isSelected}
             />
           </div>
+        ) : symbol.spineAsset ? (
+          <div className="w-full h-full flex items-center justify-center">
+            <SpineSymbolPreview
+              asset={symbol.spineAsset}
+              width={90}
+              height={90}
+              idle={true}
+            />
+          </div>
         ) : symbol.imageUrl ? (
           <img
             src={symbol.imageUrl}
@@ -109,8 +119,8 @@ const SymbolCarouselItem: React.FC<SymbolCarouselItemProps> = ({
           </div>
         )}
 
-        {/* Completion Badge */}
-        {symbol.imageUrl && (
+        {/* Completion Badge - show for image or Spine (uploaded/generated) */}
+        {(symbol.imageUrl || symbol.spineAsset) && (
           <div className="absolute top-2 right-2 w-4 h-4 uw:h-6 uw:w-6 bg-green-500 rounded-full border-2 border-white flex items-center justify-center">
             <span className="text-white text-xs uw:text-2xl">✓</span>
           </div>
@@ -125,7 +135,9 @@ const SymbolCarouselItem: React.FC<SymbolCarouselItemProps> = ({
 
       {/* UW Preview for slides (shows on hover at uw breakpoint) */}
       <div className="hidden uw:group-hover:flex absolute left-1/2 -top-4 transform -translate-x-1/2 -translate-y-full w-[260px] h-[260px] bg-white rounded-lg shadow-xl items-center justify-center p-3 z-50 pointer-events-none">
-        {symbol.imageUrl ? (
+        {symbol.spineAsset ? (
+          <SpineSymbolPreview asset={symbol.spineAsset} width={220} height={220} idle={true} />
+        ) : symbol.imageUrl ? (
           <img src={symbol.imageUrl} alt={symbol.name} className="max-w-full max-h-full object-contain" />
         ) : (
           <div className="flex flex-col items-center text-gray-400">

@@ -1,5 +1,6 @@
 import { SpriteElement } from "../utils/professionalSpriteAtlas";
 import { SpriteAnimation } from "../utils/simpleAnimationEngine";
+import type { SymbolSpineAsset } from "../types";
 
 export interface SymbolConfig {
   id: string;
@@ -11,13 +12,10 @@ export interface SymbolConfig {
   prompt: string;
   animationComplexity: 'simple' | 'medium' | 'complex';
   imageUrl?: string | undefined;
-  spineData?: {
-    atlas: string;
-    skel: string;
-    texture: string;
-  };
-  src?: string;
-  templateExtracted?: any;
+  /** When set, this symbol is displayed as Spine (animated) instead of image. */
+  spineAsset?: SymbolSpineAsset;
+  src?:string ;
+  templateExtracted?:any;
   spriteElements?: SpriteElement[];
   animations?: SpriteAnimation[];
   atlasResult?: any;
@@ -43,8 +41,8 @@ export interface PresetConfig {
   recommendedFor: string;
   estimatedRTP: string;
   suggestedFeatures: string[];
-  symbols: Array<{
-    type: 'wild' | 'wild 2' | 'scatter' | 'high 1' | 'high 2' | 'high 3' | 'high 4' | 'medium 1' | 'medium 2' | 'medium 3' | 'medium 4' | 'low 1' | 'low 2' | 'low 3' | 'low 4' | 'bonus' | 'jackpot';
+  symbols: Array<{ 
+    type: 'wild' | 'wild 2' | 'scatter' | 'high 1' | 'high 2' | 'high 3' | 'high 4' | 'medium 1' | 'medium 2' | 'medium 3' | 'medium 4' | 'low 1' | 'low 2' | 'low 3' | 'low 4' | 'bonus' | 'jackpot'; 
     count: number;
     importance: number;
     rarity: 'common' | 'rare' | 'epic' | 'legendary';

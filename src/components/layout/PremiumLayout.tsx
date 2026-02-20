@@ -14,6 +14,7 @@ import VerticalStepSidebar from '../navigation/VerticalStepSidebar';
 import { Stepper } from '../visual-journey/steps-working/Step11_EnhancedAudio/Stepper';
 import SlotMachinePreview from '../mockups/SlotMachine';
 import ScratchGridPreview from '../visual-journey/scratch-steps/ScratchGridPreview';
+import { prepareStepTransition } from '../../utils/stepTransitionCoordinator';
 
 interface PremiumLayoutProps {
   children: React.ReactNode;
@@ -134,8 +135,7 @@ const PremiumLayout: React.FC<PremiumLayoutProps> = ({
   // Handle direct step navigation
   const handleStepClick = (stepNumber: number) => {
     if (stepNumber !== currentStep) {
-      // Use the store's setStep function for reliable navigation
-      useGameStore.getState().setStep(stepNumber);
+      prepareStepTransition(currentStep, stepNumber, () => useGameStore.getState().setStep(stepNumber));
     }
   };
 
