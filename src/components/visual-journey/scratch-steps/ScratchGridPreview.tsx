@@ -129,52 +129,17 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
     const wrapperRef = React.useRef<HTMLDivElement>(null!);
     const [fitScale, setFitScale] = useState(1);
 
-    // [NEW] Calculate Total Visual Bounds (Card + Pop-out Mascot/Logo)
+    // [FINAL] Absolute Card Locking
+    // The card is the "boss". It stays at maximum size. 
+    // Pop-outs/Logo transforms NEVER affect the zoom level.
     const visualBounds = useMemo(() => {
-        let minX = 0;
-        let maxX = CARD_WIDTH;
-        let minY = 0;
-        let maxY = CARD_HEIGHT;
-
-        const mascot = config.scratch?.mascot;
-        const logo = config.scratch?.logo;
-
-        // Account for Mascot
-        if (mascot?.type === 'image' && mascot.image) {
-            const mx = (CARD_WIDTH / 2) + (mascot.customPosition?.x || 0);
-            const my = (CARD_HEIGHT / 2) + (mascot.customPosition?.y || 0);
-            const mSize = (CARD_HEIGHT * (mascot.scale || 100)) / 100;
-            // Refined heuristic: Mascots are usually ~0.6 width of height
-            minX = Math.min(minX, mx - (mSize * 0.3));
-            maxX = Math.max(maxX, mx + (mSize * 0.3));
-            minY = Math.min(minY, my - (mSize * 0.5));
-            maxY = Math.max(maxY, my + (mSize * 0.5));
-        }
-
-        // Account for Logo (Pop-out)
-        if (logo?.image && logo.layout !== 'integrated') {
-            const lx = (CARD_WIDTH / 2) + (logo.customPosition?.x || 0);
-            const ly = (logo.customPosition?.y ?? -180);
-            const lScale = (logo.scale || 100) / 100;
-            const lW = 280 * lScale;
-            minX = Math.min(minX, lx - lW / 2);
-            maxX = Math.max(maxX, lx + lW / 2);
-            minY = Math.min(minY, ly);
-        }
-
-        // Calculate "Max Distance" from card center to keep CARD centered visually
-        // Horizontal: dist from 160
-        const maxDistX = Math.max(160 - minX, maxX - 160);
-        // Vertical: dist from 230
-        const maxDistY = Math.max(230 - minY, maxY - 230);
-
         return {
-            width: maxDistX * 2,
-            height: maxDistY * 2,
-            offsetX: 0, // Keep card centered horizontally
-            offsetY: (minY + maxY) / 2 - (CARD_HEIGHT / 2) // Maintain vertical balance
+            width: CARD_WIDTH,
+            height: CARD_HEIGHT,
+            offsetX: 0,
+            offsetY: 0
         };
-    }, [config.scratch?.mascot, config.scratch?.logo, CARD_WIDTH, CARD_HEIGHT]);
+    }, [CARD_WIDTH, CARD_HEIGHT]);
 
     useEffect(() => {
         if (!wrapperRef.current) return;
@@ -185,7 +150,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
             const marginX = width <= 640 ? 40 : 60;
             const marginY = width <= 640 ? 100 : 180;
 
-            // Use visualBounds.width instead of fixed CARD_WIDTH
+            // [FINAL] Absolute Card Locking — scale fills available space, never shrinks for pop-outs
             const s = Math.min(
                 (width - marginX) / visualBounds.width,
                 (height - marginY) / visualBounds.height
@@ -694,12 +659,12 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                    The user fits the grid INTO this frame window.
                 */}
                 {/* Card Anchor (Fixed 320x460 Center, Scaled to Fit) */}
+                {/* [FINAL] Absolute Card Locking: card is ALWAYS max scale. Pop-outs never affect zoom. */}
                 <div
                     className="relative z-10 origin-center rounded-xl"
                     style={{
                         width: `${CARD_WIDTH}px`,
                         height: `${CARD_HEIGHT}px`,
-                        // [FIX] Apply fitScale and translate to keep the ENTIRE scene (including side mascots) centered
                         transform: `scale(${fitScale}) translate(${-visualBounds.offsetX}px, ${-visualBounds.offsetY}px)`
                     }}
                 >
@@ -760,39 +725,40 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                     )}
 
                     {/* MASCOTS LAYER (Independent) */}
-                    {config.scratch?.mascot?.type === 'image' && config.scratch.mascot.image && (
-                        /* OUTER CONTAINER: Handles Layout Position (X/Y) */
-                        <div
-                            className="absolute z-50 pointer-events-none flex items-center justify-center w-full h-full"
-                            style={{
-                                top: 0,
-                                left: 0,
-                                transform: `translate(${config.scratch.mascot.customPosition?.x || 0}px, ${config.scratch.mascot.customPosition?.y || 0}px)`
-                            }}
-                        >
-                            {/* INNER CONTAINER: Handles Animation (Bounce/Pulse override transforms) */}
-                            <div className={`
-                                w-full h-full flex items-center justify-center
-                                ${config.scratch.mascot.animation === 'bounce' ? 'animate-bounce' : ''}
-                                ${config.scratch.mascot.animation === 'pulse' ? 'animate-pulse' : ''}
-                                ${config.scratch.mascot.animation === 'float' ? 'animate-pulse' : '' /* Fallback if float missing */} 
-                                ${config.scratch.mascot.animation === 'wave' ? 'animate-spin' : '' /* Fallback if wave missing */}
-                            `}>
-                                {/* IMAGE: Handles Scale */}
-                                <img
-                                    src={config.scratch.mascot.image}
-                                    className="object-contain drop-shadow-2xl transition-transform"
-                                    style={{
-                                        // [FIX] Use Height Percentage relative to Card Height (460px).
-                                        // This ensures consistency with Export logic and normalized sizing.
-                                        height: `${config.scratch.mascot.scale ?? 100}%`,
-                                        width: 'auto'
-                                    }}
-                                    alt="Mascot"
-                                />
+                    {config.scratch?.mascot?.type === 'image' && config.scratch.mascot.image && (() => {
+                        const mascotScale = config.scratch.mascot.scale ?? 100;
+                        const mascotX = config.scratch.mascot.customPosition?.x || 0;
+                        const mascotY = config.scratch.mascot.customPosition?.y || 0;
+                        const mascotH = mascotScale * 4.6; // 100% = 460px = CARD_HEIGHT
+                        const animClass =
+                            config.scratch.mascot.animation === 'bounce' ? 'animate-bounce' :
+                                config.scratch.mascot.animation === 'pulse' ? 'animate-pulse' :
+                                    config.scratch.mascot.animation === 'float' ? 'animate-pulse' :
+                                        config.scratch.mascot.animation === 'wave' ? 'animate-spin' : '';
+                        return (
+                            /* Full-card overlay, flex-centered. translate moves mascot from center. */
+                            <div
+                                className="absolute z-50 pointer-events-none flex items-center justify-center"
+                                style={{
+                                    top: 0, left: 0,
+                                    width: `${CARD_WIDTH}px`,
+                                    height: `${CARD_HEIGHT}px`,
+                                }}
+                            >
+                                <div
+                                    className={`flex items-center justify-center ${animClass}`}
+                                    style={{ transform: `translate(${mascotX}px, ${mascotY}px)` }}
+                                >
+                                    <img
+                                        src={config.scratch.mascot.image}
+                                        className="object-contain drop-shadow-2xl"
+                                        style={{ height: `${mascotH}px`, width: 'auto', display: 'block' }}
+                                        alt="Mascot"
+                                    />
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        );
+                    })()}
 
                     {/* Legacy Mascots */}
                     {config.scratch?.layers?.overlay?.mascots?.map((mascot, i) => (
@@ -1015,25 +981,27 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
             />
 
             {/* Custom Cursor (Visual Only) */}
-            {showCursor && (
-                <div
-                    className="fixed pointer-events-none z-[9999] flex items-center justify-center transition-transform duration-75"
-                    style={{
-                        left: cursorPos.x,
-                        top: cursorPos.y,
-                        width: `${brushSize * fitScale}px`,
-                        height: `${brushSize * fitScale}px`,
-                        transformOrigin: 'center center',
-                        transform: `translate(-50%, -50%) ${isScratching ? 'scale(0.95)' : 'scale(1)'}`
-                    }}
-                >
-                    {brushUrl ? (
-                        <img src={brushUrl} className="w-full h-full object-contain drop-shadow-lg" />
-                    ) : (
-                        <div className="w-full h-full rounded-full border-2 border-white/50 bg-black/20 backdrop-blur-sm" />
-                    )}
-                </div>
-            )}
+            {
+                showCursor && (
+                    <div
+                        className="fixed pointer-events-none z-[9999] flex items-center justify-center transition-transform duration-75"
+                        style={{
+                            left: cursorPos.x,
+                            top: cursorPos.y,
+                            width: `${brushSize * fitScale}px`,
+                            height: `${brushSize * fitScale}px`,
+                            transformOrigin: 'center center',
+                            transform: `translate(-50%, -50%) ${isScratching ? 'scale(0.95)' : 'scale(1)'}`
+                        }}
+                    >
+                        {brushUrl ? (
+                            <img src={brushUrl} className="w-full h-full object-contain drop-shadow-lg" />
+                        ) : (
+                            <div className="w-full h-full rounded-full border-2 border-white/50 bg-black/20 backdrop-blur-sm" />
+                        )}
+                    </div>
+                )
+            }
 
             {/* 2. Controls (Bottom) */}
             <div className="relative z-50 border-t border-gray-800">
@@ -1051,7 +1019,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                     rulesConfig={config.gameRules}
                 />
             </div>
-        </div >
+        </div>
     );
 };
 

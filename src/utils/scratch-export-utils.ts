@@ -1379,40 +1379,13 @@ function setupScene() {
 
     // Unified Resize Handler for Mobile/Desktop parity
     var updateLayout = () => {
-        // [NEW] Calculate Total Visual Bounds (Card + Pop-out Mascot/Logo)
-        var minX = 0, maxX = CARD_WIDTH, minY = 0, maxY = CARD_HEIGHT;
-        var mascotConf = (config.scratch && config.scratch.mascot) || {};
-        var logoConf = (config.scratch && config.scratch.logo) || {};
-
-        if (mascotConf.type === 'image' && mascotConf.image) {
-            var mx = (CARD_WIDTH / 2) + (mascotConf.customPosition?.x || 0);
-            var my = (CARD_HEIGHT / 2) + (mascotConf.customPosition?.y || 0);
-            var mSize = (CARD_HEIGHT * (mascotConf.scale || 100)) / 100;
-            // Refined heuristic: Mascots are usually ~0.6 width of height
-            minX = Math.min(minX, mx - (mSize * 0.3)); 
-            maxX = Math.max(maxX, mx + (mSize * 0.3));
-            minY = Math.min(minY, my - (mSize * 0.5));
-            maxY = Math.max(maxY, my + (mSize * 0.5));
-        }
-        if (logoConf.image && logoConf.layout !== 'integrated') {
-            var lx = (CARD_WIDTH / 2) + (logoConf.customPosition?.x || 0);
-            var ly = (logoConf.customPosition?.y ?? -180);
-            var lScale = (logoConf.scale || 100) / 100;
-            var lW = 280 * lScale;
-            minX = Math.min(minX, lx - lW / 2);
-            maxX = Math.max(maxX, lx + lW / 2);
-            minY = Math.min(minY, ly);
-        }
-
-        // Horizontal: dist from 160
-        var maxDistX = Math.max(160 - minX, maxX - 160);
-        // Vertical: dist from 230
-        var maxDistY = Math.max(230 - minY, maxY - 230);
-
-        var totalW = maxDistX * 2;
-        var totalH = maxDistY * 2;
-        var vOffsetX = 0; // Keep card centered horizontally
-        var vOffsetY = (minY + maxY) / 2 - (CARD_HEIGHT / 2);
+        // [FINAL] Absolute Card Locking
+        // The card is the "boss". It stays at maximum size. 
+        // Pop-outs/Logo transforms NEVER affect the zoom level.
+        var totalW = CARD_WIDTH;
+        var totalH = CARD_HEIGHT;
+        var vOffsetX = 0;
+        var vOffsetY = 0;
 
         // 1. Background Scaling
         if (bgContainer.children.length > 0) {
@@ -1430,9 +1403,13 @@ function setupScene() {
         // 2. Card Scaling & Centering
         var footerH = window.innerWidth <= 640 ? 80 : 70;
         var marginX = window.innerWidth <= 640 ? 40 : 60;
-        var marginY = window.innerWidth <= 640 ? 100 : 180;
-        
-        // Use totalW/totalH for scaling
+        // [FIX] Include footerH in marginY: app.screen.height is the FULL canvas (includes footer area),
+        // but the preview wrapperRef already excludes the footer. Without adding footerH here,
+        // the export card scales ~15% larger than the preview at the same screen size.
+        var marginY = window.innerWidth <= 640 ? (100 + footerH) : (180 + footerH);
+
+        // [FINAL] Absolute Card Locking: card fills available space at max scale.
+        // Logo/Mascot pop-outs NEVER affect zoom. Designer adjusts their scale/position if needed.
         fitScale = Math.min((app.screen.width - marginX) / totalW, (app.screen.height - marginY) / totalH);
         cardAnchor.scale.set(fitScale);
         cardAnchor.x = (app.screen.width / 2) - (vOffsetX * fitScale);
