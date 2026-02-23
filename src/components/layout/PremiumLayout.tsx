@@ -14,7 +14,6 @@ import VerticalStepSidebar from '../navigation/VerticalStepSidebar';
 import { Stepper } from '../visual-journey/steps-working/Step11_EnhancedAudio/Stepper';
 import SlotMachinePreview from '../mockups/SlotMachine';
 import ScratchGridPreview from '../visual-journey/scratch-steps/ScratchGridPreview';
-import { prepareStepTransition } from '../../utils/stepTransitionCoordinator';
 
 interface PremiumLayoutProps {
   children: React.ReactNode;
@@ -135,7 +134,8 @@ const PremiumLayout: React.FC<PremiumLayoutProps> = ({
   // Handle direct step navigation
   const handleStepClick = (stepNumber: number) => {
     if (stepNumber !== currentStep) {
-      prepareStepTransition(currentStep, stepNumber, () => useGameStore.getState().setStep(stepNumber));
+      // Use the store's setStep function for reliable navigation
+      useGameStore.getState().setStep(stepNumber);
     }
   };
 
@@ -497,24 +497,38 @@ const PremiumLayout: React.FC<PremiumLayoutProps> = ({
               })}
 
               {/* Step 5: Production */}
-              {currentStep === 4 && PRODUCTION_TABS.map((step, idx) => {
-                const isActive = idx === scratchProductionStep;
-                const Icon = step.icon;
-                return (
+              {currentStep === 4 && (
+                <div className="flex items-center gap-2">
+                  {PRODUCTION_TABS.map((step, idx) => {
+                    const isActive = idx === scratchProductionStep;
+                    const Icon = step.icon;
+                    return (
+                      <button
+                        key={step.id}
+                        onClick={() => setScratchProductionStep(idx)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-base font-bold transition-all whitespace-nowrap
+                                          ${isActive
+                            ? 'bg-green-50 text-green-600 shadow-sm border border-green-200'
+                            : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}
+                                      `}
+                      >
+                        <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
+                        <span className="">{step.label}</span>
+                      </button>
+                    );
+                  })}
+
+                  <div className="h-6 w-px bg-gray-200 mx-2" />
+
                   <button
-                    key={step.id}
-                    onClick={() => setScratchProductionStep(idx)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-base font-bold transition-all whitespace-nowrap
-                                      ${isActive
-                        ? 'bg-green-50 text-green-600 shadow-sm border border-green-200'
-                        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}
-                                  `}
+                    onClick={onPreview}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-base font-bold transition-all whitespace-nowrap text-blue-600 hover:bg-blue-50 border border-blue-100 shadow-sm"
                   >
-                    <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
-                    <span className="">{step.label}</span>
+                    <Gamepad2 size={18} />
+                    <span>Preview</span>
                   </button>
-                );
-              })}
+                </div>
+              )}
             </div>
           )}
 
@@ -619,7 +633,7 @@ const PremiumLayout: React.FC<PremiumLayoutProps> = ({
 
 
 
-                {currentStep >= 5 && ( // Replaced >= 4 with >= 5 to hide Test/Exporter for Step 5 (Index 4)
+                {currentStep >= 5 && ( // Hide Test/Exporter for Step 5 (Index 4) as per previous design
                   <div className='flex gap-2'>
                     <button
                       onClick={onPreview}

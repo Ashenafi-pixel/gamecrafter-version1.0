@@ -9,12 +9,14 @@ import { GameControls } from './GameControls';
 
 interface ScratchGridPreviewProps {
     className?: string;
-    mode?: 'layout' | 'mechanics' | 'assets';
+    mode?: 'layout' | 'mechanics' | 'assets' | 'full';
+    isResponsive?: boolean;
 }
 
 const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
     className = '',
     mode = 'layout',
+    isResponsive = false
 }) => {
     const { config } = useGameStore();
 
@@ -129,17 +131,73 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
     const wrapperRef = React.useRef<HTMLDivElement>(null!);
     const [fitScale, setFitScale] = useState(1);
 
-    // [FINAL] Absolute Card Locking
-    // The card is the "boss". It stays at maximum size. 
-    // Pop-outs/Logo transforms NEVER affect the zoom level.
+    // [FINAL] Content-Aware Scaling (Card-Centric)
+    // We calculate the maximum distance from the card center to ensure
+    // all elements (mascots, logos) are visible, while keeping the card
+    // fixed in the center of the viewport.
     const visualBounds = useMemo(() => {
+        const cardCenterX = CARD_WIDTH / 2;
+        const cardCenterY = CARD_HEIGHT / 2;
+
+        let maxDistX = CARD_WIDTH / 2;
+        let maxDistY = CARD_HEIGHT / 2;
+
+        // 1. Primary Mascot extent
+        const mascotConfig = (config.scratch?.mascot || {}) as any;
+        const mascotUrl = mascotConfig.image || (config.theme?.generated as any)?.mascot;
+
+        if (mascotUrl) {
+            const mX = cardCenterX + (mascotConfig.customPosition?.x || 0);
+            const mY = cardCenterY + (mascotConfig.customPosition?.y || 0);
+            const mScale = (mascotConfig.scale || 100) / 100;
+            const mFullH = CARD_HEIGHT * mScale;
+            const mFullW = mFullH * 0.8;
+
+            maxDistX = Math.max(maxDistX, Math.abs(mX - cardCenterX) + mFullW / 2);
+            maxDistY = Math.max(maxDistY, Math.abs(mY - cardCenterY) + mFullH / 2);
+        }
+
+        // 2. Legacy/Overlay Mascots (Stickers)
+        const overlayMascots = config.scratch?.layers?.overlay?.mascots || [];
+        overlayMascots.forEach(mascot => {
+            const mScale = mascot.scale || 1;
+            const mWidth = 120 * mScale;
+            let mX = cardCenterX;
+            let mY = cardCenterY;
+
+            if (mascot.position.includes('left')) mX = -30;
+            if (mascot.position.includes('right')) mX = CARD_WIDTH + 30;
+            if (mascot.position.includes('top')) mY = -30;
+            if (mascot.position.includes('bottom')) mY = CARD_HEIGHT + 30;
+
+            maxDistX = Math.max(maxDistX, Math.abs(mX - cardCenterX) + mWidth / 2);
+            maxDistY = Math.max(maxDistY, Math.abs(mY - cardCenterY) + mWidth / 2);
+        });
+
+        // 3. Logo extent
+        const logoConfig = (config.scratch?.logo || {}) as any;
+        const logoUrl = logoConfig.image || (config.theme?.generated as any)?.logo;
+
+        if (logoUrl && logoConfig.layout !== 'integrated') {
+            const lX = cardCenterX + (logoConfig.customPosition?.x || 0);
+            const lY = logoConfig.customPosition?.y ?? -180;
+            const lScale = (logoConfig.scale || 100) / 100;
+            const lWidth = 280 * lScale;
+            const lHeight = 150 * lScale;
+
+            maxDistX = Math.max(maxDistX, Math.abs(lX - cardCenterX) + lWidth / 2);
+
+            // For Y, we treat the card as the pivot, so distance from center:
+            const logoBottom = lY + lHeight;
+            const logoTop = lY;
+            maxDistY = Math.max(maxDistY, Math.abs(logoTop - cardCenterY), Math.abs(logoBottom - cardCenterY));
+        }
+
         return {
-            width: CARD_WIDTH,
-            height: CARD_HEIGHT,
-            offsetX: 0,
-            offsetY: 0
+            width: maxDistX * 2,
+            height: maxDistY * 2
         };
-    }, [CARD_WIDTH, CARD_HEIGHT]);
+    }, [config.scratch, config.theme, CARD_WIDTH, CARD_HEIGHT]);
 
     useEffect(() => {
         if (!wrapperRef.current) return;
@@ -147,13 +205,19 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
             const { width, height } = wrapperRef.current!.getBoundingClientRect();
             if (width === 0 || height === 0) return;
 
-            const marginX = width <= 640 ? 40 : 60;
-            const marginY = width <= 640 ? 100 : 180;
+            const isDesktop = width > 640;
+            const marginX = isDesktop ? 60 : 40;
+            const marginY = isDesktop ? 180 : 100;
 
-            // [FINAL] Absolute Card Locking — scale fills available space, never shrinks for pop-outs
+            // [FIX] Differentiate between Editor (Fixed) and Preview (Responsive):
+            // In responsive mode (Test Game), we scale for the whole visual area.
+            // In design view, we scale for the CARD frame so it stays a fixed size.
+            const targetW = isResponsive ? (visualBounds.width || CARD_WIDTH) : CARD_WIDTH;
+            const targetH = isResponsive ? (visualBounds.height || CARD_HEIGHT) : CARD_HEIGHT;
+
             const s = Math.min(
-                (width - marginX) / visualBounds.width,
-                (height - marginY) / visualBounds.height
+                (width - marginX) / targetW,
+                (height - marginY) / targetH
             );
             setFitScale(s > 0 ? s : 1);
         };
@@ -161,7 +225,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
         observer.observe(wrapperRef.current);
         updateScale();
         return () => observer.disconnect();
-    }, [visualBounds]);
+    }, [visualBounds, CARD_WIDTH, CARD_HEIGHT]);
 
     // --- Transform & Layout Extraction (Moved up for Hook Dependency) ---
     // 1. Card Container (Frame Config) - Controls Frame position on screen
@@ -654,43 +718,31 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                     }}
                 />
 
-                {/* Card Container */
-                /* NOTE: We now use a FIXED size container for the "Card Logic" so the Frame doesn't stretch when we resize the internal grid.
-                   The user fits the grid INTO this frame window.
-                */}
-                {/* Card Anchor (Fixed 320x460 Center, Scaled to Fit) */}
-                {/* [FINAL] Absolute Card Locking: card is ALWAYS max scale. Pop-outs never affect zoom. */}
                 <div
-                    className="relative z-10 origin-center rounded-xl"
+                    className="relative z-10 origin-center"
                     style={{
                         width: `${CARD_WIDTH}px`,
                         height: `${CARD_HEIGHT}px`,
-                        transform: `scale(${fitScale}) translate(${-visualBounds.offsetX}px, ${-visualBounds.offsetY}px)`
+                        transform: `scale(${fitScale})`
                     }}
                 >
-                    {/* --- LAYERS THAT DO NOT MOVE WITH FRAME TRANSFORM (Static/Independent) --- */}
-
-                    {/* GAMES LOGO - STROKE LAYER (Behind Card, only for Pop-out) */}
-                    {config.scratch?.logo?.image && config.scratch?.logo?.layout === 'pop-out' && (
-                        <div
-                            className="absolute z-[15] pointer-events-none flex items-center justify-center w-full"
-                            style={{
-                                transform: `translate(${config.scratch.logo.customPosition?.x || 0}px, ${config.scratch.logo.customPosition?.y ?? -180}px) scale(${(config.scratch.logo.scale || 100) / 100})`,
-                                top: 0
-                            }}
-                        >
-                            <img
-                                src={config.scratch.logo.image}
-                                className="max-w-[280px] object-contain"
+                    <div className="absolute inset-0">
+                        {/* Pop-out Logo Stroke */}
+                        {config.scratch?.logo?.image && config.scratch?.logo?.layout === 'pop-out' && (
+                            <div
+                                className="absolute z-[15] pointer-events-none flex items-center justify-center w-full"
                                 style={{
-                                    // Apply Stroke
-                                    filter: (() => {
-                                        const strokeColor = config.scratch.logo.autoStroke
-                                            ? (overlayColor || '#F2F0EB')
-                                            : (config.scratch.logo.strokeColor || '#ffffff');
-
-                                        // Stronger "Sticker" stroke
-                                        return `drop-shadow(1px 0 0 ${strokeColor}) 
+                                    transform: `translate(${config.scratch.logo.customPosition?.x || 0}px, ${config.scratch.logo.customPosition?.y ?? -180}px) scale(${(config.scratch.logo.scale || 100) / 100})`,
+                                    top: 0
+                                }}
+                            >
+                                <img
+                                    src={config.scratch.logo.image}
+                                    className="max-w-[280px] object-contain"
+                                    style={{
+                                        filter: (() => {
+                                            const strokeColor = config.scratch.logo.autoStroke ? (overlayColor || '#F2F0EB') : (config.scratch.logo.strokeColor || '#ffffff');
+                                            return `drop-shadow(1px 0 0 ${strokeColor}) 
                                                 drop-shadow(-1px 0 0 ${strokeColor}) 
                                                 drop-shadow(0 1px 0 ${strokeColor}) 
                                                 drop-shadow(0 -1px 0 ${strokeColor})
@@ -698,312 +750,235 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                                                 drop-shadow(-1px -1px 0 ${strokeColor})
                                                 drop-shadow(1px -1px 0 ${strokeColor})
                                                 drop-shadow(-1px 1px 0 ${strokeColor})
-                                                drop-shadow(0 0 1px ${strokeColor})`; // Extra blur for smoothing
-                                    })()
-                                }}
-                                alt="Game Logo Stroke"
-                            />
-                        </div>
-                    )}
+                                                drop-shadow(0 0 1px ${strokeColor})`;
+                                        })()
+                                    }}
+                                />
+                            </div>
+                        )}
 
-                    {/* GAMES LOGO - TOP LAYER (Image Only, No Stroke) */}
-                    {config.scratch?.logo?.image && config.scratch?.logo?.layout !== 'integrated' && (
-                        <div
-                            className="absolute z-[60] pointer-events-none flex items-center justify-center w-full"
-                            style={{
-                                transform: `translate(${config.scratch.logo.customPosition?.x || 0}px, ${config.scratch.logo.customPosition?.y ?? -180}px) scale(${(config.scratch.logo.scale || 100) / 100})`,
-                                top: 0
-                            }}
-                        >
-                            <img
-                                src={config.scratch.logo.image}
-                                className="max-w-[280px] object-contain drop-shadow-xl"
-                                // No Filter here - pure image on top
-                                alt="Game Logo"
-                            />
-                        </div>
-                    )}
-
-                    {/* MASCOTS LAYER (Independent) */}
-                    {config.scratch?.mascot?.type === 'image' && config.scratch.mascot.image && (() => {
-                        const mascotScale = config.scratch.mascot.scale ?? 100;
-                        const mascotX = config.scratch.mascot.customPosition?.x || 0;
-                        const mascotY = config.scratch.mascot.customPosition?.y || 0;
-                        const mascotH = mascotScale * 4.6; // 100% = 460px = CARD_HEIGHT
-                        const animClass =
-                            config.scratch.mascot.animation === 'bounce' ? 'animate-bounce' :
-                                config.scratch.mascot.animation === 'pulse' ? 'animate-pulse' :
-                                    config.scratch.mascot.animation === 'float' ? 'animate-pulse' :
-                                        config.scratch.mascot.animation === 'wave' ? 'animate-spin' : '';
-                        return (
-                            /* Full-card overlay, flex-centered. translate moves mascot from center. */
+                        {/* Games Logo Top Layer */}
+                        {config.scratch?.logo?.image && config.scratch?.logo?.layout !== 'integrated' && (
                             <div
-                                className="absolute z-50 pointer-events-none flex items-center justify-center"
+                                className="absolute z-[60] pointer-events-none flex items-center justify-center w-full"
                                 style={{
-                                    top: 0, left: 0,
-                                    width: `${CARD_WIDTH}px`,
-                                    height: `${CARD_HEIGHT}px`,
+                                    transform: `translate(${config.scratch.logo.customPosition?.x || 0}px, ${config.scratch.logo.customPosition?.y ?? -180}px) scale(${(config.scratch.logo.scale || 100) / 100})`,
+                                    top: 0
                                 }}
                             >
-                                <div
-                                    className={`flex items-center justify-center ${animClass}`}
-                                    style={{ transform: `translate(${mascotX}px, ${mascotY}px)` }}
-                                >
-                                    <img
-                                        src={config.scratch.mascot.image}
-                                        className="object-contain drop-shadow-2xl"
-                                        style={{ height: `${mascotH}px`, width: 'auto', display: 'block' }}
-                                        alt="Mascot"
-                                    />
-                                </div>
+                                <img src={config.scratch.logo.image} className="max-w-[280px] object-contain drop-shadow-xl" />
                             </div>
-                        );
-                    })()}
+                        )}
 
-                    {/* Legacy Mascots */}
-                    {config.scratch?.layers?.overlay?.mascots?.map((mascot, i) => (
-                        <img
-                            key={i}
-                            src={mascot.source}
-                            className="absolute z-50 pointer-events-none"
-                            style={{
-                                top: mascot.position.includes('top') ? -30 : undefined,
-                                bottom: mascot.position.includes('bottom') ? -30 : undefined,
-                                left: mascot.position.includes('left') ? -30 : undefined,
-                                right: mascot.position.includes('right') ? -30 : undefined,
-                                width: `${120 * mascot.scale}px`
-                            }}
-                        />
-                    ))}
+                        {/* Mascots Layer */}
+                        {config.scratch?.mascot?.type === 'image' && config.scratch.mascot.image && (() => {
+                            const mascotScale = config.scratch.mascot.scale ?? 100;
+                            const mascotX = config.scratch.mascot.customPosition?.x || 0;
+                            const mascotY = config.scratch.mascot.customPosition?.y || 0;
+                            const mascotH = mascotScale * 4.6;
+                            const animClass =
+                                config.scratch.mascot.animation === 'bounce' ? 'animate-bounce' :
+                                    config.scratch.mascot.animation === 'pulse' ? 'animate-pulse' :
+                                        config.scratch.mascot.animation === 'float' ? 'animate-pulse' :
+                                            config.scratch.mascot.animation === 'wave' ? 'animate-spin' : '';
+                            return (
+                                <div
+                                    className="absolute z-50 pointer-events-none flex items-center justify-center"
+                                    style={{ top: 0, left: 0, width: `${CARD_WIDTH}px`, height: `${CARD_HEIGHT}px` }}
+                                >
+                                    <div className={animClass} style={{ transform: `translate(${mascotX}px, ${mascotY}px)` }}>
+                                        <img src={config.scratch.mascot.image} className="object-contain drop-shadow-2xl" style={{ height: `${mascotH}px` }} />
+                                    </div>
+                                </div>
+                            );
+                        })()}
 
-                    {/* --- TRANSFORMED CARD GROUP (Frame + Grid + Foil) --- */}
-                    <div
-                        className="absolute inset-0 z-20 origin-center shadow-[0_20px_60px_rgba(0,0,0,0.6)] rounded-xl overflow-hidden"
-                        style={{
-                            // Apply Transform to ONLY the Frame + Grid
-                            // [FIX] Removed fitScale from here (it's on parent now). Retained container transform X/Y/Scale.
-                            transform: `translate(${containerX}px, ${containerY}px) scale(${containerScaleX}, ${containerScaleY})`
-                        }}
-                    >
-                        {/* Card Background Color (Always at bottom) */}
+                        {/* Legacy Mascots */}
+                        {config.scratch?.layers?.overlay?.mascots?.map((mascot, i) => (
+                            <img
+                                key={i}
+                                src={mascot.source}
+                                className="absolute z-50 pointer-events-none"
+                                style={{
+                                    top: mascot.position.includes('top') ? -30 : undefined,
+                                    bottom: mascot.position.includes('bottom') ? -30 : undefined,
+                                    left: mascot.position.includes('left') ? -30 : undefined,
+                                    right: mascot.position.includes('right') ? -30 : undefined,
+                                    width: `${120 * mascot.scale}px`
+                                }}
+                            />
+                        ))}
+
+                        {/* Card Group */}
                         <div
-                            className="absolute inset-0 z-0 transition-colors duration-300"
+                            className="absolute z-20 origin-center shadow-[0_20px_60px_rgba(0,0,0,0.6)] rounded-xl overflow-hidden"
                             style={{
-                                backgroundColor: overlayColor === 'transparent' ? 'transparent' : overlayColor
-                            }}
-                        />
-
-                        {/* Frame/Overlay Image Layer (Dynamic Z-Index) */}
-                        <div
-                            className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none"
-                            style={{
-                                zIndex: overlayZIndex < 50 ? 5 : 120,
-                                mixBlendMode: overlayBlendMode as any
+                                left: 0,
+                                top: 0,
+                                width: `${CARD_WIDTH}px`,
+                                height: `${CARD_HEIGHT}px`,
+                                transform: `translate(${containerX}px, ${containerY}px) scale(${containerScaleX}, ${containerScaleY})`
                             }}
                         >
-                            {/* Frame/Background Image */}
-                            {overlayImage && (
-                                <div className="absolute inset-0 z-0 select-none">
-                                    <img src={overlayImage} className="w-full h-full object-fill" />
-                                </div>
-                            )}
+                            <div className="absolute inset-0 z-0" style={{ backgroundColor: overlayColor === 'transparent' ? 'transparent' : overlayColor }} />
 
-                            {/* GAMES LOGO (Integrated / Clipped) */}
-                            {config.scratch?.logo?.image && config.scratch?.logo?.layout === 'integrated' && (
-                                <div
-                                    className="absolute z-10 pointer-events-none flex items-center justify-center w-full"
-                                    style={{
-                                        transform: `translate(${config.scratch.logo.customPosition?.x || 0}px, ${config.scratch.logo.customPosition?.y ?? -180}px) scale(${(config.scratch.logo.scale || 100) / 100})`,
-                                        top: 0
-                                    }}
-                                >
-                                    <img
-                                        src={config.scratch.logo.image}
-                                        className="max-w-[280px] object-contain drop-shadow-xl"
-                                        alt="Game Logo"
-                                    />
-                                </div>
-                            )}
+                            {/* Frame/Overlay */}
+                            <div
+                                className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none"
+                                style={{ zIndex: overlayZIndex < 50 ? 5 : 120, mixBlendMode: overlayBlendMode as any }}
+                            >
+                                {overlayImage && <img src={overlayImage} className="absolute inset-0 w-full h-full object-fill" />}
 
-                            {/* SYMBOL HUNT TARGET INDICATOR (Attached to Frame) */}
-                            {config.scratch?.mechanic?.type === 'find_symbol' && config.scratch?.rulesGrid?.targetSymbolId && (
-                                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full shadow-lg border border-blue-200 flex items-center gap-2">
-                                    <span className="text-[10px] font-black text-blue-800 uppercase tracking-widest">TARGET</span>
-                                    <div className="w-px h-3 bg-gray-300 mx-1" />
-                                    <img
-                                        src={
-                                            config.scratch.rulesGrid.targetSymbolId.includes('http') ||
-                                                config.scratch.rulesGrid.targetSymbolId.startsWith('data:') ||
-                                                config.scratch.rulesGrid.targetSymbolId.startsWith('/')
-                                                ? config.scratch.rulesGrid.targetSymbolId
-                                                : 'https://cdn-icons-png.flaticon.com/512/616/616430.png'
-                                        }
-                                        className="w-6 h-6 object-contain drop-shadow-sm"
-                                    />
-                                    {config.scratch.rulesGrid.ruleMode === 'COLLECT_X' && (
-                                        <span className="text-xs font-black text-gray-600 ml-1">
-                                            x{config.scratch.rulesGrid.requiredHits}
-                                        </span>
-                                    )}
-                                </div>
-                            )}
-                        </div>
+                                {/* Integrated Logo */}
+                                {config.scratch?.logo?.image && config.scratch?.logo?.layout === 'integrated' && (
+                                    <div
+                                        className="absolute z-10 pointer-events-none flex items-center justify-center w-full"
+                                        style={{
+                                            transform: `translate(${config.scratch.logo.customPosition?.x || 0}px, ${config.scratch.logo.customPosition?.y ?? -180}px) scale(${(config.scratch.logo.scale || 100) / 100})`,
+                                            top: 0
+                                        }}
+                                    >
+                                        <img src={config.scratch.logo.image} className="max-w-[280px] object-contain drop-shadow-xl" />
+                                    </div>
+                                )}
 
-                        {/* The Grid/Card Body -- ADAPTIVE */}
-                        <div
-                            className={`absolute z-10 transition-all duration-300 transform origin-center
+                                {/* Target Symbol Indicator */}
+                                {config.scratch?.mechanic?.type === 'find_symbol' && config.scratch?.rulesGrid?.targetSymbolId && (
+                                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full shadow-lg border border-blue-200 flex items-center gap-2">
+                                        <span className="text-[10px] font-black text-blue-800 uppercase tracking-widest">TARGET</span>
+                                        <div className="w-px h-3 bg-gray-300 mx-1" />
+                                        <img
+                                            src={config.scratch.rulesGrid.targetSymbolId.includes('http') || config.scratch.rulesGrid.targetSymbolId.startsWith('data:') ? config.scratch.rulesGrid.targetSymbolId : 'https://cdn-icons-png.flaticon.com/512/616/616430.png'}
+                                            className="w-6 h-6 object-contain"
+                                        />
+                                        {config.scratch.rulesGrid.ruleMode === 'COLLECT_X' && (
+                                            <span className="text-xs font-black text-gray-600 ml-1">x{config.scratch.rulesGrid.requiredHits}</span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* The Grid/Card Body */}
+                            <div
+                                className={`absolute z-10 transition-all duration-300 transform origin-center
                                 ${config.scratch?.mechanic?.type === 'wheel' ? 'rounded-full overflow-hidden shadow-xl' : 'rounded-lg'}
                                 ${cellStyle === 'boxed' ? '' : 'gap-1'}
                             `}
-                            style={{
-                                width: `${CARD_WIDTH}px`, // Matches Container Width
-                                height: config.scratch?.mechanic?.type === 'wheel' ? '320px' : '400px', // Fixed internal height
-                                backgroundColor: config.scratch?.mechanic?.type === 'wheel' ? 'transparent' : gridBgColor,
-                                left: '50%',
-                                top: '50%',
-                                marginLeft: `-${HALF_WIDTH}px`, // Centering
-                                marginTop: config.scratch?.mechanic?.type === 'wheel' ? '-160px' : '-200px', // Half of 400
-                                transform: `translate(${gridX}px, ${gridY}px) scale(${gridScaleX}, ${gridScaleY})`,
-                                display: config.scratch?.mechanic?.type === 'wheel' ? 'flex' : 'grid',
-                                gridTemplateColumns: config.scratch?.mechanic?.type === 'wheel' ? undefined : `repeat(${cols}, 1fr)`,
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                            }}
-                        >
-                            {/* WHEEL RENDERER */}
-                            {config.scratch?.mechanic?.type === 'wheel' && (
-                                <div className="relative w-full h-full bg-white rounded-full border-4 border-yellow-400 flex items-center justify-center overflow-hidden">
-                                    {/* Simple Spin Wheel Graphic */}
-                                    <div className="absolute inset-0 opacity-20" style={{ background: 'conic-gradient(from 0deg, red, yellow, green, blue, red)' }} />
-                                    <div className="z-10 text-center">
-                                        <div className="text-xs font-bold uppercase mb-1">Prize</div>
-                                        <img src={getSymbolForCell(0)} className="w-16 h-16 object-contain drop-shadow-md animate-pulse" />
-                                        <div className="text-xs font-bold mt-1 text-black bg-white/50 px-2 rounded-full">
-                                            {currentOutcome?.isWin ? 'WIN!' : 'SPIN'}
+                                style={{
+                                    width: `${CARD_WIDTH}px`,
+                                    height: config.scratch?.mechanic?.type === 'wheel' ? '320px' : '400px',
+                                    backgroundColor: config.scratch?.mechanic?.type === 'wheel' ? 'transparent' : gridBgColor,
+                                    left: '50%',
+                                    top: '50%',
+                                    marginLeft: `-${HALF_WIDTH}px`,
+                                    marginTop: config.scratch?.mechanic?.type === 'wheel' ? '-160px' : '-200px',
+                                    transform: `translate(${gridX}px, ${gridY}px) scale(${gridScaleX}, ${gridScaleY})`,
+                                    display: config.scratch?.mechanic?.type === 'wheel' ? 'flex' : 'grid',
+                                    gridTemplateColumns: config.scratch?.mechanic?.type === 'wheel' ? undefined : `repeat(${cols}, 1fr)`,
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                }}
+                            >
+                                {/* WHEEL RENDERER */}
+                                {config.scratch?.mechanic?.type === 'wheel' && (
+                                    <div className="relative w-full h-full bg-white rounded-full border-4 border-yellow-400 flex items-center justify-center overflow-hidden">
+                                        <div className="absolute inset-0 opacity-20" style={{ background: 'conic-gradient(red, yellow, green, blue, red)' }} />
+                                        <div className="z-10 text-center">
+                                            <div className="text-xs font-bold uppercase mb-1">Prize</div>
+                                            <img src={getSymbolForCell(0)} className="w-16 h-16 object-contain animate-pulse" />
+                                            <div className="text-xs font-bold mt-1 text-black">{currentOutcome?.isWin ? 'WIN!' : 'SPIN'}</div>
                                         </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
 
-                            {/* GRID / PATH RENDERER */}
-                            {config.scratch?.mechanic?.type !== 'wheel' && Array.from({ length: rows * cols }).map((_, i) => {
-                                // Determine if we should show numeric preview (Match types in Layout/Category mode)
-                                const isMatchMechanic = config.scratch?.mechanic?.type?.startsWith('match_');
-                                const isPreviewMode = mode === 'layout' || mode === 'mechanics';
-                                const isNumberStyle = config.scratch?.symbols?.style === 'numbers';
-                                const showNumericPreview = (isMatchMechanic && isPreviewMode) || isNumberStyle;
+                                {/* GRID RENDERER */}
+                                {config.scratch?.mechanic?.type !== 'wheel' && Array.from({ length: rows * cols }).map((_, i) => {
+                                    const isMatchMechanic = config.scratch?.mechanic?.type?.startsWith('match_');
+                                    const isPreviewMode = mode === 'layout' || mode === 'mechanics';
+                                    const isNumberStyle = config.scratch?.symbols?.style === 'numbers';
+                                    const showNumericPreview = (isMatchMechanic && isPreviewMode) || isNumberStyle;
+                                    const mockValues = [5, 10, 20, 50, 100, 500, 1000, 5, 10, 50, 100, 2500];
+                                    const mockValue = mockValues[i % mockValues.length];
+                                    const fontSizeClass = cols >= 4 ? 'text-lg' : 'text-2xl';
 
-                                // Deterministic mock values for preview
-                                const mockValues = [5, 10, 20, 50, 100, 500, 1000, 5, 10, 50, 100, 2500];
-                                const mockValue = mockValues[i % mockValues.length];
+                                    return (
+                                        <div
+                                            key={i}
+                                            className={`flex items-center justify-center relative transition-all overflow-hidden ${cellStyle === 'boxed' ? 'bg-white rounded-md shadow-inner border border-gray-200 p-2' : 'p-1 rounded-sm'} ${gameState === 'won' && currentOutcome?.isWin && getSymbolForCell(i) === winningSymbol ? 'ring-2 ring-yellow-400 animate-pulse' : ''}`}
+                                        >
+                                            {showNumericPreview ? (
+                                                <div className="flex flex-col items-center justify-center w-full h-full">
+                                                    <span className={`${fontSizeClass} font-black text-gray-800 tracking-tight`}>${mockValue}</span>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <img src={getSymbolForCell(i)} className="w-full h-full object-contain" />
+                                                    <span className={`absolute bottom-1 right-1 text-[10px] font-mono font-bold ${cellStyle === 'boxed' ? 'text-gray-400' : 'text-gray-600'}`}>$10</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    );
+                                })}
 
-                                // Dynamic font size for dense grids (Match 4 etc)
-                                const fontSizeClass = cols >= 4 ? 'text-lg' : 'text-2xl';
-
-                                return (
+                                {mode !== 'layout' && (
                                     <div
-                                        key={i}
-                                        className={`
-                                        flex items-center justify-center relative transition-all overflow-hidden
-                                        ${cellStyle === 'boxed'
-                                                ? 'bg-white rounded-md shadow-inner border border-gray-200 p-2'
-                                                : 'p-1 rounded-sm'
-                                            }
-                                        ${gameState === 'won' && currentOutcome?.isWin && getSymbolForCell(i) === winningSymbol ? 'ring-2 ring-yellow-400 ring-offset-2 animate-pulse' : ''} 
-                                    `}
+                                        className="absolute inset-0 z-[100] cursor-none"
+                                        ref={(el) => {
+                                            if (containerRef) (containerRef as any).current = el;
+                                            localContainerRef.current = el;
+                                        }}
+                                        onMouseEnter={() => setShowCursor(true)}
+                                        onMouseLeave={() => setShowCursor(false)}
+                                        onMouseMove={(e) => setCursorPos({ x: e.clientX, y: e.clientY })}
                                     >
-                                        {showNumericPreview ? (
-                                            <div className="flex flex-col items-center justify-center w-full h-full">
-                                                <span className={`${fontSizeClass} font-black text-gray-800 tracking-tight drop-shadow-sm`}>
-                                                    ${mockValue}
-                                                </span>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                <img src={getSymbolForCell(i)} alt="sym" className="w-full h-full object-contain" />
-                                                <span className={`absolute bottom-1 right-1 text-[10px] font-mono font-bold ${cellStyle === 'boxed' ? 'text-gray-400' : 'text-gray-600'}`}>$10</span>
-                                            </>
-                                        )}
+                                        <FoilCanvas
+                                            ref={canvasRef}
+                                            className={`w-full h-full transition-opacity duration-1000 ${gameState === 'won' || gameState === 'revealed' ? 'opacity-0' : 'opacity-100'}`}
+                                        />
                                     </div>
-                                )
-                            })}
-
-                            {/* SCRATCH SURFACE with Custom Cursor - Constrained to Grid Area */}
-                            {mode !== 'layout' && (
-                                <div
-                                    className={`absolute inset-0 z-[100] pointer-events-auto touch-none ${config.scratch?.mechanic?.type === 'wheel' ? 'rounded-full' : 'cursor-none'}`}
-                                    ref={(el) => {
-                                        if (containerRef) (containerRef as any).current = el;
-                                        localContainerRef.current = el;
-                                    }}
-                                    onMouseEnter={() => setShowCursor(true)}
-                                    onMouseLeave={() => setShowCursor(false)}
-                                    onMouseMove={(e) => {
-                                        setCursorPos({
-                                            x: e.clientX,
-                                            y: e.clientY
-                                        });
-                                    }}
-                                >
-                                    <FoilCanvas
-                                        ref={canvasRef}
-                                        className={`w-full h-full transition-opacity duration-1000 ease-out ${gameState === 'won' || gameState === 'revealed' ? 'opacity-0' : 'opacity-100'}`}
-                                    />
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
                     </div>
+
+                    {/* Result Overlay */}
+                    {(gameState === 'won' || gameState === 'revealed') && (
+                        <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
+                            <div className={`px-6 py-3 rounded-2xl shadow-2xl backdrop-blur-md border-2 transform transition-all duration-500 ${gameState === 'won' ? 'bg-green-500/80 border-green-300 text-white scale-110 animate-bounce' : 'bg-gray-800/80 border-gray-600 text-gray-200'}`}>
+                                <h2 className="text-2xl font-black uppercase tracking-widest drop-shadow-md">
+                                    {gameState === 'won' ? `BIG WIN! €${win.toFixed(2)}` : 'TRY AGAIN'}
+                                </h2>
+                            </div>
+                        </div>
+                    )}
                 </div>
-
-                {/* Result Overlay */}
-                {(gameState === 'won' || gameState === 'revealed') && (
-                    <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
-                        <div className={`
-                            px-6 py-3 rounded-2xl shadow-2xl backdrop-blur-md border-2 transform transition-all duration-500
-                            ${gameState === 'won'
-                                ? 'bg-green-500/80 border-green-300 text-white scale-110 animate-bounce'
-                                : 'bg-gray-800/80 border-gray-600 text-gray-200'}
-                        `}>
-                            <h2 className="text-2xl font-black uppercase tracking-widest drop-shadow-md">
-                                {gameState === 'won' ? `BIG WIN! €${win.toFixed(2)}` : 'TRY AGAIN'}
-                            </h2>
-                        </div>
-                    </div>
-                )}
-
-
             </div>
 
-            {/* Global Particle Overlay (Unclipped, behind Controls but in front of Card) */}
-            <canvas
-                ref={particleCanvasRef}
-                className="absolute inset-0 z-[40] pointer-events-none w-full h-full"
-            />
+            {/* Global Particle Overlay */}
+            <canvas ref={particleCanvasRef} className="absolute inset-0 z-[40] pointer-events-none w-full h-full" />
 
-            {/* Custom Cursor (Visual Only) */}
-            {
-                showCursor && (
-                    <div
-                        className="fixed pointer-events-none z-[9999] flex items-center justify-center transition-transform duration-75"
-                        style={{
-                            left: cursorPos.x,
-                            top: cursorPos.y,
-                            width: `${brushSize * fitScale}px`,
-                            height: `${brushSize * fitScale}px`,
-                            transformOrigin: 'center center',
-                            transform: `translate(-50%, -50%) ${isScratching ? 'scale(0.95)' : 'scale(1)'}`
-                        }}
-                    >
-                        {brushUrl ? (
-                            <img src={brushUrl} className="w-full h-full object-contain drop-shadow-lg" />
-                        ) : (
-                            <div className="w-full h-full rounded-full border-2 border-white/50 bg-black/20 backdrop-blur-sm" />
-                        )}
-                    </div>
-                )
-            }
+            {/* Custom Cursor */}
+            {showCursor && (
+                <div
+                    className="fixed pointer-events-none z-[9999] flex items-center justify-center transition-transform duration-75"
+                    style={{
+                        left: cursorPos.x,
+                        top: cursorPos.y,
+                        width: `${brushSize * fitScale}px`,
+                        height: `${brushSize * fitScale}px`,
+                        transformOrigin: 'center center',
+                        transform: `translate(-50%, -50%) ${isScratching ? 'scale(0.95)' : 'scale(1)'}`
+                    }}
+                >
+                    {brushUrl ? (
+                        <img src={brushUrl} className="w-full h-full object-contain drop-shadow-lg" />
+                    ) : (
+                        <div className="w-full h-full rounded-full border-2 border-white/50 bg-black/20 backdrop-blur-sm" />
+                    )}
+                </div>
+            )}
 
-            {/* 2. Controls (Bottom) */}
+            {/* Controls */}
             <div className="relative z-50 border-t border-gray-800">
                 <GameControls
                     balance={balance}
