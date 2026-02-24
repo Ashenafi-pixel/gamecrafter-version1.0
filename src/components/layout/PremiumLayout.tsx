@@ -518,15 +518,15 @@ const PremiumLayout: React.FC<PremiumLayoutProps> = ({
                     );
                   })}
 
-                  <div className="h-6 w-px bg-gray-200 mx-2" />
+                  {/* <div className="h-6 w-px bg-gray-200 mx-2" /> */}
 
-                  <button
+                  {/* <button
                     onClick={onPreview}
                     className="flex items-center gap-2 px-4 py-2 rounded-lg text-base font-bold transition-all whitespace-nowrap text-blue-600 hover:bg-blue-50 border border-blue-100 shadow-sm"
                   >
                     <Gamepad2 size={18} />
                     <span>Preview</span>
-                  </button>
+                  </button> */}
                 </div>
               )}
             </div>
