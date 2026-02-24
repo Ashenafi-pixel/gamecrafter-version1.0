@@ -520,11 +520,11 @@ export const generateScratchHTML = (cleanConfig: any): string => {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>${cleanConfig.displayName || 'Scratch Card'} | Game Crafter</title>
     <script src="https://pixijs.download/v8.1.0/pixi.min.js"></script>
     <style>
-        body { margin: 0; background: #0f172a; overflow: hidden; touch-action: none; display: flex; flex-direction: column; height: 100vh; font-family: system-ui, sans-serif; }
+        body { margin: 0; background: #0f172a; overflow: hidden; touch-action: none; display: flex; flex-direction: column; height: 100vh; height: 100dvh; font-family: system-ui, sans-serif; }
         #loading { position: absolute; color: white; font-weight: bold; font-size: 24px; text-align: center; pointer-events: none; z-index: 10; top: 50%; left: 50%; transform: translate(-50%, -50%); }
         .loading-container { display: flex; flex-direction: column; align-items: center; gap: 20px; }
         .loading-animation { position: relative; width: 80px; height: 80px; }
@@ -541,10 +541,10 @@ export const generateScratchHTML = (cleanConfig: any): string => {
         .loading-dots { display: inline-block; width: 20px; text-align: left; }
         @keyframes cardFlip { 0%, 100% { transform: rotateY(0deg) scale(1); } 50% { transform: rotateY(180deg) scale(1.1); } }
         @keyframes sparkle { 0%, 100% { opacity: 0; transform: scale(0); } 50% { opacity: 1; transform: scale(1); } }
-        #game-container { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; position: relative; width: 100%; height: 100%; }
-        canvas { display: block; width: 100%; height: 100%; }
+        #game-container { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; position: relative; width: 100%; overflow: hidden; }
+        canvas { display: block; touch-action: none; }
         /* Casino Shell Footer */
-        #casino-footer { position: fixed; bottom: 0; left: 0; right: 0; height: 64px; background: #000; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-top: 1px solid #333; z-index: 50; box-shadow: 0 -4px 20px rgba(0,0,0,0.4); }
+        #casino-footer { position: fixed; bottom: 0; left: 0; right: 0; height: 70px; background: #000; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; padding-bottom: env(safe-area-inset-bottom, 0px); border-top: 1px solid #333; z-index: 50; box-shadow: 0 -4px 20px rgba(0,0,0,0.4); }
         .footer-left { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; overflow: hidden; }
         .footer-center { display: flex; align-items: center; gap: 10px; flex: 1.2; justify-content: center; padding: 0 4px; }
         .footer-right { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex: 1; min-width: 0; overflow: hidden; }
@@ -599,7 +599,8 @@ export const generateScratchHTML = (cleanConfig: any): string => {
 
         /* Mobile Optimization */
         @media (max-width: 640px) {
-            #casino-footer { height: 72px; padding: 0 8px; }
+            /* Footer height matches JS footerH = 80px on mobile */
+            #casino-footer { height: 80px; padding: 0 8px; padding-bottom: env(safe-area-inset-bottom, 0px); }
             .footer-left { gap: 6px; flex: 1; }
             .footer-center { gap: 6px; flex: 1.4; }
             .footer-right { flex: 1; }
@@ -607,29 +608,43 @@ export const generateScratchHTML = (cleanConfig: any): string => {
             .footer-label { font-size: 7px; letter-spacing: 0.02em; }
             .footer-value { font-size: 13px; }
             
-            .btn-buy { height: 38px; padding: 0 12px; font-size: 13px; }
-            .btn-autoplay { width: 34px; height: 34px; font-size: 6px; }
+            .btn-buy { height: 38px; padding: 0 14px; font-size: 13px; }
+            .btn-autoplay { width: 36px; height: 36px; font-size: 6px; }
             .btn-icon { width: 30px; height: 30px; }
             
             .bet-controls { gap: 3px; }
-            .btn-bet { width: 18px; height: 18px; font-size: 11px; }
+            .btn-bet { width: 20px; height: 20px; font-size: 11px; }
             
             .modal-card { width: 100%; height: 100%; max-width: none; max-height: none; border-radius: 0; border: none; }
             .footer-left .btn-icon:first-child { display: none; } /* Hide menu on mobile */
             .btn-autoplay .stop-text { display: none; }
         }
         
-        @media (max-width: 420px) {
-            .footer-label { display: none; } 
+        /* Portrait phones */
+        @media (max-width: 430px) {
+            .footer-label { display: none; }
             .footer-group { justify-content: center; }
             .footer-left { gap: 4px; }
             .footer-center { gap: 4px; }
+            .footer-value { font-size: 14px; }
         }
         
         @media (max-width: 380px) {
-            .footer-label { display: none; } /* Hide labels on very small screens to save space */
+            .footer-label { display: none; }
             .footer-group { justify-content: center; }
-            .btn-buy { padding: 0 12px; font-size: 14px; }
+            .btn-buy { padding: 0 10px; font-size: 13px; }
+            .footer-value { font-size: 13px; }
+            .footer-center { gap: 3px; }
+        }
+        
+        /* Landscape phones - give canvas more room */
+        @media (max-height: 500px) and (orientation: landscape) {
+            #casino-footer { height: 56px; padding: 0 12px; }
+            .footer-label { display: none; }
+            .footer-value { font-size: 13px; }
+            .btn-buy { height: 36px; padding: 0 16px; font-size: 13px; }
+            .btn-autoplay { width: 32px; height: 32px; }
+            .btn-icon { width: 28px; height: 28px; }
         }
     </style>
 </head>
@@ -1379,40 +1394,60 @@ function setupScene() {
 
     // Unified Resize Handler for Mobile/Desktop parity
     var updateLayout = () => {
-        // [NEW] Calculate Total Visual Bounds (Card + Pop-out Mascot/Logo)
-        var minX = 0, maxX = CARD_WIDTH, minY = 0, maxY = CARD_HEIGHT;
-        var mascotConf = (config.scratch && config.scratch.mascot) || {};
-        var logoConf = (config.scratch && config.scratch.logo) || {};
+        // [FINAL] Content-Aware Scaling (Card-Centric)
+        // We calculate the maximum distance from the card center (160, 230)
+        // to ensure all elements fit without moving the card itself.
+        var cardCenterX = CARD_WIDTH / 2;
+        var cardCenterY = CARD_HEIGHT / 2;
+        var maxDistX = CARD_WIDTH / 2;
+        var maxDistY = CARD_HEIGHT / 2;
 
-        if (mascotConf.type === 'image' && mascotConf.image) {
-            var mx = (CARD_WIDTH / 2) + (mascotConf.customPosition?.x || 0);
-            var my = (CARD_HEIGHT / 2) + (mascotConf.customPosition?.y || 0);
-            var mSize = (CARD_HEIGHT * (mascotConf.scale || 100)) / 100;
-            // Refined heuristic: Mascots are usually ~0.6 width of height
-            minX = Math.min(minX, mx - (mSize * 0.3)); 
-            maxX = Math.max(maxX, mx + (mSize * 0.3));
-            minY = Math.min(minY, my - (mSize * 0.5));
-            maxY = Math.max(maxY, my + (mSize * 0.5));
+        // 1. Primary Mascot extent
+        var mascotConfig = (config.scratch && config.scratch.mascot) || {};
+        var mascotUrl = mascotConfig.image || (config.theme && config.theme.generated && config.theme.generated.mascot) || 
+                        (config.scratch && config.scratch.layers && config.scratch.layers.scene && config.scratch.layers.scene.mascot);
+        if (mascotUrl) {
+            var mX = cardCenterX + (mascotConfig.customPosition?.x || 0);
+            var mY = cardCenterY + (mascotConfig.customPosition?.y || 0);
+            var mScale = (mascotConfig.scale || 100) / 100;
+            var mFullH = CARD_HEIGHT * mScale;
+            var mFullW = mFullH * 0.8;
+            maxDistX = Math.max(maxDistX, Math.abs(mX - cardCenterX) + mFullW / 2);
+            maxDistY = Math.max(maxDistY, Math.abs(mY - cardCenterY) + mFullH / 2);
         }
-        if (logoConf.image && logoConf.layout !== 'integrated') {
-            var lx = (CARD_WIDTH / 2) + (logoConf.customPosition?.x || 0);
-            var ly = (logoConf.customPosition?.y ?? -180);
-            var lScale = (logoConf.scale || 100) / 100;
-            var lW = 280 * lScale;
-            minX = Math.min(minX, lx - lW / 2);
-            maxX = Math.max(maxX, lx + lW / 2);
-            minY = Math.min(minY, ly);
-        }
+        
+        // 2. Legacy/Overlay Mascots (Stickers)
+        var overlayMascots = (config.scratch && config.scratch.layers && config.scratch.layers.overlay && config.scratch.layers.overlay.mascots) || [];
+        overlayMascots.forEach(function(mascot) {
+            var mScale = mascot.scale || 1;
+            var mWidth = 120 * mScale;
+            var mX = cardCenterX;
+            var mY = cardCenterY;
+            if (mascot.position.includes('left')) mX = -30;
+            if (mascot.position.includes('right')) mX = CARD_WIDTH + 30;
+            if (mascot.position.includes('top')) mY = -30;
+            if (mascot.position.includes('bottom')) mY = CARD_HEIGHT + 30;
+            
+            maxDistX = Math.max(maxDistX, Math.abs(mX - cardCenterX) + mWidth / 2);
+            maxDistY = Math.max(maxDistY, Math.abs(mY - cardCenterY) + mWidth / 2);
+        });
 
-        // Horizontal: dist from 160
-        var maxDistX = Math.max(160 - minX, maxX - 160);
-        // Vertical: dist from 230
-        var maxDistY = Math.max(230 - minY, maxY - 230);
+        // 3. Logo extent
+        var logoConfig = (config.scratch && config.scratch.logo) || {};
+        var logoUrl = logoConfig.image || (config.theme && config.theme.generated && config.theme.generated.logo);
+        if (logoUrl && logoConfig.layout !== 'integrated') {
+            var lX = cardCenterX + (logoConfig.customPosition?.x || 0);
+            var lY = logoConfig.customPosition?.y ?? -180;
+            var lScale = (logoConfig.scale || 100) / 100;
+            var lWidth = 280 * lScale;
+            var lHeight = 150 * lScale;
+            
+            maxDistX = Math.max(maxDistX, Math.abs(lX - cardCenterX) + lWidth / 2);
+            maxDistY = Math.max(maxDistY, Math.abs(lY - cardCenterY), Math.abs(lY + lHeight - cardCenterY));
+        }
 
         var totalW = maxDistX * 2;
         var totalH = maxDistY * 2;
-        var vOffsetX = 0; // Keep card centered horizontally
-        var vOffsetY = (minY + maxY) / 2 - (CARD_HEIGHT / 2);
 
         // 1. Background Scaling
         if (bgContainer.children.length > 0) {
@@ -1428,15 +1463,24 @@ function setupScene() {
         }
 
         // 2. Card Scaling & Centering
-        var footerH = window.innerWidth <= 640 ? 80 : 70;
-        var marginX = window.innerWidth <= 640 ? 40 : 60;
-        var marginY = window.innerWidth <= 640 ? 100 : 180;
-        
-        // Use totalW/totalH for scaling
-        fitScale = Math.min((app.screen.width - marginX) / totalW, (app.screen.height - marginY) / totalH);
+        var isLandscapePhone = window.innerHeight <= 500 && window.innerWidth > window.innerHeight;
+        var isMobile = window.innerWidth <= 640;
+        var footerH = isLandscapePhone ? 56 : (isMobile ? 80 : 70);
+        var marginX = isMobile ? 32 : 60;
+        var marginY = isLandscapePhone ? (40 + footerH) : (isMobile ? (100 + footerH) : (180 + footerH));
+
+        // [FIX] Export Scale: Always use fully responsive, content-aware scaling for the standalone game.
+        var targetW = totalW;
+        var targetH = totalH;
+
+        // [FINAL] Content-Aware Scaling: elements fit to available space.
+        fitScale = Math.min((app.screen.width - marginX) / targetW, (app.screen.height - marginY) / targetH);
         cardAnchor.scale.set(fitScale);
-        cardAnchor.x = (app.screen.width / 2) - (vOffsetX * fitScale);
-        cardAnchor.y = ((app.screen.height - footerH) / 2) - (vOffsetY * fitScale);
+        
+        // Center the entire Bounding Box (vOffsetX...maxX) on the screen
+        cardAnchor.pivot.set(cardCenterX, cardCenterY);
+        cardAnchor.x = app.screen.width / 2;
+        cardAnchor.y = ((app.screen.height - footerH) / 2);
 
         // [FIX] Scale brush tip to match fitScale (keep 1:1 with card logical size)
         if (brushTip) brushTip.scale.set(fitScale);

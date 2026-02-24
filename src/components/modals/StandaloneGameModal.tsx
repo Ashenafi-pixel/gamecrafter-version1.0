@@ -1,11 +1,11 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Trophy, RefreshCw } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useGameStore } from '../../store';
 import ScratchGridPreview from '../visual-journey/scratch-steps/ScratchGridPreview';
 
 const StandaloneGameModal: React.FC = () => {
-    const { showStandaloneGameModal, setShowStandaloneGameModal, config } = useGameStore();
+    const { showStandaloneGameModal, setShowStandaloneGameModal } = useGameStore();
 
     // History Management for Back Button
     React.useEffect(() => {
@@ -52,11 +52,14 @@ const StandaloneGameModal: React.FC = () => {
                 </div>
 
                 {/* Game Container - Full Screen */}
-                <div className="w-full h-full relative bg-gray-900">
+                <div
+                    className="w-full relative bg-gray-900 overflow-hidden"
+                    style={{ height: '100dvh', touchAction: 'none' }}
+                >
                     <ScratchGridPreview
                         mode="mechanics"
                         className="h-full w-full"
-                    // enableSafeZone={true} // Prop doesn't exist on ScratchGridPreview interface, removing.
+                        isResponsive={true}
                     />
                 </div>
             </motion.div>

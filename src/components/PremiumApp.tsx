@@ -37,7 +37,7 @@ import Step4_GameplayAssets from './visual-journey/scratch-steps/AssetsFlow';
 import Step5_Production from './visual-journey/scratch-steps/ProductionFlow';
 import Step7_Export from './visual-journey/scratch-steps/Step7_Export';
 import StandaloneGameModal from './modals/StandaloneGameModal';
-import { prepareStepTransition } from '../utils/stepTransitionCoordinator';
+
 
 // Single source of truth for all steps
 const SLOT_STEPS = [
@@ -237,7 +237,7 @@ const SCRATCH_STEPS = [
     title: 'Production & Polish',
     description: 'Loading screens, rules, and marketing assets',
     component: Step5_Production,
-    showCanvas: false
+    showCanvas: true
   },
   {
     id: 'scratch-export',
@@ -289,9 +289,8 @@ const INSTANT_STEPS = [
 
 const PremiumApp: React.FC = () => {
   const navigate = useNavigate();
-  const { showStandaloneGameModal } = useGameStore();
+  const { showStandaloneGameModal, setShowStandaloneGameModal } = useGameStore();
   const [showIntro, setShowIntro] = useState(true);
-  const [previewFullscreen, setPreviewFullscreen] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [, setForceUpdateCounter] = useState(0);
   const forceUpdate = useCallback(() => setForceUpdateCounter(prev => prev + 1), []);
@@ -428,7 +427,7 @@ const PremiumApp: React.FC = () => {
 
   const handlePrevStep = useCallback(() => {
     if (currentStep > 0) {
-      prepareStepTransition(currentStep, currentStep - 1, () => setStep(currentStep - 1));
+      setStep(currentStep - 1);
     }
   }, [currentStep, setStep]);
 
@@ -459,13 +458,13 @@ const PremiumApp: React.FC = () => {
     // 2. Normal Transition for all other steps
     if (currentStep < steps.length - 1) {
       saveProgress();
-      prepareStepTransition(currentStep, currentStep + 1, () => setStep(currentStep + 1));
+      setStep(currentStep + 1);
     }
   }, [currentStep, config, saveProgress, setStep, steps.length]);
 
   const togglePreview = useCallback(() => {
-    setPreviewFullscreen(prev => !prev);
-  }, []);
+    setShowStandaloneGameModal(true);
+  }, [setShowStandaloneGameModal]);
 
   if (!gameType) {
     return (
