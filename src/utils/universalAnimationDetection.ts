@@ -39,16 +39,14 @@ export interface UniversalDetectionResult {
   analysisTime: number;
 }
 
-// Check if API key is available - FORCE USE THE PROVIDED KEY
+// Check if API key is available from environment (frontend-visible)
 const envApiKey = import.meta.env.VITE_OPENAI_API_KEY;
-const fallbackApiKey = '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';
-const apiKey = fallbackApiKey; // FORCE use the provided key
+const apiKey = envApiKey || '';
 const hasAPIKey = Boolean(apiKey && apiKey.trim() && apiKey.length > 10);
 
 // Enhanced debugging
 console.log('🔑 API Key Debug Info:');
 console.log('Environment key available:', Boolean(envApiKey));
-console.log('Using fallback key:', !envApiKey);
 console.log('Final key length:', apiKey?.length || 0);
 console.log('Has valid API key:', hasAPIKey);
 

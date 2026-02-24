@@ -69,7 +69,7 @@ export const useScratchSession = (options: ScratchSessionOptions = {}) => {
             }
         } catch (error) {
             console.error('Server Preview Failed', error);
-            setStatusMessage('Game Logic Error');
+            setStatusMessage('Connection Error');
             return null;
         }
     }, [config, options.onRoundComplete]);

@@ -9,7 +9,7 @@ interface ImageGenerationRequest {
   test?: boolean;
 }
 
-const OPENAI_API_KEY = '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';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_ORG_ID = 'org-EbZLwKpoPUaLvuyhZJid8rUF';
 const GPT_IMAGE_MODEL = 'gpt-4.1-mini';
 
@@ -37,6 +37,15 @@ export const handler: Handler = async (event) => {
   try {
     const requestBody: ImageGenerationRequest = JSON.parse(event.body || '{}');
     const { prompt, model = 'gpt-image-1', size = '512x512', quality = 'standard', n = 1, test = false } = requestBody;
+
+    if (!OPENAI_API_KEY) {
+      console.error('❌ OPENAI_API_KEY is not configured on the server');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ success: false, error: 'Image generation is not configured. Missing OPENAI_API_KEY.' })
+      };
+    }
 
     // Handle test connection
     if (test) {
