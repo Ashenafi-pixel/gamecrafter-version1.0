@@ -77,7 +77,7 @@ export class CoordinateExtractor {
       };
       
     } catch (error) {
-      console.error('❌ Coordinate extraction failed:', error);
+      console.error('Coordinate extraction failed:', error);
       return {
         success: false,
         originalImage: '',
@@ -190,7 +190,7 @@ export class CoordinateExtractor {
       };
       
     } catch (error) {
-      console.error(`❌ Failed to extract sprite ${coordinates.name}:`, error);
+      console.error(`Failed to extract sprite ${coordinates.name}:`, error);
       return null;
     }
   }

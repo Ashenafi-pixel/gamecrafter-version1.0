@@ -1,10 +1,11 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import forceReload from './force-reload.js';
+import viteOpenaiImages from './vite-openai-images.js';
 import path from 'path';
 
 export default defineConfig({
-  plugins: [react(), forceReload()],
+  plugins: [react(), forceReload(), viteOpenaiImages()],
   resolve: {
     alias: [
       { find: '@rollup/rollup-linux-x64-gnu', replacement: path.resolve(__dirname, 'emptyModule.js') },
@@ -93,12 +94,7 @@ export default defineConfig({
       interval: 100,
     },
     proxy: {
-      '/.netlify/functions': {
-        target: 'http://localhost:9999',
-        changeOrigin: true,
-        secure: false,
-        ws: true, // Enable WebSocket proxy
-      },
+      // openai-images is handled by vite-openai-images.js (frontend dev server)
       // Specific route for RGS
       '/api/rgs': {
         target: 'http://localhost:3500',

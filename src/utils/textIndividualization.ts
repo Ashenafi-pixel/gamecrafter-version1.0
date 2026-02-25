@@ -59,7 +59,7 @@ class TextIndividualizationEngine {
         letters: result.letters
       };
     } catch (error) {
-      console.error('❌ Text analysis failed:', error);
+      console.error('Text analysis failed:', error);
       return {
         success: false,
         letters: [],
@@ -117,7 +117,7 @@ class TextIndividualizationEngine {
       return result;
 
     } catch (error) {
-      console.error('❌ Text individualization failed:', error);
+      console.error('Text individualization failed:', error);
       throw error;
     }
   }

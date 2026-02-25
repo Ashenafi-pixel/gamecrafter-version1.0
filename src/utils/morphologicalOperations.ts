@@ -111,7 +111,7 @@ export class MorphologicalOperations {
       };
       
     } catch (error) {
-      console.error('❌ Morphological separation failed:', error);
+      console.error('Morphological separation failed:', error);
       throw error;
     }
   }

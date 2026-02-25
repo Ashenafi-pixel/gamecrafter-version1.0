@@ -235,11 +235,11 @@ const ProfessionalAtlasPreview: React.FC<ProfessionalAtlasPreviewProps> = ({
           onUsePixelPerfectBounds();
         }
       } else {
-        console.error('❌ Pixel-perfect analysis failed:', pixelAnalysis.error);
+        console.error('Pixel-perfect analysis failed:', pixelAnalysis.error);
       }
       
     } catch (error) {
-      console.error('❌ Pixel-perfect detection failed:', error);
+      console.error('Pixel-perfect detection failed:', error);
     } finally {
       setIsProcessingPixelPerfect(false);
     }
@@ -275,7 +275,7 @@ const ProfessionalAtlasPreview: React.FC<ProfessionalAtlasPreviewProps> = ({
   // Improved animation function for bouncy wave text
   const playBouncyWaveAnimation = () => {
     if (!loadedAtlasImage || !animationCanvasRef.current) {
-      console.error('❌ Animation requirements not met:', {
+      console.error('Animation requirements not met:', {
         atlasImage: !!loadedAtlasImage,
         canvas: !!animationCanvasRef.current
       });
@@ -485,7 +485,7 @@ const ProfessionalAtlasPreview: React.FC<ProfessionalAtlasPreviewProps> = ({
     
     const ctx = canvas.getContext('2d');
     if (!ctx) {
-      console.error('❌ drawAnimationFrame: could not get canvas context');
+      console.error('drawAnimationFrame: could not get canvas context');
       return;
     }
     
@@ -529,12 +529,12 @@ const ProfessionalAtlasPreview: React.FC<ProfessionalAtlasPreviewProps> = ({
             -frame.w / 2, -frame.h / 2, frame.w, frame.h
           );
         } else {
-          console.warn(`❌ Invalid frame data for sprite ${index}:`, frame);
+          console.warn(`Invalid frame data for sprite ${index}:`, frame);
         }
         
         ctx.restore();
       } catch (error) {
-        console.error(`❌ Error drawing sprite ${index}:`, error);
+        console.error(`Error drawing sprite ${index}:`, error);
       }
     });
   };
@@ -589,7 +589,7 @@ const ProfessionalAtlasPreview: React.FC<ProfessionalAtlasPreviewProps> = ({
   if (!atlasResult.success) {
     return (
       <div style={{ padding: '20px', textAlign: 'center', color: '#dc2626' }}>
-        ❌ Atlas creation failed: {atlasResult.error}
+        Atlas creation failed: {atlasResult.error}
       </div>
     );
   }

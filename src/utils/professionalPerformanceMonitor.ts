@@ -185,7 +185,7 @@ export class ProfessionalPerformanceMonitor {
       try {
         callback(this.metrics);
       } catch (error) {
-        console.error('❌ Performance monitor callback error:', error);
+        console.error('Performance monitor callback error:', error);
       }
     });
   }

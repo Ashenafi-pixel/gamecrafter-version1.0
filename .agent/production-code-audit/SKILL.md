@@ -386,7 +386,7 @@ Current metrics:
 - **Add Infrastructure** - Logging, monitoring, error tracking
 - **Document Changes** - Explain what was fixed and why
 
-### ❌ Don't Do This
+### Don't Do This
 
 - **Don't Ask Questions** - Understand the codebase autonomously
 - **Don't Wait for Instructions** - Scan and fix automatically

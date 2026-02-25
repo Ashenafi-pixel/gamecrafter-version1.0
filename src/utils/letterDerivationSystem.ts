@@ -119,7 +119,7 @@ export class LetterDerivationSystem {
           });
           console.log(`✅ Letter ${targetLetter} derived successfully`);
         } else {
-          console.error(`❌ Failed to derive letter ${targetLetter}`);
+          console.error(`Failed to derive letter ${targetLetter}`);
           throw new Error(`Failed to derive letter ${targetLetter}`);
         }
       }

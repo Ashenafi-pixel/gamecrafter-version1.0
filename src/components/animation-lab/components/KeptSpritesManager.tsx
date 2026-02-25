@@ -110,7 +110,7 @@ const KeptSpritesManager: React.FC<KeptSpritesManagerProps> = ({
       console.log('✅ Sprite regenerated successfully');
       
     } catch (error) {
-      console.error('❌ Sprite regeneration failed:', error);
+      console.error('Sprite regeneration failed:', error);
       alert('Failed to regenerate sprite');
     } finally {
       setIsProcessing(prev => {
@@ -172,7 +172,7 @@ const KeptSpritesManager: React.FC<KeptSpritesManagerProps> = ({
       console.log('✅ Text individualization completed:', result);
       
     } catch (error) {
-      console.error('❌ Text individualization failed:', error);
+      console.error('Text individualization failed:', error);
       alert('Failed to individualize text');
     } finally {
       setIsProcessing(prev => {

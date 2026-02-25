@@ -139,7 +139,7 @@ export class ProfessionalExportSystem {
       return result;
 
     } catch (error) {
-      console.error('❌ Export failed:', error);
+      console.error('Export failed:', error);
       return {
         success: false,
         format: options.format,
@@ -376,7 +376,7 @@ export class ProfessionalExportSystem {
       
       console.log(`✅ Download started: ${downloadFilename}`);
     } catch (error) {
-      console.error('❌ Download failed:', error);
+      console.error('Download failed:', error);
       throw error;
     }
   }

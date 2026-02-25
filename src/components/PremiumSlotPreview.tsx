@@ -498,7 +498,7 @@ const PremiumSlotPreview: React.FC<PremiumSlotPreviewProps> = ({
       debugLog('EnhancedPremiumSlotPreview ready!');
 
     } catch (error) {
-      console.error('❌ PIXI.js initialization failed:', error);
+      console.error('PIXI.js initialization failed:', error);
       // DOM fallback
       setTimeout(() => {
         createDOMFallback(
@@ -1080,7 +1080,7 @@ const PremiumSlotPreview: React.FC<PremiumSlotPreviewProps> = ({
             renderSlotMachine(appRef.current, symbolTextures);
           }
         }).catch(error => {
-          console.error('❌ Failed to create symbols:', error);
+          console.error('Failed to create symbols:', error);
           debugLog('Symbol creation failed, trying fallback');
         });
       }

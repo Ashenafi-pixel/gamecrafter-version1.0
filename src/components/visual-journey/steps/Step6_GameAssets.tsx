@@ -1097,10 +1097,10 @@ STYLE: Modern casino game UI, premium quality, 3D rendered appearance like real 
             successCount++;
             console.log(`✅ [Individual Button] ${buttonDef.displayName} generated and cropped successfully`);
           } else {
-            console.error(`❌ [Individual Button] Failed to generate ${buttonDef.displayName}: No image URL`);
+            console.error(`[Individual Button] Failed to generate ${buttonDef.displayName}: No image URL`);
           }
         } catch (buttonError) {
-          console.error(`❌ [Individual Button] Error generating ${buttonDef.displayName}:`, buttonError);
+          console.error(`[Individual Button] Error generating ${buttonDef.displayName}:`, buttonError);
         }
       }
 

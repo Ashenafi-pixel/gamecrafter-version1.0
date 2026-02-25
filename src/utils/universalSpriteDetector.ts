@@ -90,7 +90,7 @@ export class UniversalSpriteDetector {
       return await this.tryAdvancedFusion(imageUrl);
 
     } catch (error) {
-      console.error(`❌ BULLETPROOF detection failed:`, error);
+      console.error(`BULLETPROOF detection failed:`, error);
       console.log(`🔄 Falling back to legacy detection approach...`);
       return await this.legacyDetection(imageUrl);
     }
@@ -137,7 +137,7 @@ export class UniversalSpriteDetector {
       
       return [];
     } catch (error) {
-      console.error('❌ Advanced fusion failed:', error);
+      console.error('Advanced fusion failed:', error);
       return [];
     }
   }
@@ -352,7 +352,7 @@ export class UniversalSpriteDetector {
             regions.push(region);
             console.log(`   ✅ Accepted region ${totalRegionsFound}`);
           } else {
-            console.log(`   ❌ Rejected region ${totalRegionsFound}: size=${region.pixelCount} (min=${this.options.minSpriteSize}, max=${this.options.maxSpriteSize})`);
+            console.log(`   Rejected region ${totalRegionsFound}: size=${region.pixelCount} (min=${this.options.minSpriteSize}, max=${this.options.maxSpriteSize})`);
           }
         }
       }
@@ -748,7 +748,7 @@ export class UniversalSpriteDetector {
             regions.push(region);
             console.log(`   ✅ Accepted ${regionName} region ${regionCount}`);
           } else {
-            console.log(`   ❌ Rejected ${regionName} region ${regionCount}: size=${region.pixelCount} (min=${minSize}, max=${maxSize})`);
+            console.log(`   Rejected ${regionName} region ${regionCount}: size=${region.pixelCount} (min=${minSize}, max=${maxSize})`);
           }
         }
       }
@@ -834,7 +834,7 @@ export class UniversalSpriteDetector {
       mergeAttempts++;
       
       if (!mergedPair) {
-        console.log(`❌ No more mergeable pairs found after ${mergeAttempts} attempts`);
+        console.log(`No more mergeable pairs found after ${mergeAttempts} attempts`);
         break; // No more mergeable pairs
       }
     }
@@ -951,7 +951,7 @@ export class UniversalSpriteDetector {
       return true;
     }
     
-    console.log(`❌ No regions close enough to merge (closest: ${closestDistance.toFixed(1)})`);
+    console.log(`No regions close enough to merge (closest: ${closestDistance.toFixed(1)})`);
     return false;
   }
 }

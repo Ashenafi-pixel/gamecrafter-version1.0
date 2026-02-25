@@ -234,7 +234,7 @@ export const useAutomationStore = create<AutomationState>()(
         setCurrentStep('preview');
         
       } catch (error) {
-        console.error('❌ Automated workflow failed:', error);
+        console.error('Automated workflow failed:', error);
         setCurrentStep('upload');
       } finally {
         setAnalyzing(false);

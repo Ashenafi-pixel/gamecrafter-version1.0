@@ -121,7 +121,7 @@ export class ColorSegmentation {
       };
       
     } catch (error) {
-      console.error('❌ Color segmentation failed:', error);
+      console.error('Color segmentation failed:', error);
       throw error;
     }
   }

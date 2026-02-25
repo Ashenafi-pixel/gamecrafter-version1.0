@@ -45,7 +45,7 @@ export class AIElementDetector {
       return elements;
       
     } catch (error) {
-      console.error('❌ [AI Detector] Detection failed:', error);
+      console.error('[AI Detector] Detection failed:', error);
       throw error;
     }
   }
@@ -209,7 +209,7 @@ Analyze every pixel and detect ALL elements with scientific precision.`;
       return elements;
 
     } catch (error) {
-      console.error('❌ [AI Detector] Failed to parse analysis:', error);
+      console.error('[AI Detector] Failed to parse analysis:', error);
       
       // Return default test elements
       return [

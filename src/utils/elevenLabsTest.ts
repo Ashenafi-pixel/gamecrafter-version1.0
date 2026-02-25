@@ -16,7 +16,7 @@ export async function testElevenLabsConnection(): Promise<boolean> {
     });
 
     if (result.error) {
-      console.error('❌ ElevenLabs test failed:', result.error);
+      console.error('ElevenLabs test failed:', result.error);
       return false;
     }
 
@@ -29,7 +29,7 @@ export async function testElevenLabsConnection(): Promise<boolean> {
 
     return false;
   } catch (error) {
-    console.error('❌ ElevenLabs test error:', error);
+    console.error('ElevenLabs test error:', error);
     return false;
   }
 }
@@ -41,7 +41,7 @@ export async function testGameAudioGeneration(): Promise<boolean> {
     const result = await elevenLabsClient.generateGameAudio('upbeat', 'clapping hands');
 
     if (result.error) {
-      console.error('❌ Game audio test failed:', result.error);
+      console.error('Game audio test failed:', result.error);
       return false;
     }
 
@@ -53,7 +53,7 @@ export async function testGameAudioGeneration(): Promise<boolean> {
 
     return false;
   } catch (error) {
-    console.error('❌ Game audio test error:', error);
+    console.error('Game audio test error:', error);
     return false;
   }
 }
@@ -67,7 +67,7 @@ export async function testVoicesList(): Promise<void> {
       console.log(`${index + 1}. ${voice.name} (${voice.voice_id})`);
     });
   } catch (error) {
-    console.error('❌ Voices test error:', error);
+    console.error('Voices test error:', error);
   }
 }
 

@@ -296,7 +296,7 @@ const Step3_ReelConfiguration: React.FC = () => {
       localStorage.setItem('gameCrafter_gridOrientation', newOrientation);
       console.log("💾 Saved orientation preference to localStorage:", newOrientation);
     } catch (e) {
-      console.error("❌ Failed to save orientation to localStorage:", e);
+      console.error("Failed to save orientation to localStorage:", e);
       // Silent fail for localStorage errors
     }
     

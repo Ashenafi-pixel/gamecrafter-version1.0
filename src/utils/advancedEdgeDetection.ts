@@ -104,7 +104,7 @@ export class AdvancedEdgeDetection {
       };
       
     } catch (error) {
-      console.error('❌ Advanced edge detection failed:', error);
+      console.error('Advanced edge detection failed:', error);
       throw error;
     }
   }

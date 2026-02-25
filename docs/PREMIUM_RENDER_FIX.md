@@ -82,7 +82,7 @@ Enhanced logging was added throughout the component to help diagnose render issu
 - 🔄 Step transition attempts and navigation events
 - ✅ Success confirmations and component verifications
 - ⚠️ Warnings for potential issues
-- ❌ Error messages for failures
+- Error messages for failures
 - 🔍 Verification of current step after transitions
 - ⚙️ Component rendering and selection
 

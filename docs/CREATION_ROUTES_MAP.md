@@ -94,7 +94,7 @@ This document provides a comprehensive overview of all game creation flows in th
    - No dedicated initialization or components yet
    - Set game type in store but don't have custom creation flow
 
-## ❌ Deprecated Routes
+## Deprecated Routes
 
 1. **`/create` (without parameters)**
    - **Issue**: Doesn't properly initialize the step or force parameter

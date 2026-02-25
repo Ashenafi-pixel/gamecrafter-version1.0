@@ -87,7 +87,7 @@ export class AudioManager implements IAudioManager {
           console.log(`✅ Sound loaded: ${definition.id}`);
         },
         onloaderror: (_id, error) => {
-          console.error(`❌ Failed to load sound ${definition.id}:`, error);
+          console.error(`Failed to load sound ${definition.id}:`, error);
         }
       });
       

@@ -1265,7 +1265,7 @@ const SymbolCompositionStudio: React.FC<SymbolCompositionStudioProps> = ({
                       cursor: 'pointer'
                     }}
                   >
-                    ❌ Clear Selection
+                    Clear Selection
                   </button>
                 </div>
               </div>

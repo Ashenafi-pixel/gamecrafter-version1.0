@@ -174,7 +174,7 @@ const Step5_SymbolAnimation: React.FC = () => {
       setLetterSprites(letters);
       setSymbolSprites(symbols);
     } catch (error) {
-      console.error('❌ Error processing letter sprites:', error);
+      console.error('Error processing letter sprites:', error);
       setLetterSprites([]);
     } finally {
       setIsProcessingSprites(false);

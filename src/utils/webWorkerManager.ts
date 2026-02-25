@@ -55,7 +55,7 @@ export class WebWorkerManager {
 
       console.log(`✅ WebWorker pool initialized with ${this.workers.length} workers`);
     } catch (error) {
-      console.error('❌ Failed to initialize WebWorker pool:', error);
+      console.error('Failed to initialize WebWorker pool:', error);
       throw error;
     }
   }
@@ -78,12 +78,12 @@ export class WebWorkerManager {
         };
 
         worker.onerror = (error) => {
-          console.error('❌ Worker error:', error);
+          console.error('Worker error:', error);
           this.handleWorkerError(worker, error);
         };
 
         worker.onmessageerror = (error) => {
-          console.error('❌ Worker message error:', error);
+          console.error('Worker message error:', error);
           this.handleWorkerError(worker, error);
         };
 
@@ -95,7 +95,7 @@ export class WebWorkerManager {
         resolve(worker);
 
       } catch (error) {
-        console.error('❌ Failed to create worker:', error);
+        console.error('Failed to create worker:', error);
         reject(error);
       }
     });
@@ -132,7 +132,7 @@ export class WebWorkerManager {
       console.log(`✅ Task ${id} succeeded with data:`, data);
       task.resolve(data);
     } else {
-      console.error(`❌ Task ${id} failed with error:`, error);
+      console.error(`Task ${id} failed with error:`, error);
       task.reject(new Error(error || 'Unknown worker error'));
     }
 
@@ -145,7 +145,7 @@ export class WebWorkerManager {
    * Handle worker errors
    */
   private handleWorkerError(worker: Worker, error: any): void {
-    console.error('❌ Worker encountered error:', error);
+    console.error('Worker encountered error:', error);
 
     // Find and reject any pending tasks for this worker
     for (const [taskId, task] of this.pendingTasks.entries()) {
@@ -159,7 +159,7 @@ export class WebWorkerManager {
 
     // Try to create a replacement worker
     this.createWorker().catch(err => {
-      console.error('❌ Failed to create replacement worker:', err);
+      console.error('Failed to create replacement worker:', err);
     });
   }
 
@@ -215,7 +215,7 @@ export class WebWorkerManager {
       });
       console.log(`✅ Task ${task.id} dispatched successfully`);
     } catch (error) {
-      console.error(`❌ Failed to dispatch task ${task.id}:`, error);
+      console.error(`Failed to dispatch task ${task.id}:`, error);
       // Return worker to available pool
       this.busyWorkers.delete(worker);
       this.availableWorkers.push(worker);
@@ -257,7 +257,7 @@ export class WebWorkerManager {
         this.createWorker().then(() => {
           this.processNextTask();
         }).catch(error => {
-          console.error('❌ Failed to create additional worker:', error);
+          console.error('Failed to create additional worker:', error);
         });
       }
     });

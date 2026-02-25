@@ -402,13 +402,13 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
             };
 
             reader.onerror = () => {
-                console.error('❌ Error reading file');
+                console.error('Error reading file');
                 alert('Error reading file. Please try again.');
             };
 
             reader.readAsDataURL(file);
         } catch (error) {
-            console.error('❌ Symbol upload error:', error);
+            console.error('Symbol upload error:', error);
             alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     };
@@ -646,12 +646,12 @@ const Step5_SymbolGenerationNe: React.FC<EnhancedAnimationLabProps> = ({ layoutM
                     });
 
                 } else {
-                    console.error('❌ Generation failed:', result.error);
+                    console.error('Generation failed:', result.error);
                     alert(`Generation failed: ${result.error || 'Unknown error'}`);
                 }
             }
         } catch (error) {
-            console.error('❌ Symbol generation error:', error);
+            console.error('Symbol generation error:', error);
             alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
         } finally {
             setIsGenerating(false);

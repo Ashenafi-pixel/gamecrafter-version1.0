@@ -728,7 +728,7 @@ const PixiSlotPreview: React.FC<PixiSlotPreviewProps> = ({
         });
       }
     } catch (error) {
-      console.error('❌ Failed to load Free Spin background:', error);
+      console.error('Failed to load Free Spin background:', error);
     }
   };
 

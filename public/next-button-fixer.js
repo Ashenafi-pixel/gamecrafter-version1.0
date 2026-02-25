@@ -175,7 +175,7 @@
     switch (type) {
       case 'error':
         color = '#ff5555';
-        prefix = '❌ ERROR: ';
+        prefix = 'ERROR: ';
         break;
       case 'success':
         color = '#50fa7b';

@@ -113,7 +113,7 @@ export const Step6_AnimationStudioIntegration: React.FC<Step6AnimationStudioInte
                 console.log(`⚠️ Mask controls not ready yet, retrying in ${attempt * 500}ms (attempt ${attempt + 1})`);
                 setTimeout(() => tryApplyMaskControls(attempt + 1), attempt * 500);
               } else {
-                console.error('❌ Failed to apply initial mask controls after 5 attempts');
+                console.error('Failed to apply initial mask controls after 5 attempts');
               }
             };
             

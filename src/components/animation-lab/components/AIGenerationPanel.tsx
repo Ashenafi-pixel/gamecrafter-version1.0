@@ -142,7 +142,7 @@ const AIGenerationPanel: React.FC<AIGenerationPanelProps> = ({
       }
 
     } catch (error) {
-      console.error('❌ Sprite generation failed:', error);
+      console.error('Sprite generation failed:', error);
       onError(`Sprite generation failed: ${error}`);
     } finally {
       setIsGenerating(false);
