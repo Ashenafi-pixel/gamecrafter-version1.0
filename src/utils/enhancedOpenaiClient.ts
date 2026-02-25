@@ -1,8 +1,25 @@
-// Image generation goes through our server proxy so the API key is never in the browser (avoids CORS + 401).
+// Image generation goes through a backend proxy so the API key is never in the browser (avoids CORS + 401).
 const IMAGE_MODEL = "gpt-image-1.5";
-const IMAGE_PROXY =
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_OPENAI_IMAGE_PROXY) ||
-  '/.netlify/functions/openai-images';
+const IMAGE_PROXY = (() => {
+  if (typeof import.meta === 'undefined') {
+    return '/.netlify/functions/openai-images';
+  }
+  const env = import.meta.env || {};
+
+  // Highest priority: explicit proxy override
+  if (env.VITE_OPENAI_IMAGE_PROXY) {
+    return env.VITE_OPENAI_IMAGE_PROXY as string;
+  }
+
+  // Next: use the Go backend base URL from VITE_RGS_URL
+  if (env.VITE_RGS_URL) {
+    const base = (env.VITE_RGS_URL as string).replace(/\/$/, '');
+    return `${base}/api/openai/images`;
+  }
+
+  // Fallbacks: keep existing Netlify/Vite dev proxy path
+  return '/.netlify/functions/openai-images';
+})();
 
 // Type definitions
 export interface ImageGenerationConfig {
