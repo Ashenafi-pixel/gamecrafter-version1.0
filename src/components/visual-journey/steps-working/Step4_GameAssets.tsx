@@ -1774,10 +1774,10 @@ STYLE: Modern casino game UI, premium quality, 3D rendered appearance like real 
             buttonImageIds[buttonDef.name] = `ui_${buttonDef.name}_normal`; // Store the image ID for later use
             successCount++;
           } else {
-            console.error(`❌ [Individual Button] Failed to generate ${buttonDef.displayName}: No image URL`);
+            console.error(`[Individual Button] Failed to generate ${buttonDef.displayName}: No image URL`);
           }
         } catch (buttonError) {
-          console.error(`❌ [Individual Button] Error generating ${buttonDef.displayName}:`, buttonError);
+          console.error(`[Individual Button] Error generating ${buttonDef.displayName}:`, buttonError);
         }
       }
 
@@ -2770,7 +2770,7 @@ DO NOT create a new button design. ONLY desaturate and fade the existing button'
           const sourceImageId = (assetConfig.uiButtonImageIds as any)?.[button];
 
           if (!sourceImageUrl) {
-            console.error(`❌ No source image URL found for ${button}`);
+            console.error(`No source image URL found for ${button}`);
             continue;
           }
           const result = await enhancedOpenaiClient.generateImageWithConfig({
@@ -2790,7 +2790,7 @@ DO NOT create a new button design. ONLY desaturate and fade the existing button'
             }
             generatedCount++;
           } else {
-            console.error(`❌ Failed to generate ${state} state for ${button}`);
+            console.error(`Failed to generate ${state} state for ${button}`);
           }
         } catch (error) {
           console.error(`Error generating ${state} state for ${button}:`, error);

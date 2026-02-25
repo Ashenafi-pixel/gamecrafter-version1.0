@@ -648,7 +648,7 @@ const ProfessionalUnifiedGridPreview: React.FC<ProfessionalUnifiedGridPreviewPro
         }
         
         if (reelCells.length === 0) {
-          console.error(`❌ NO CELLS FOUND FOR REEL ${reel}`);
+          console.error(`NO CELLS FOUND FOR REEL ${reel}`);
           return;
         }
         

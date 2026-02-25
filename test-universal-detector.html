@@ -306,7 +306,7 @@
                 const sprites = await detector.detectSprites(imageUrl);
                 displayResults(sprites);
             } catch (error) {
-                detector.log(`❌ Detection failed: ${error.message}`);
+                detector.log(`Detection failed: ${error.message}`);
             }
         };
 

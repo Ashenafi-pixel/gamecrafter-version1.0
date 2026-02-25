@@ -67,12 +67,12 @@ if (hasAPIKey) {
     console.log('  - Browser mode: enabled');
     console.log('  - API key: ****' + apiKey.slice(-8));
   } catch (error) {
-    console.error('❌ Failed to initialize OpenAI API:', error);
+    console.error('Failed to initialize OpenAI API:', error);
     console.error('Error details:', error.message);
     openai = null;
   }
 } else {
-  console.error('❌ No valid API key available for GPT-4 Vision');
+  console.error('No valid API key available for GPT-4 Vision');
 }
 
 export const analyzeSymbolUniversally = async (imageBase64: string): Promise<UniversalDetectionResult> => {
@@ -93,7 +93,7 @@ export const analyzeSymbolUniversally = async (imageBase64: string): Promise<Uni
     console.log('✅ REAL AI analysis completed successfully');
     return result;
   } catch (error) {
-    console.error('❌ GPT-4 Vision failed:', error);
+    console.error('GPT-4 Vision failed:', error);
     console.error('Error details:', error.message);
     throw new Error(`GPT-4 Vision analysis failed: ${error.message}. Real AI analysis is required.`);
   }
@@ -226,7 +226,7 @@ DO NOT include any text outside the JSON. Return the mesh map now.`
     }
     // Strategy 5: Complete failure
     else {
-      console.error('❌ GPT-4 Vision did not return JSON format');
+      console.error('GPT-4 Vision did not return JSON format');
       console.error('Response type: text/refusal');
       console.error('Full response:', content);
       throw new Error('GPT-4 Vision refused to analyze the image or returned invalid format. Enable JSON mode.');

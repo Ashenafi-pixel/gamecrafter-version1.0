@@ -137,7 +137,7 @@ What type of game?
 
 ## 7. Anti-Patterns
 
-| ❌ Don't | ✅ Do |
+| Don't | ✅ Do |
 |----------|-------|
 | Load all assets upfront | Progressive loading |
 | Ignore tab visibility | Pause when hidden |

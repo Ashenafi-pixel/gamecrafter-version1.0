@@ -179,7 +179,7 @@ export async function saveSymbolToAnimationLab(
       
       return savedPath;
     } else {
-      console.error(`[AnimationLab] ❌ Failed to save symbol:`, saveResponse.statusText);
+      console.error(`[AnimationLab] Failed to save symbol:`, saveResponse.statusText);
       
       // Fallback: Save to localStorage and return original URL
       const spriteData: AnimationLabSprite = {
@@ -202,7 +202,7 @@ export async function saveSymbolToAnimationLab(
     }
     
   } catch (error) {
-    console.error(`[AnimationLab] ❌ Error saving symbol:`, error);
+    console.error(`[AnimationLab] Error saving symbol:`, error);
     
     // Fallback: Save to localStorage only
     try {
@@ -223,7 +223,7 @@ export async function saveSymbolToAnimationLab(
       localStorage.setItem('animation_lab_registry', JSON.stringify(registry));
       console.log(`[AnimationLab] 💾 Saved to localStorage in catch block`);
     } catch (fallbackError) {
-      console.error(`[AnimationLab] ❌ Even localStorage fallback failed:`, fallbackError);
+      console.error(`[AnimationLab] Even localStorage fallback failed:`, fallbackError);
       // Final fallback: Clear animation lab registry and try once more
       try {
         localStorage.removeItem('animation_lab_registry');
@@ -243,7 +243,7 @@ export async function saveSymbolToAnimationLab(
         localStorage.setItem('animation_lab_registry', JSON.stringify({ [symbolId]: minimalSprite }));
         console.log('[AnimationLab] 💾 Created minimal sprite entry as final fallback');
       } catch (finalError) {
-        console.error('[AnimationLab] ❌ All storage methods failed:', finalError);
+        console.error('[AnimationLab] All storage methods failed:', finalError);
       }
     }
     
@@ -319,12 +319,12 @@ export async function saveSpriteComponentsToAnimationLab(
       
       return savedPath;
     } else {
-      console.error(`[AnimationLab] ❌ Failed to save sprite components:`, saveResponse.statusText);
+      console.error(`[AnimationLab] Failed to save sprite components:`, saveResponse.statusText);
       return spriteSheetUrl;
     }
     
   } catch (error) {
-    console.error(`[AnimationLab] ❌ Error saving sprite components:`, error);
+    console.error(`[AnimationLab] Error saving sprite components:`, error);
     return spriteSheetUrl;
   }
 }
@@ -420,7 +420,7 @@ export function clearAnimationLabStorage(): void {
     console.log(`[AnimationLab] 📊 Storage after clearing: ${afterUsage.percentage}% (${(afterUsage.used / 1024 / 1024).toFixed(1)}MB)`);
     console.log(`[AnimationLab] 💾 Space freed: ${((beforeUsage.used - afterUsage.used) / 1024 / 1024).toFixed(1)}MB`);
   } catch (error) {
-    console.error('[AnimationLab] ❌ Error clearing storage:', error);
+    console.error('[AnimationLab] Error clearing storage:', error);
   }
 }
 

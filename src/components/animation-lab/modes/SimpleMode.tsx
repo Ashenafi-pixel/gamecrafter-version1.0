@@ -46,7 +46,7 @@ const SimpleMode: React.FC = () => {
       setCurrentAnimations(animations);
       console.log(`🎨 Applied preset "${presetId}":`, animations);
     } catch (error) {
-      console.error('❌ Failed to apply preset:', error);
+      console.error('Failed to apply preset:', error);
     }
   }, [atlasResult]);
 
@@ -68,7 +68,7 @@ const SimpleMode: React.FC = () => {
       
       console.log('✅ Auto-animation complete:', animations);
     } catch (error) {
-      console.error('❌ Auto-animation failed:', error);
+      console.error('Auto-animation failed:', error);
     } finally {
       setIsAnimating(false);
     }
@@ -84,7 +84,7 @@ const SimpleMode: React.FC = () => {
 
   // Handle error from AI generation
   const handleGenerationError = useCallback((error: string) => {
-    console.error('❌ AI Generation error:', error);
+    console.error('AI Generation error:', error);
     alert(`AI Generation failed: ${error}`);
   }, []);
 
@@ -131,7 +131,7 @@ const SimpleMode: React.FC = () => {
       console.log('✅ Text individualization completed');
 
     } catch (error) {
-      console.error('❌ Text individualization failed:', error);
+      console.error('Text individualization failed:', error);
       alert('Text individualization failed');
     } finally {
       setIsProcessing(false);

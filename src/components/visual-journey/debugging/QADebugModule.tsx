@@ -112,11 +112,11 @@ ${Object.entries(systemInfo.libraries).map(([name, version]) =>
 ).join('\n')}
 
 ## 🎮 ANIMATION SYSTEM
-- Professional Renderer: ${systemInfo.sprites.total > 0 ? '✅ ACTIVE' : '❌ INACTIVE'}
+- Professional Renderer: ${systemInfo.sprites.total > 0 ? '✅ ACTIVE' : 'INACTIVE'}
 - Total Sprites: ${systemInfo.sprites.total}
 - Visible Sprites: ${systemInfo.sprites.visible}
 - Mesh Points Detected: ${systemInfo.sprites.meshPoints}
-- Animations Running: ${systemInfo.performance.fps > 0 ? '✅ YES' : '❌ NO'}
+- Animations Running: ${systemInfo.performance.fps > 0 ? '✅ YES' : 'NO'}
 
 ## ⚡ PERFORMANCE METRICS
 - FPS: ${systemInfo.performance.fps.toFixed(1)}
@@ -125,16 +125,16 @@ ${Object.entries(systemInfo.libraries).map(([name, version]) =>
 - Performance Grade: ${systemInfo.performance.fps >= 55 ? 'A' : systemInfo.performance.fps >= 45 ? 'B' : systemInfo.performance.fps >= 30 ? 'C' : 'D'}
 
 ## 🔧 WEB WORKERS
-- Available: ${typeof Worker !== 'undefined' ? '✅ YES' : '❌ NO'}
-- Mesh Processing: ${(window as any).WEB_WORKER_MANAGER ? '✅ ACTIVE' : '❌ INACTIVE'}
-- Multi-threading: ${(window as any).WEB_WORKER_MANAGER?.isAvailable() ? '✅ ENABLED' : '❌ DISABLED'}
+- Available: ${typeof Worker !== 'undefined' ? '✅ YES' : 'NO'}
+- Mesh Processing: ${(window as any).WEB_WORKER_MANAGER ? '✅ ACTIVE' : 'INACTIVE'}
+- Multi-threading: ${(window as any).WEB_WORKER_MANAGER?.isAvailable() ? '✅ ENABLED' : 'DISABLED'}
 
 ## 🎯 DETECTION RESULTS
-- Universal AI Detection: ${systemInfo.sprites.meshPoints > 0 ? '✅ WORKING' : '❌ NOT WORKING'}
+- Universal AI Detection: ${systemInfo.sprites.meshPoints > 0 ? '✅ WORKING' : 'NOT WORKING'}
 - Surgical Precision: ${systemInfo.sprites.meshPoints >= 10 ? '✅ HIGH PRECISION' : '⚠️ LOW PRECISION'}
 - Mesh Quality: ${systemInfo.sprites.meshPoints >= 20 ? 'EXCELLENT' : systemInfo.sprites.meshPoints >= 10 ? 'GOOD' : 'POOR'}
 
-## ❌ ERRORS (${systemInfo.errors.length})
+## ERRORS (${systemInfo.errors.length})
 ${systemInfo.errors.length === 0 ? '✅ No errors detected' : 
   systemInfo.errors.slice(0, 5).map(error => `- ${error}`).join('\n')}
 
@@ -143,10 +143,10 @@ ${systemInfo.warnings.length === 0 ? '✅ No warnings detected' :
   systemInfo.warnings.slice(0, 5).map(warning => `- ${warning}`).join('\n')}
 
 ## 🎬 ANIMATION STATUS
-- Canvas Rendering: ${systemInfo.sprites.visible > 0 ? '✅ SPRITES VISIBLE' : '❌ BLANK CANVAS'}
-- GSAP Animations: ${(window as any).gsap ? '✅ LOADED' : '❌ NOT LOADED'}
-- Physics Engine: ${(window as any).Matter ? '✅ LOADED' : '❌ NOT LOADED'}
-- Mesh Processing: ${(window as any).earcut ? '✅ LOADED' : '❌ NOT LOADED'}
+- Canvas Rendering: ${systemInfo.sprites.visible > 0 ? '✅ SPRITES VISIBLE' : 'BLANK CANVAS'}
+- GSAP Animations: ${(window as any).gsap ? '✅ LOADED' : 'NOT LOADED'}
+- Physics Engine: ${(window as any).Matter ? '✅ LOADED' : 'NOT LOADED'}
+- Mesh Processing: ${(window as any).earcut ? '✅ LOADED' : 'NOT LOADED'}
 
 ## 💡 RECOMMENDATIONS
 ${systemInfo.sprites.total === 0 ? '🔴 CRITICAL: No sprites detected - Check symbol loading' : ''}

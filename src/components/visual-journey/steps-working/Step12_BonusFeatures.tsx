@@ -341,7 +341,7 @@ export const BonusFeatures: React.FC = () => {
         throw new Error(result.error || 'No image returned from generation');
       }
     } catch (error) {
-      console.error('❌ Error generating bonus symbol:', error);
+      console.error('Error generating bonus symbol:', error);
 
       // Update retry count
       const updatedSymbols = bonusSymbols.map(symbol =>
@@ -421,7 +421,7 @@ export const BonusFeatures: React.FC = () => {
       };
       reader.readAsDataURL(file);
     } catch (error) {
-      console.error('❌ Error uploading symbol:', error);
+      console.error('Error uploading symbol:', error);
       if (typeof window !== 'undefined' && (window as any).showToast) {
         (window as any).showToast(`Failed to upload ${selectedSymbol.name} symbol.`, 'error');
       }

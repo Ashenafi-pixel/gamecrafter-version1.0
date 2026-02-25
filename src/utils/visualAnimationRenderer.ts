@@ -111,8 +111,8 @@ class VisualAnimationRenderer {
       });
 
     } catch (error) {
-      console.error('❌ [Visual Renderer] Failed to initialize:', error);
-      console.error('❌ [DEBUG] Error details:', {
+      console.error('[Visual Renderer] Failed to initialize:', error);
+      console.error('[DEBUG] Error details:', {
         message: error.message,
         stack: error.stack,
         canvasDetails: {
@@ -193,7 +193,7 @@ class VisualAnimationRenderer {
       console.log(`🎨 [Visual Renderer] Loaded sprite: ${layerData.name} at (${baseX.toFixed(1)}, ${baseY.toFixed(1)})`);
 
     } catch (error) {
-      console.error(`❌ [Visual Renderer] Failed to load sprite ${layerId}:`, error);
+      console.error(`[Visual Renderer] Failed to load sprite ${layerId}:`, error);
     }
   }
 

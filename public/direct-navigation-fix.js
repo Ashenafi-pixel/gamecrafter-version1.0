@@ -21,7 +21,7 @@
   // Logging with timestamps
   const log = (message, type = 'info') => {
     const timestamp = new Date().toLocaleTimeString();
-    const prefix = type === 'error' ? '❌ ERROR' : 
+    const prefix = type === 'error' ? 'ERROR' : 
                   type === 'success' ? '✅ SUCCESS' : 
                   type === 'warning' ? '⚠️ WARNING' : '🔍 INFO';
     

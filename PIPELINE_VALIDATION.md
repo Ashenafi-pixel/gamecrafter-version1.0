@@ -66,7 +66,7 @@ await startAutomatedWorkflow(imageUrl, prompt)
 
 ## No Fallback Dependencies ✅
 
-### ❌ Removed Problematic Fallbacks:
+### Removed Problematic Fallbacks:
 - ~~Placeholder images when generation fails~~
 - ~~Mock API responses~~
 - ~~Default animation when detection fails~~

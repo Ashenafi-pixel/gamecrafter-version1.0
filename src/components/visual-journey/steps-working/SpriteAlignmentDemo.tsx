@@ -72,7 +72,7 @@ export default function SpriteAlignmentDemo() {
                 color: '#dc3545',
                 textAlign: 'center'
               }}>
-                ❌ Without Frame Alignment
+                Without Frame Alignment
               </h4>
               <p style={{ 
                 fontSize: '14px', 

@@ -71,7 +71,7 @@ export class BulletproofSpriteDetector {
       return sprites;
       
     } catch (error) {
-      console.error('❌ BULLETPROOF: Detection failed:', error);
+      console.error('BULLETPROOF: Detection failed:', error);
       return [];
     }
   }

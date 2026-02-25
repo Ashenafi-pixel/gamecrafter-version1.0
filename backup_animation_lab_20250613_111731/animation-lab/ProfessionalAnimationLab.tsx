@@ -41,7 +41,7 @@ const ProfessionalAnimationLab: React.FC<ProfessionalAnimationLabProps> = ({
         addToLog('✨ Non-destructive alpha masking ready for color preservation');
       } catch (error) {
         console.error('Failed to initialize professional renderer:', error);
-        addToLog(`❌ Renderer initialization failed: ${error.message}`);
+        addToLog(`Renderer initialization failed: ${error.message}`);
       }
     };
 
@@ -172,7 +172,7 @@ const ProfessionalAnimationLab: React.FC<ProfessionalAnimationLabProps> = ({
 
     } catch (error) {
       console.error('[ProfessionalLab] Pipeline failed:', error);
-      addToLog(`❌ Error: ${error.message}`);
+      addToLog(`Error: ${error.message}`);
       setCurrentStage('Error');
     } finally {
       setIsProcessing(false);

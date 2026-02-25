@@ -26,7 +26,7 @@ export default function EnhancedSpriteSheetTest() {
       setTestResults(analysis);
       console.log('📊 Sprite analysis complete:', analysis);
     } catch (error) {
-      console.error('❌ Analysis failed:', error);
+      console.error('Analysis failed:', error);
     } finally {
       setIsAnalyzing(false);
     }
@@ -122,13 +122,13 @@ export default function EnhancedSpriteSheetTest() {
                   marginBottom: '16px'
                 }}>
                   <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
-                    {testResults.analysis.isValid ? '✅ Valid Sprite Sheet' : '❌ Issues Found'}
+                    {testResults.analysis.isValid ? '✅ Valid Sprite Sheet' : 'Issues Found'}
                   </div>
                   <div style={{ fontSize: '14px' }}>
                     <strong>Dimensions:</strong> {testResults.analysis.dimensions.width}x{testResults.analysis.dimensions.height}<br/>
                     <strong>Frame Size:</strong> {testResults.analysis.dimensions.frameWidth}x{testResults.analysis.dimensions.frameHeight}<br/>
                     <strong>Grid:</strong> {testResults.analysis.gridInfo.cols}x{testResults.analysis.gridInfo.rows} ({testResults.analysis.gridInfo.totalFrames} frames)<br/>
-                    <strong>Transparency:</strong> {testResults.debugInfo.hasTransparency ? '✅ Yes' : '❌ No'}<br/>
+                    <strong>Transparency:</strong> {testResults.debugInfo.hasTransparency ? '✅ Yes' : 'No'}<br/>
                     <strong>Format:</strong> {testResults.debugInfo.imageFormat}<br/>
                     <strong>Load Time:</strong> {testResults.debugInfo.loadTime}ms
                   </div>

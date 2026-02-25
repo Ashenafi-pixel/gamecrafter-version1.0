@@ -111,7 +111,7 @@ export class ProfessionalSpriteAtlas {
       };
       
     } catch (error) {
-      console.error('❌ Pixel-perfect atlas creation failed:', error);
+      console.error('Pixel-perfect atlas creation failed:', error);
       return {
         success: false,
         atlasImageUrl: '',
@@ -300,7 +300,7 @@ export class ProfessionalSpriteAtlas {
       };
       
     } catch (error) {
-      console.error('❌ Professional atlas creation failed:', error);
+      console.error('Professional atlas creation failed:', error);
       return {
         success: false,
         atlasImageUrl: '',

@@ -139,7 +139,7 @@ const SlotCreator: React.FC = () => {
           shouldCreateNewSession = true;
         }
       } catch (err) {
-        console.error('❌ Error loading game data:', err);
+        console.error('Error loading game data:', err);
         shouldCreateNewSession = true;
       }
     }
@@ -265,7 +265,7 @@ const SlotCreator: React.FC = () => {
         }
       }
       
-      console.error('❌ No valid game session found');
+      console.error('No valid game session found');
       return false;
     };
     
@@ -274,7 +274,7 @@ const SlotCreator: React.FC = () => {
     
     // If not valid after initialization complete, redirect to home
     if (!isValid && !isInitializing) {
-      console.error('❌ No valid game session after initialization, redirecting to home');
+      console.error('No valid game session after initialization, redirecting to home');
       navigate('/home');
     }
   }, [isInitializing, config, cachedGameId, navigate, updateConfig]);

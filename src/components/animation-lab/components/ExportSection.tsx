@@ -145,7 +145,7 @@ const ExportSection: React.FC<ExportSectionProps> = ({ atlasResult, disabled, an
       console.log(`📤 Exported as ${format.name}:`, filename);
 
     } catch (error) {
-      console.error('❌ Export failed:', error);
+      console.error('Export failed:', error);
       alert('Export failed. Please try again.');
     } finally {
       setIsExporting(false);

@@ -39,7 +39,7 @@ export const handler: Handler = async (event) => {
     const { prompt, model = 'gpt-image-1', size = '512x512', quality = 'standard', n = 1, test = false } = requestBody;
 
     if (!OPENAI_API_KEY) {
-      console.error('❌ OPENAI_API_KEY is not configured on the server');
+      console.error('OPENAI_API_KEY is not configured on the server');
       return {
         statusCode: 500,
         headers,
@@ -83,7 +83,7 @@ export const handler: Handler = async (event) => {
 
     if (!response.ok) {
       const errorData = await response.text();
-      console.error('❌ OpenAI API error:', response.status, errorData);
+      console.error('OpenAI API error:', response.status, errorData);
       throw new Error(`OpenAI API error: ${response.status} - ${errorData}`);
     }
 
@@ -110,7 +110,7 @@ export const handler: Handler = async (event) => {
     }
     
   } catch (error) {
-    console.error('❌ Image generation failed:', error);
+    console.error('Image generation failed:', error);
     
     // Log more details for debugging
     if (error instanceof Error) {

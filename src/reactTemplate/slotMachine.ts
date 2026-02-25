@@ -427,7 +427,7 @@ const SlotMachine =() => {
         const animateHoldSpinSpin = () => {
           const reels = reelContainersRef.current;
           if (!reels || reels.length === 0) {
-            console.error('❌ No reel containers found for Hold & Spin animation');
+            console.error('No reel containers found for Hold & Spin animation');
             setIsSpinning(false);
             return;
           }
@@ -536,7 +536,7 @@ const SlotMachine =() => {
         const animateSpin = () => {
           const reels = reelContainersRef.current;
           if (!reels || reels.length === 0) {
-            console.error('❌ No reel containers found for animation');
+            console.error('No reel containers found for animation');
             setIsSpinning(false);
             return;
           }

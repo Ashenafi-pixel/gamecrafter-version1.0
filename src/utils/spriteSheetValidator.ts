@@ -489,7 +489,7 @@ export const alignSpriteSheetFrames = async (
     };
 
   } catch (error) {
-    console.error('❌ Frame alignment failed:', error);
+    console.error('Frame alignment failed:', error);
     // Return original frames if alignment fails
     return {
       alignedFrames: frames,

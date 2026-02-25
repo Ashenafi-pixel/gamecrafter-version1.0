@@ -68,7 +68,7 @@ async function testRGS() {
         console.log('\n=== Verification Complete: SUCCESS ===');
 
     } catch (error) {
-        console.error('\n❌ Verification Failed:', error.message);
+        console.error('\nVerification Failed:', error.message);
         if (error.cause) console.error(error.cause);
     }
 }

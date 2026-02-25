@@ -103,7 +103,7 @@ const AdvancedMode: React.FC = () => {
       }
 
     } catch (error) {
-      console.error('❌ Advanced image processing failed:', error);
+      console.error('Advanced image processing failed:', error);
       alert('Failed to process image. Please check the image format and try again.');
     }
   }, [setAtlasResult]);

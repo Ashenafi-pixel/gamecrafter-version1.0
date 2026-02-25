@@ -177,7 +177,7 @@ export const analyzeImageLayers = async (
       
       // If still too large, reject the analysis to prevent API errors
       if (processedImage.length > 1000000) { // 1MB limit for headers
-        console.error('❌ Image too large for API headers, cannot proceed with layer analysis');
+        console.error('Image too large for API headers, cannot proceed with layer analysis');
         throw new Error('Image too large for API processing. Please upload a smaller image or compress it first.');
       }
     }
@@ -453,7 +453,7 @@ export const analyzeSymbolWithGPTVision = async (imageBase64: string): Promise<W
       
       // If still too large, reject the analysis to prevent API errors
       if (processedImage.length > 1000000) { // 1MB limit for headers
-        console.error('❌ Image too large for API headers, cannot proceed with analysis');
+        console.error('Image too large for API headers, cannot proceed with analysis');
         throw new Error('Image too large for API processing. Please upload a smaller image or compress it first.');
       }
     }
@@ -490,7 +490,7 @@ export const analyzeSymbolWithGPTVision = async (imageBase64: string): Promise<W
       });
       console.log('✅ EMERGENCY: OpenAI client re-initialized successfully');
     } catch (initError) {
-      console.error('❌ EMERGENCY: Failed to re-initialize OpenAI:', initError);
+      console.error('EMERGENCY: Failed to re-initialize OpenAI:', initError);
       throw initError;
     }
   }

@@ -86,7 +86,7 @@ export const createAnimatedSprite = async (config: AnimatedSpriteConfig): Promis
     };
 
   } catch (error) {
-    console.error('❌ Failed to create animated sprite:', error);
+    console.error('Failed to create animated sprite:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -146,7 +146,7 @@ export const createStaticSpriteFromSheet = async (
     return new PIXI.Sprite(firstFrameTexture);
 
   } catch (error) {
-    console.error('❌ Failed to create static sprite from sheet:', error);
+    console.error('Failed to create static sprite from sheet:', error);
     return null;
   }
 };
@@ -211,7 +211,7 @@ export const createSpriteForSymbol = async (
     return sprite;
 
   } catch (error) {
-    console.error('❌ Failed to create sprite for symbol:', error);
+    console.error('Failed to create sprite for symbol:', error);
     return null;
   }
 };

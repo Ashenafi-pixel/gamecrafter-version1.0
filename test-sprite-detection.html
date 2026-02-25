@@ -169,7 +169,7 @@ Expected for WILD + pig symbol:
                     return sprites;
                     
                 } catch (error) {
-                    this.log(`❌ BULLETPROOF: Detection failed: ${error.message}`);
+                    this.log(`BULLETPROOF: Detection failed: ${error.message}`);
                     return [];
                 }
             }
@@ -647,7 +647,7 @@ Expected for WILD + pig symbol:
 
         async function testBulletproofDetection() {
             if (!currentImageUrl) {
-                log('❌ Please upload an image first');
+                log('Please upload an image first');
                 return;
             }
 
@@ -679,7 +679,7 @@ Expected for WILD + pig symbol:
                 displaySpriteResults(sprites);
                 
             } catch (error) {
-                log(`❌ ERROR: ${error.message}`);
+                log(`ERROR: ${error.message}`);
             }
         }
 

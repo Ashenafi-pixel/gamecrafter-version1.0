@@ -3676,7 +3676,7 @@ export default function SlotMachinePreview(): JSX.Element {
             preference: 'canvas',
           });
         } catch (canvasError) {
-          console.error('❌ Failed to initialize PIXI with Canvas renderer:', canvasError);
+          console.error('Failed to initialize PIXI with Canvas renderer:', canvasError);
           app.destroy(true, { children: true });
           return;
         }

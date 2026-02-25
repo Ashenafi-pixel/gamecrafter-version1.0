@@ -165,7 +165,7 @@ export class MultiAlgorithmFusion {
       };
 
     } catch (error) {
-      console.error('❌ Multi-algorithm fusion failed:', error);
+      console.error('Multi-algorithm fusion failed:', error);
       
       return {
         success: false,

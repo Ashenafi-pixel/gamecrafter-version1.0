@@ -52,7 +52,7 @@ export const gptClient = {
         throw new Error(data.error || 'Image generation failed');
       }
     } catch (error) {
-      console.error('❌ GPT-image-1 generation failed:', error);
+      console.error('GPT-image-1 generation failed:', error);
       throw error;
     }
   },
@@ -73,7 +73,7 @@ export const gptClient = {
       
       return response.ok;
     } catch (error) {
-      console.error('❌ GPT connection test failed:', error);
+      console.error('GPT connection test failed:', error);
       return false;
     }
   }

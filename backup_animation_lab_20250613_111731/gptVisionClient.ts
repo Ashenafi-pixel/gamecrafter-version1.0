@@ -328,7 +328,7 @@ export const analyzeSymbolWithGPTVision = async (imageBase64: string): Promise<W
       });
       console.log('✅ EMERGENCY: OpenAI client re-initialized successfully');
     } catch (initError) {
-      console.error('❌ EMERGENCY: Failed to re-initialize OpenAI:', initError);
+      console.error('EMERGENCY: Failed to re-initialize OpenAI:', initError);
       throw initError;
     }
   }

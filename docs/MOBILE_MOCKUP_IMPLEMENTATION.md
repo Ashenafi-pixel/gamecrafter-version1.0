@@ -50,7 +50,7 @@ const [mockupOrientation, setMockupOrientation] = React.useState<'portrait' | 'l
 ### C. Updated Error Handling (Lines 479-488)
 ```typescript
 } catch (error) {
-  console.error('❌ PixiJS initialization failed:', error);
+  console.error('PixiJS initialization failed:', error);
   
   // Enhanced DOM fallback with mobile mockup support
   setTimeout(() => {

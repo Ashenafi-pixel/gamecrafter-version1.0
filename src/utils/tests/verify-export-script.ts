@@ -105,7 +105,7 @@ async function verify() {
         console.log("\n🎉 ALL CHECKS PASSED: Export Logic is Valid.");
 
     } catch (e: any) {
-        console.error("\n❌ VERIFICATION FAILED:");
+        console.error("\nVERIFICATION FAILED:");
         console.error(e.message);
         process.exit(1);
     }

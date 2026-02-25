@@ -227,7 +227,7 @@ class ProfessionalPixiRenderer {
       console.log('✅ Professional symbol loading complete');
       
     } catch (error) {
-      console.error('❌ Professional loading failed:', error);
+      console.error('Professional loading failed:', error);
       throw error;
     }
   }
@@ -261,7 +261,7 @@ class ProfessionalPixiRenderer {
         console.log('🔍 Converted to universal format:', universalResult);
         
       } catch (visionError) {
-        console.error('❌ GPT-4 Vision failed - NO FALLBACKS:', visionError);
+        console.error('GPT-4 Vision failed - NO FALLBACKS:', visionError);
         throw new Error(`GPT-4 Vision analysis failed: ${visionError.message}. Cannot proceed without real AI detection.`);
       }
       
@@ -298,7 +298,7 @@ class ProfessionalPixiRenderer {
       })));
       // CRITICAL: Check app state before accessing screen
       if (!this.app || !this.app.screen) {
-        console.error('❌ CRITICAL: PIXI app is null during sprite creation!');
+        console.error('CRITICAL: PIXI app is null during sprite creation!');
         console.log('🔄 Attempting to recover renderer...');
         
         // Try to find the canvas container and reinitialize
@@ -343,7 +343,7 @@ class ProfessionalPixiRenderer {
       return universalResult;
       
     } catch (error) {
-      console.error('❌ Universal loading failed:', error);
+      console.error('Universal loading failed:', error);
       // Provide specific error context
       if (error.message?.includes('not available')) {
         console.error('🚨 API Error detected:', error.message);
@@ -480,7 +480,7 @@ class ProfessionalPixiRenderer {
         console.log(`📊 Sprites map now contains: ${this.sprites.size} entries`);
         
       } catch (error) {
-        console.error(`❌ Failed to create sprite ${spriteConfig.id}:`, error);
+        console.error(`Failed to create sprite ${spriteConfig.id}:`, error);
       }
     }
 
@@ -507,7 +507,7 @@ class ProfessionalPixiRenderer {
     
     // CRITICAL: Verify app is still initialized - with recovery
     if (!this.app) {
-      console.error('❌ PIXI app is null - renderer was destroyed, attempting recovery...');
+      console.error('PIXI app is null - renderer was destroyed, attempting recovery...');
       console.log('🔄 Attempting to reinitialize renderer...');
       
       // Try to find the canvas container and reinitialize
@@ -522,7 +522,7 @@ class ProfessionalPixiRenderer {
     
     // CRITICAL: Null safety check for app
     if (!this.app || !this.app.screen) {
-      console.error('❌ CRITICAL: PIXI app or app.screen is null during sprite creation!');
+      console.error('CRITICAL: PIXI app or app.screen is null during sprite creation!');
       throw new Error('PIXI renderer app is null - cannot create sprites');
     }
     
@@ -642,7 +642,7 @@ class ProfessionalPixiRenderer {
         console.log(`✨ ${element.id} sprite created`);
         
       } catch (error) {
-        console.error(`❌ Failed to create universal sprite ${element.id}:`, error);
+        console.error(`Failed to create universal sprite ${element.id}:`, error);
       }
     }  // End of element creation loop
 
@@ -901,7 +901,7 @@ class ProfessionalPixiRenderer {
       return elementTexture;
       
     } catch (error) {
-      console.error(`❌ Failed to extract texture for ${element.id}:`, error);
+      console.error(`Failed to extract texture for ${element.id}:`, error);
       // Fallback: return the full base texture
       return baseTexture;
     }
@@ -1913,14 +1913,14 @@ class ProfessionalPixiRenderer {
     for (const [id, professionalSprite] of this.sprites) {
       try {
         if (!professionalSprite || !professionalSprite.sprite) {
-          console.error(`❌ PRODUCTION ERROR: Invalid sprite data for ${id}`);
+          console.error(`PRODUCTION ERROR: Invalid sprite data for ${id}`);
           continue;
         }
         
         this.updateSpriteAnimation(professionalSprite, this.animationState.currentTime);
         updatedSprites++;
       } catch (error) {
-        console.error(`❌ PRODUCTION ERROR: Failed to update sprite ${id}:`, error);
+        console.error(`PRODUCTION ERROR: Failed to update sprite ${id}:`, error);
       }
     }
     

@@ -56,7 +56,7 @@ MERGE INTO ENGINE:
 → Create single /src/engine/core/SlotEngine.ts
 ```
 
-## ❌ DELETE (Redundant/Unused)
+## DELETE (Redundant/Unused)
 
 ### Documentation Clutter (Move to /docs folder)
 ```

@@ -120,7 +120,7 @@ export class ProfessionalMeshProcessor {
         return this.processElementMesh(contourPoints, elementType, imageWidth, imageHeight);
       }
     } catch (error) {
-      console.error('❌ Async mesh processing failed, falling back to sync:', error);
+      console.error('Async mesh processing failed, falling back to sync:', error);
       console.error('Error details:', error.message);
       console.log('🔄 Falling back to main thread processing...');
       return this.processElementMesh(contourPoints, elementType, imageWidth, imageHeight);
@@ -224,7 +224,7 @@ export class ProfessionalMeshProcessor {
       console.log(`🔺 Generated ${triangles.length / 3} triangles`);
       return triangles;
     } catch (error) {
-      console.error('❌ Triangulation failed:', error);
+      console.error('Triangulation failed:', error);
       return [];
     }
   }
@@ -249,7 +249,7 @@ export class ProfessionalMeshProcessor {
       console.log(`🛡️ Convex hull: ${hull.length} points`);
       return hull;
     } catch (error) {
-      console.error('❌ Convex hull calculation failed:', error);
+      console.error('Convex hull calculation failed:', error);
       return points;
     }
   }
@@ -286,7 +286,7 @@ export class ProfessionalMeshProcessor {
       console.log(`⚛️ Physics body created for ${elementType}`);
       return body;
     } catch (error) {
-      console.error('❌ Physics body creation failed:', error);
+      console.error('Physics body creation failed:', error);
       return null;
     }
   }

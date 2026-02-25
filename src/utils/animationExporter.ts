@@ -83,7 +83,7 @@ class AnimationExporter {
       return result;
       
     } catch (error) {
-      console.error('❌ Export failed:', error);
+      console.error('Export failed:', error);
       throw error;
     }
   }

@@ -301,7 +301,7 @@ const addAssetToZip = async (zip: JSZip, assetUrl: any, assetPath: string): Prom
     console.warn(`⚠️ No-cors fetch failed for ${assetUrl}:`, noCorsError);
   }
   
-  console.error(`❌ All methods failed for ${assetUrl}`);
+  console.error(`All methods failed for ${assetUrl}`);
   return false;
 };
 
@@ -691,7 +691,7 @@ export const exportReactProject = async (config: GameConfig): Promise<Blob> => {
           console.warn(`⚠️ Failed to add ${key} to WheelBonus folder`);
         }
       } catch (error) {
-        console.error(`❌ Error adding ${key} to WheelBonus folder:`, error);
+        console.error(`Error adding ${key} to WheelBonus folder:`, error);
       }
     }
   }
@@ -1094,7 +1094,7 @@ export const downloadReactProject = async (config: GameConfig): Promise<void> =>
     
     console.log('✅ React project downloaded successfully');
   } catch (error) {
-    console.error('❌ Failed to export React project:', error);
+    console.error('Failed to export React project:', error);
     throw error;
   }
 };

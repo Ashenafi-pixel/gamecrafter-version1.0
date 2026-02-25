@@ -161,7 +161,7 @@ const drawProfessionalOutlineSelection = (
     console.log('✅ Professional outline completed for:', sprite.id);
     
   } catch (error) {
-    console.error('❌ Outline creation failed:', error);
+    console.error('Outline creation failed:', error);
   }
 };
 
@@ -232,7 +232,7 @@ export const WorkspacePanel: React.FC<{
       
       const ctx = canvas.getContext('2d');
       if (!ctx) {
-        console.log('❌ Failed to get 2D context');
+        console.log('Failed to get 2D context');
         return;
       }
 
@@ -292,7 +292,7 @@ export const WorkspacePanel: React.FC<{
         yRange: `${corner.y - cornerSize} to ${corner.y + cornerSize}`,
         xInRange: x >= corner.x - cornerSize && x <= corner.x + cornerSize,
         yInRange: y >= corner.y - cornerSize && y <= corner.y + cornerSize,
-        RESULT: isInRange ? '✅ DETECTED' : '❌ NOT IN RANGE'
+        RESULT: isInRange ? '✅ DETECTED' : 'NOT IN RANGE'
       });
 
       if (isInRange) {
@@ -301,7 +301,7 @@ export const WorkspacePanel: React.FC<{
       }
     }
     
-    console.log('❌ NO CORNER DETECTED - will default to move mode');
+    console.log('NO CORNER DETECTED - will default to move mode');
     return null;
   }, []);
 
@@ -443,7 +443,7 @@ export const WorkspacePanel: React.FC<{
             if (sprite.src && sprite.id) {
               drawProfessionalOutlineSelection(ctx, sprite, imageCache);
             } else {
-              console.error('❌ SPRITE MISSING REQUIRED PROPERTIES:', {
+              console.error('SPRITE MISSING REQUIRED PROPERTIES:', {
                 hasSrc: !!sprite.src,
                 hasId: !!sprite.id,
                 sprite
@@ -457,7 +457,7 @@ export const WorkspacePanel: React.FC<{
         console.log(`🎨 Canvas render complete: ${sprites.length} sprites displayed`);
         
       } catch (error) {
-        console.error('❌ Canvas rendering error:', error);
+        console.error('Canvas rendering error:', error);
         // Draw error state (use display dimensions)
         const displayWidth = 300;
         const displayHeight = 200;
@@ -569,7 +569,7 @@ export const WorkspacePanel: React.FC<{
         console.log('🔒 Layer is locked, cannot move:', clickedSprite.id);
       }
     } else {
-      console.log('❌ No sprite or corner clicked at:', x, y);
+      console.log('No sprite or corner clicked at:', x, y);
       console.log('📍 Available sprites:', sprites.map(s => ({
         id: s.id,
         bounds: { x: s.x, y: s.y, width: s.width, height: s.height }
@@ -730,7 +730,7 @@ export const WorkspacePanel: React.FC<{
           anchorY = sprite.y + sprite.height / 2;
           console.log('📍 CENTER: Scale from center:', { anchorX, anchorY });
         } else {
-          console.log('❌ UNKNOWN CORNER:', draggedSprite.corner);
+          console.log('UNKNOWN CORNER:', draggedSprite.corner);
           return sprite; // Don't modify if unknown corner
         }
         

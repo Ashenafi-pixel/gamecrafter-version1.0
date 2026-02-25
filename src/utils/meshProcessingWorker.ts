@@ -87,7 +87,7 @@ self.addEventListener('message', (event: MessageEvent<WorkerMessage>) => {
     self.postMessage(response);
     
   } catch (error) {
-    console.error(`❌ Worker error in ${type}:`, error);
+    console.error(`Worker error in ${type}:`, error);
     
     // Send error response back to main thread
     const response: WorkerResponse = {
@@ -159,7 +159,7 @@ function triangulateInWorker(points: MeshPoint[]): number[] {
     console.log(`🔺 Worker: Generated ${triangles.length / 3} triangles`);
     return triangles;
   } catch (error) {
-    console.error('❌ Worker triangulation failed:', error);
+    console.error('Worker triangulation failed:', error);
     return [];
   }
 }
@@ -246,7 +246,7 @@ function generateTriangulation(points: MeshPoint[]): number[] {
     const flatCoords = points.flatMap(p => [p.x, p.y]);
     return earcut(flatCoords);
   } catch (error) {
-    console.error('❌ Worker triangulation failed:', error);
+    console.error('Worker triangulation failed:', error);
     return [];
   }
 }

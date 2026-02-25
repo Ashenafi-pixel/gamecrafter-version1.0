@@ -302,7 +302,7 @@
             
             testImg.onerror = () => {
                 container.innerHTML = `
-                    <p class="error-text">❌ Data URL failed to load - possible CSP restrictions</p>
+                    <p class="error-text">Data URL failed to load - possible CSP restrictions</p>
                     <p>The test image from a data URL failed to load, which could indicate Content Security Policy restrictions are in place.</p>
                     <p>Check the browser console for CSP violation messages.</p>
                 `;
