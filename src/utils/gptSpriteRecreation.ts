@@ -111,7 +111,7 @@ class GPTSpriteRecreator {
       return result;
 
     } catch (error) {
-      console.error(`🎨 ❌ [GPT-SPRITE FAILED] Recreation error:`, error);
+      console.error(`🎨 [GPT-SPRITE FAILED] Recreation error:`, error);
       
       return {
         success: false,
@@ -701,7 +701,7 @@ CRITICAL: Generate this as a complete SVG file format with clean XML structure. 
       console.log(`🎨 [SAVE] ✅ SVG and ${layers.length} elements saved to animation lab`);
 
     } catch (error) {
-      console.error(`🎨 [SAVE] ❌ Failed to save SVG to animation lab:`, error);
+      console.error(`🎨 [SAVE] Failed to save SVG to animation lab:`, error);
       throw error;
     }
   }

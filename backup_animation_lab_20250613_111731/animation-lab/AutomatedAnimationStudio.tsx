@@ -210,7 +210,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
   // 🔬 Phase 1.3: Layer Extraction Function
   const extractLayerSprite = async (layer: any) => {
     if (!symbolImage || !multiLayerResults) {
-      console.error('❌ Cannot extract layer: No symbol image or layer results available');
+      console.error('Cannot extract layer: No symbol image or layer results available');
       return;
     }
 
@@ -298,26 +298,26 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
       }, 500);
 
     } catch (error) {
-      console.error(`❌ [Phase 1.3] Layer extraction failed for ${layerName}:`, error);
+      console.error(`[Phase 1.3] Layer extraction failed for ${layerName}:`, error);
       
       setExtractionProgress(prev => ({
         ...prev,
         [layerId]: { status: 'error', progress: 0, message: `Extraction failed: ${error.message}` }
       }));
 
-      alert(`❌ Layer extraction failed for ${layerName}:\n\n${error.message}\n\nPlease try again or contact support.`);
+      alert(`Layer extraction failed for ${layerName}:\n\n${error.message}\n\nPlease try again or contact support.`);
     }
   };
 
   // 🗡️ Manual Sword Extraction Functions
   const handleSwordBoundaryDetection = async () => {
     if (!symbolImage) {
-      alert('❌ No symbol image available! Please upload an image first.');
+      alert('No symbol image available! Please upload an image first.');
       return;
     }
 
     if (!multiLayerResults || !multiLayerResults.layers) {
-      alert('❌ No layer analysis results! Please run "🎨 TEST LAYERS" first to analyze the symbol.');
+      alert('No layer analysis results! Please run "🎨 TEST LAYERS" first to analyze the symbol.');
       return;
     }
 
@@ -333,7 +333,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
       });
 
       if (!swordLayer) {
-        alert('❌ No sword layer found in analysis results!\n\nDetected layers: ' + 
+        alert('No sword layer found in analysis results!\n\nDetected layers: ' + 
               multiLayerResults.layers.map(l => `${l.name} (${l.type})`).join(', ') +
               '\n\nPlease ensure the symbol contains a sword or weapon.');
         return;
@@ -345,7 +345,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
 
       // Validate sword layer has required properties
       if (!swordLayer.bounds || swordLayer.bounds.x === undefined) {
-        alert('❌ Sword layer is missing bounds data!\n\n' +
+        alert('Sword layer is missing bounds data!\n\n' +
               `Found layer: ${JSON.stringify(swordLayer, null, 2)}\n\n` +
               'The analysis may not have detected proper boundaries.');
         return;
@@ -366,7 +366,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
       console.log('🗡️ [IMPORT] testSwordBoundaryDetection function:', testSwordBoundaryDetection);
       
       if (!testSwordBoundaryDetection) {
-        alert('❌ Import error: testSwordBoundaryDetection function not available!\n\n' +
+        alert('Import error: testSwordBoundaryDetection function not available!\n\n' +
               'Check that the manual sword extraction module is properly imported.');
         return;
       }
@@ -390,13 +390,13 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
               '🗡️ Ready for Step 2: Surgical Edge Detection!');
       } else {
         const errorMsg = debugResults[0]?.errorMessage || 'Unknown validation error';
-        alert('❌ Sword boundary detection failed!\n\n' +
+        alert('Sword boundary detection failed!\n\n' +
               `Error: ${errorMsg}\n\n` +
               'Check the debug panel below for detailed analysis.');
       }
 
     } catch (error) {
-      console.error('🗡️ ❌ [FAILED] Sword boundary detection error:', error);
+      console.error('🗡️ [FAILED] Sword boundary detection error:', error);
       setSwordExtractionDebug([{
         step: "CRITICAL ERROR",
         originalBounds: { x: -1, y: -1, width: -1, height: -1 },
@@ -407,7 +407,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
         errorMessage: error instanceof Error ? error.message : 'Unknown error'
       }]);
       
-      alert('🗡️ ❌ Critical Error in Sword Boundary Detection:\n\n' +
+      alert('🗡️ Critical Error in Sword Boundary Detection:\n\n' +
             (error instanceof Error ? error.message : 'Unknown error') +
             '\n\nCheck the debug panel for details.');
     }
@@ -416,12 +416,12 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
   // 🗡️ Step 2: Surgical Edge Detection
   const handleSwordEdgeDetection = async () => {
     if (!swordStep1Success) {
-      alert('❌ Step 1 not completed!\n\nPlease run "Test Sword Boundary Detection" first and ensure it passes validation.');
+      alert('Step 1 not completed!\n\nPlease run "Test Sword Boundary Detection" first and ensure it passes validation.');
       return;
     }
 
     if (!symbolImage) {
-      alert('❌ No symbol image available! Please upload an image first.');
+      alert('No symbol image available! Please upload an image first.');
       return;
     }
 
@@ -445,8 +445,8 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
             '🗡️ Ready for Step 3: Contour Tracing!');
 
     } catch (error) {
-      console.error('🗡️ ❌ [STEP 2 FAILED] Surgical edge detection error:', error);
-      alert('🗡️ ❌ Edge Detection Failed:\n\n' +
+      console.error('🗡️ [STEP 2 FAILED] Surgical edge detection error:', error);
+      alert('🗡️ Edge Detection Failed:\n\n' +
             (error instanceof Error ? error.message : 'Unknown error') +
             '\n\nCheck console for details.');
     }
@@ -455,7 +455,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
   // 🗡️ Step 3: Precise Contour Tracing
   const handleSwordContourTracing = async () => {
     if (!swordEdgeDetectionResults) {
-      alert('❌ Step 2 not completed!\n\nPlease run "Apply Surgical Edge Detection" first and ensure it succeeds.');
+      alert('Step 2 not completed!\n\nPlease run "Apply Surgical Edge Detection" first and ensure it succeeds.');
       return;
     }
 
@@ -485,8 +485,8 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
             '🗡️ Ready for Step 4: Alpha Mask Generation!');
 
     } catch (error) {
-      console.error('🗡️ ❌ [STEP 3 FAILED] Contour tracing error:', error);
-      alert('🗡️ ❌ Contour Tracing Failed:\n\n' +
+      console.error('🗡️ [STEP 3 FAILED] Contour tracing error:', error);
+      alert('🗡️ Contour Tracing Failed:\n\n' +
             (error instanceof Error ? error.message : 'Unknown error') +
             '\n\nCheck console for details.');
     }
@@ -495,12 +495,12 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
   // 🗡️ Step 4: Alpha Mask Generation
   const handleSwordAlphaMaskGeneration = async () => {
     if (!swordContourResults) {
-      alert('❌ Step 3 not completed!\n\nPlease run "Trace Precise Contour" first and ensure it succeeds.');
+      alert('Step 3 not completed!\n\nPlease run "Trace Precise Contour" first and ensure it succeeds.');
       return;
     }
 
     if (!symbolImage || !swordStep1Success) {
-      alert('❌ Missing required data!\n\nPlease ensure Steps 1-3 are completed successfully.');
+      alert('Missing required data!\n\nPlease ensure Steps 1-3 are completed successfully.');
       return;
     }
 
@@ -528,8 +528,8 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
             '🗡️ Ready for Step 5: Sprite Isolation!');
 
     } catch (error) {
-      console.error('🗡️ ❌ [STEP 4 FAILED] Alpha mask generation error:', error);
-      alert('🗡️ ❌ Alpha Mask Generation Failed:\n\n' +
+      console.error('🗡️ [STEP 4 FAILED] Alpha mask generation error:', error);
+      alert('🗡️ Alpha Mask Generation Failed:\n\n' +
             (error instanceof Error ? error.message : 'Unknown error') +
             '\n\nCheck console for details.');
     }
@@ -538,12 +538,12 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
   // 🗡️ Step 5: Sword Sprite Isolation with Anti-aliasing
   const handleSwordSpriteCreation = async () => {
     if (!swordAlphaMaskResults) {
-      alert('❌ Step 4 not completed!\n\nPlease run "Generate Alpha Mask" first and ensure it succeeds.');
+      alert('Step 4 not completed!\n\nPlease run "Generate Alpha Mask" first and ensure it succeeds.');
       return;
     }
 
     if (!symbolImage) {
-      alert('❌ No symbol image available! Please ensure all previous steps are completed.');
+      alert('No symbol image available! Please ensure all previous steps are completed.');
       return;
     }
 
@@ -575,8 +575,8 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
             '🗡️ Ready for Step 6: Background Completion!');
 
     } catch (error) {
-      console.error('🗡️ ❌ [STEP 5 FAILED] Sprite isolation error:', error);
-      alert('🗡️ ❌ Sprite Isolation Failed:\n\n' +
+      console.error('🗡️ [STEP 5 FAILED] Sprite isolation error:', error);
+      alert('🗡️ Sprite Isolation Failed:\n\n' +
             (error instanceof Error ? error.message : 'Unknown error') +
             '\n\nCheck console for details.');
     }
@@ -585,12 +585,12 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
   // 🗡️ Step 6: Background Completion with AI-Guided Inpainting
   const handleSwordBackgroundCompletion = async () => {
     if (!swordAlphaMaskResults || !swordSpriteResults) {
-      alert('❌ Steps 4-5 not completed!\n\nPlease complete "Generate Alpha Mask" and "Create Sword Sprite" first.');
+      alert('Steps 4-5 not completed!\n\nPlease complete "Generate Alpha Mask" and "Create Sword Sprite" first.');
       return;
     }
 
     if (!symbolImage) {
-      alert('❌ No symbol image available! Please ensure all previous steps are completed.');
+      alert('No symbol image available! Please ensure all previous steps are completed.');
       return;
     }
 
@@ -623,8 +623,8 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
             '🗡️ Ready for Step 7: Animation Testing!');
 
     } catch (error) {
-      console.error('🗡️ ❌ [STEP 6 FAILED] Background completion error:', error);
-      alert('🗡️ ❌ Background Completion Failed:\n\n' +
+      console.error('🗡️ [STEP 6 FAILED] Background completion error:', error);
+      alert('🗡️ Background Completion Failed:\n\n' +
             (error instanceof Error ? error.message : 'Unknown error') +
             '\n\nCheck console for details.');
     }
@@ -633,12 +633,12 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
   // 🗡️ Step 7: Validation & Animation Testing
   const handleSwordValidationAndTesting = async () => {
     if (!swordSpriteResults || !swordBackgroundResults) {
-      alert('❌ Steps 5-6 not completed!\n\nPlease complete "Create Sword Sprite" and "Complete Background" first.');
+      alert('Steps 5-6 not completed!\n\nPlease complete "Create Sword Sprite" and "Complete Background" first.');
       return;
     }
 
     if (!symbolImage) {
-      alert('❌ No symbol image available! Please ensure all previous steps are completed.');
+      alert('No symbol image available! Please ensure all previous steps are completed.');
       return;
     }
 
@@ -685,8 +685,8 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
             '🗡️ Check enhanced validation dashboard below!');
 
     } catch (error) {
-      console.error('🗡️ ❌ [STEP 7 FAILED] Validation and testing error:', error);
-      alert('🗡️ ❌ Validation & Testing Failed:\n\n' +
+      console.error('🗡️ [STEP 7 FAILED] Validation and testing error:', error);
+      alert('🗡️ Validation & Testing Failed:\n\n' +
             (error instanceof Error ? error.message : 'Unknown error') +
             '\n\nCheck console for details.');
     }
@@ -754,12 +754,12 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
               `💡 Recommendations:\n${result.recommendations.join('\n')}\n\n` +
               '🖼️ Check the results in the preview section!');
       } else {
-        alert(`🎨 ❌ GPT-Vision Recreation Failed:\n\n${result.recommendations.join('\n')}`);
+        alert(`🎨 GPT-Vision Recreation Failed:\n\n${result.recommendations.join('\n')}`);
       }
 
     } catch (error) {
-      console.error('🎨 ❌ [GPT-VISION] Recreation failed:', error);
-      alert(`🎨 ❌ GPT-Vision Recreation Error:\n\n${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease check your API key and try again.`);
+      console.error('🎨 [GPT-VISION] Recreation failed:', error);
+      alert(`🎨 GPT-Vision Recreation Error:\n\n${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease check your API key and try again.`);
     } finally {
       setIsUsingGPTVision(false);
     }
@@ -783,9 +783,9 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
       const hasMultiLayerData = multiLayerResults && multiLayerResults.layers && multiLayerResults.layers.length > 0;
       
       if (hasMultiLayerData) {
-        alert(`❌ No extracted layers available!\n\n🎯 PHASE 2.0 WORKFLOW:\n1. ✅ Layer analysis complete (${multiLayerResults.layers.length} layers found)\n2. ❌ Need to extract layers using 📸 Extract buttons\n3. ⏳ Then create animation timeline\n\nPlease extract some layers first from the Layer Controls panel.`);
+        alert(`No extracted layers available!\n\n🎯 PHASE 2.0 WORKFLOW:\n1. ✅ Layer analysis complete (${multiLayerResults.layers.length} layers found)\n2. Need to extract layers using 📸 Extract buttons\n3. ⏳ Then create animation timeline\n\nPlease extract some layers first from the Layer Controls panel.`);
       } else {
-        alert('❌ No extracted layers available!\n\n🎯 COMPLETE WORKFLOW:\n1. Upload symbol image\n2. Click "🎨 TEST LAYERS" for analysis\n3. Extract layers using 📸 Extract buttons\n4. Create animation timeline\n\nPlease start with "🎨 TEST LAYERS" button.');
+        alert('No extracted layers available!\n\n🎯 COMPLETE WORKFLOW:\n1. Upload symbol image\n2. Click "🎨 TEST LAYERS" for analysis\n3. Extract layers using 📸 Extract buttons\n4. Create animation timeline\n\nPlease start with "🎨 TEST LAYERS" button.');
       }
       return;
     }
@@ -837,8 +837,8 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
             isReady: visualAnimationRenderer.isReady()
           });
         } catch (error) {
-          console.error('❌ [Phase 2.0] Force-initialization failed:', error);
-          console.error('❌ [DEBUG] Full error details:', {
+          console.error('[Phase 2.0] Force-initialization failed:', error);
+          console.error('[DEBUG] Full error details:', {
             message: error.message,
             stack: error.stack,
             canvasState: {
@@ -872,7 +872,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
             retryCount++;
           }
         } catch (error) {
-          console.error(`❌ [Phase 2.0] Failed to load sprites (attempt ${retryCount + 1}):`, error);
+          console.error(`[Phase 2.0] Failed to load sprites (attempt ${retryCount + 1}):`, error);
           retryCount++;
           if (retryCount < maxRetries) {
             await new Promise(resolve => setTimeout(resolve, 500)); // Wait longer between retries
@@ -881,7 +881,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
       }
       
       if (retryCount >= maxRetries) {
-        console.error('❌ [Phase 2.0] Failed to load sprites after maximum retries');
+        console.error('[Phase 2.0] Failed to load sprites after maximum retries');
       }
 
       // Set up timeline callbacks
@@ -904,7 +904,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
             updateAnimatedSprite(data.layerId, data.properties);
             console.log(`🎭 [PREVIEW] ${data.layerId}: pos(${data.properties.x.toFixed(1)}, ${data.properties.y.toFixed(1)}) rot(${data.properties.rotation.toFixed(1)}°)`);
           } catch (error) {
-            console.error(`❌ [PREVIEW] Failed to update sprite ${data.layerId}:`, error);
+            console.error(`[PREVIEW] Failed to update sprite ${data.layerId}:`, error);
           }
         }
         
@@ -953,7 +953,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
               }
             }
           } catch (error) {
-            console.error(`❌ [MAIN CANVAS] Failed to update sprite ${data.layerId}:`, error);
+            console.error(`[MAIN CANVAS] Failed to update sprite ${data.layerId}:`, error);
           }
         } else {
           console.warn(`⚠️ [MAIN CANVAS] Renderer not ready:`, {
@@ -980,8 +980,8 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
       alert(`🎬 Animation Timeline Created!\n\n${sequence.tracks.length} tracks ready for animation\nDuration: ${duration}ms\nPreset: ${presetName}\n\n✅ Timeline panel active\n✅ Keyframes generated\n✅ Visual renderer ${visualRendererReady ? 'connected' : 'loading'}\n✅ Export system ready\n\n${visualRendererReady ? '🎭 Sprites will animate visually!' : '⏳ Loading visual renderer...'}`);
 
     } catch (error) {
-      console.error(`❌ [Phase 1.4] Timeline creation failed:`, error);
-      alert(`❌ Timeline creation failed:\n\n${error.message}`);
+      console.error(`[Phase 1.4] Timeline creation failed:`, error);
+      alert(`Timeline creation failed:\n\n${error.message}`);
     }
   };
 
@@ -1000,7 +1000,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
             await initializeVisualRenderer(animationCanvasRef.current);
             setVisualRendererReady(true);
           } catch (error) {
-            console.error('❌ [Play] Force-initialization failed:', error);
+            console.error('[Play] Force-initialization failed:', error);
           }
         }
         
@@ -1016,7 +1016,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
             await loadSpritesForAnimation(extractedLayers);
             console.log('🎨 [Play] Sprites force-loaded for animation');
           } catch (error) {
-            console.error('❌ [Play] Failed to load sprites:', error);
+            console.error('[Play] Failed to load sprites:', error);
           }
         } else {
           console.warn('⚠️ [Play] Cannot load sprites:', {
@@ -1046,7 +1046,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
 
   const exportAnimation = async (format: 'spine' | 'lottie' | 'css' | 'gif' | 'webm') => {
     if (!currentAnimationSequence) {
-      alert('❌ No animation to export!\n\nCreate an animation timeline first.');
+      alert('No animation to export!\n\nCreate an animation timeline first.');
       return;
     }
 
@@ -1070,8 +1070,8 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
       alert(`🚀 Animation Exported!\n\nFormat: ${format.toUpperCase()}\nFile: ${link.download}\n\nReady for professional animation software! 🎭`);
 
     } catch (error) {
-      console.error(`❌ [Phase 1.4] Export failed:`, error);
-      alert(`❌ Export failed:\n\n${error.message}`);
+      console.error(`[Phase 1.4] Export failed:`, error);
+      alert(`Export failed:\n\n${error.message}`);
     }
   };
   
@@ -1106,7 +1106,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
         const newUsage = getStorageUsage();
         console.log(`✅ LocalStorage cleared successfully: ${newUsage.percentage}%`);
       } catch (clearError) {
-        console.error('❌ Error during localStorage clearing:', clearError);
+        console.error('Error during localStorage clearing:', clearError);
       }
     }
   }, []);
@@ -1141,7 +1141,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
           setVisualRendererReady(true);
           console.log('✅ [Phase 2.0] Visual animation renderer ready!');
         } catch (error) {
-          console.error('❌ [Phase 2.0] Visual renderer initialization failed:', error);
+          console.error('[Phase 2.0] Visual renderer initialization failed:', error);
         }
       }
     };
@@ -1309,7 +1309,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
           }
           
         } catch (pixiError) {
-          console.error(`❌ PIXI initialization failed (attempt ${retryCount}):`, pixiError);
+          console.error(`PIXI initialization failed (attempt ${retryCount}):`, pixiError);
           rendererInitialized.current = false;
           
           // Retry if we haven't exceeded max attempts
@@ -1322,7 +1322,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
         }
         
       } catch (error) {
-        console.error('❌ Renderer initialization error:', error);
+        console.error('Renderer initialization error:', error);
         rendererInitialized.current = false;
         
         if (retryCount < maxRetries && isComponentMounted.current) {
@@ -1666,14 +1666,14 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
                 
                 resolve(results);
               } catch (isolatedError) {
-                console.error('❌ ISOLATED: GPT-4 Vision failed:', isolatedError);
+                console.error('ISOLATED: GPT-4 Vision failed:', isolatedError);
                 reject(isolatedError);
               }
             }, 100); // Small delay to avoid React conflicts
           });
           
         } catch (gptError) {
-          console.error('❌ GPT-4 Vision API call failed:', gptError);
+          console.error('GPT-4 Vision API call failed:', gptError);
           setVisionStatus({ status: 'error', message: `GPT-4 Vision failed: ${gptError.message}`, startTime: Date.now() });
           throw gptError;
         }
@@ -1717,7 +1717,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
             }
             
           } catch (analysisError) {
-            console.error('❌ Failed to generate AI analysis with GPT-4 Vision data:', analysisError);
+            console.error('Failed to generate AI analysis with GPT-4 Vision data:', analysisError);
             // Keep placeholder analysis if real analysis fails
             setVisionStatus({ status: 'error', message: `Analysis generation failed: ${analysisError.message}`, startTime: Date.now() });
           }
@@ -1747,11 +1747,11 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
         }
         
       } catch (error) {
-        console.error('❌ IMMEDIATE: Symbol loading failed:', error);
+        console.error('IMMEDIATE: Symbol loading failed:', error);
         setVisionStatus({ status: 'error', message: `Failed: ${error.message}`, startTime: Date.now() });
         
         // Show error to user - no silent failures
-        alert(`❌ AI Detection Failed\n\n${error.message}\n\nPlease check your API key and try again.`);
+        alert(`AI Detection Failed\n\n${error.message}\n\nPlease check your API key and try again.`);
         
         // Reset workflow
         resetWorkflow();
@@ -1816,7 +1816,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
       
       console.log(`[AnimationLab] ✅ Sprite loaded successfully`);
     } catch (error) {
-      console.error('[AnimationLab] ❌ Failed to load sprite:', error);
+      console.error('[AnimationLab] Failed to load sprite:', error);
     }
   }, [startAutomatedWorkflow]);
 
@@ -1974,7 +1974,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
         alert(`🎉 Animation exported successfully!\n\nFormat: ${exportFormat.toUpperCase()}\nFiles: ${exportResult.files.length}\nCompression: ${exportResult.metadata.compressionRatio.toFixed(1)}x`);
       }
     } catch (error) {
-      console.error('❌ Export failed:', error);
+      console.error('Export failed:', error);
       alert('Export failed. Please try again.');
     } finally {
       setIsExporting(false);
@@ -3063,7 +3063,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
                           setRendererReady(true);
                           console.log('✅ Force initialization complete');
                         } catch (error) {
-                          console.error('❌ Force initialization failed:', error);
+                          console.error('Force initialization failed:', error);
                         }
                       }
                     }}
@@ -3109,12 +3109,12 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
                               updateAnimationState({ isPlaying: true });
                               console.log('🎬 Animation started automatically');
                             } catch (animError) {
-                              console.error('❌ Animation start failed:', animError);
+                              console.error('Animation start failed:', animError);
                             }
                           }, 500);
                           
                         } catch (error) {
-                          console.error('❌ Force symbol loading failed:', error);
+                          console.error('Force symbol loading failed:', error);
                         }
                       } else {
                         console.warn('⚠️ No symbol image available to load');
@@ -3177,12 +3177,12 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
                             updateAnimationState({ isPlaying: true });
                             console.log('🎬 Test gem animation started');
                           } catch (animError) {
-                            console.error('❌ Test animation start failed:', animError);
+                            console.error('Test animation start failed:', animError);
                           }
                         }, 500);
                         
                       } catch (error) {
-                        console.error('❌ Test gem creation failed:', error);
+                        console.error('Test gem creation failed:', error);
                       }
                     }}
                     className="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded"
@@ -3384,10 +3384,10 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
                         alert(`✅ GPT-4 Vision worked! Detected: ${result.symbolType} - ${result.description}`);
                       } catch (error) {
                         console.error('🔥 EMERGENCY: Direct call failed:', error);
-                        alert(`❌ GPT-4 Vision failed: ${error.message}`);
+                        alert(`GPT-4 Vision failed: ${error.message}`);
                       }
                     } else {
-                      alert('❌ No symbol image available. Upload a symbol first.');
+                      alert('No symbol image available. Upload a symbol first.');
                     }
                   }}
                   className="flex items-center space-x-1 px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm transition-colors"
@@ -3426,10 +3426,10 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
                         alert(`🎨 Layer Analysis Success!\n\nFound ${result.layers.length} layers:\n${result.layers.map(l => `• ${l.name} (${l.type})`).join('\n')}\n\nAnimations: ${result.recommendedAnimations.length}`);
                       } catch (error) {
                         console.error('🎨 LAYER TEST: Failed:', error);
-                        alert(`❌ Layer analysis failed: ${error.message}`);
+                        alert(`Layer analysis failed: ${error.message}`);
                       }
                     } else {
-                      alert('❌ No symbol image available. Upload a symbol first.');
+                      alert('No symbol image available. Upload a symbol first.');
                     }
                   }}
                   className="flex items-center space-x-1 px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded text-sm transition-colors"
@@ -4116,7 +4116,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
                     onClick={async () => {
                       // Extract ALL layers for animation
                       if (!symbolImage || !multiLayerResults) {
-                        alert('❌ No symbol or layer data available');
+                        alert('No symbol or layer data available');
                         return;
                       }
 
@@ -4139,8 +4139,8 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
                         
                         alert(`🎉 All ${layersToExtract.length} layers extracted!\n\nReady for animation timeline creation! 🚀`);
                       } catch (error) {
-                        console.error('❌ Batch extraction failed:', error);
-                        alert('❌ Some extractions failed. Please check individual layers.');
+                        console.error('Batch extraction failed:', error);
+                        alert('Some extractions failed. Please check individual layers.');
                       }
                     }}
                     className="flex-1 px-2 py-1 bg-purple-600 hover:bg-purple-500 text-white text-xs rounded transition-colors"
@@ -4150,7 +4150,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
                   <button
                     onClick={async () => {
                       if (!symbolImage || !multiLayerResults) {
-                        alert('❌ No symbol or layer data available for export');
+                        alert('No symbol or layer data available for export');
                         return;
                       }
 
@@ -4158,7 +4158,7 @@ const AutomatedAnimationStudio: React.FC<AutomatedAnimationStudioProps> = ({
                       const visibleLayers = multiLayerResults.layers.filter(layer => layerVisibility[layer.id] !== false);
                       
                       if (visibleLayers.length === 0) {
-                        alert('❌ No visible layers to export. Please make at least one layer visible.');
+                        alert('No visible layers to export. Please make at least one layer visible.');
                         return;
                       }
 

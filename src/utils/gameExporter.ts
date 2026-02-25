@@ -159,7 +159,7 @@ export const exportGameAsHTML = async (options: ExportOptions): Promise<ExportRe
         };
 
     } catch (error) {
-        console.error('❌ [GameExporter] Export failed:', error);
+        console.error('[GameExporter] Export failed:', error);
         return {
             success: false,
             error: error instanceof Error ? error.message : 'Unknown export error'
@@ -516,7 +516,7 @@ const generateStandaloneHTML = (params: {
                 
                 console.log('✅ Game initialized successfully');
             } catch (error) {
-                console.error('❌ Failed to initialize game:', error);
+                console.error('Failed to initialize game:', error);
                 showError('Failed to initialize the game. Please refresh the page.');
             }
         }
@@ -893,7 +893,7 @@ const generateStandaloneHTML = (params: {
         // Animate reel spin with proper slot machine mechanics
         function animateSpin() {
             if (!window.reelContainers || window.reelContainers.length === 0) {
-                console.error('❌ No reel containers found for animation');
+                console.error('No reel containers found for animation');
                 gameState.isSpinning = false;
                 updateUI();
                 return;
@@ -1306,7 +1306,7 @@ export const downloadGameAsHTML = async (options: ExportOptions): Promise<void> 
 
         console.log('✅ [GameExporter] HTML file downloaded');
     } else {
-        console.error('❌ [GameExporter] Failed to export game:', result.error);
+        console.error('[GameExporter] Failed to export game:', result.error);
         throw new Error(result.error || 'Export failed');
     }
 };

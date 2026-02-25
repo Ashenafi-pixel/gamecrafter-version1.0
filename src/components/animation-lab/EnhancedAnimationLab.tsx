@@ -344,7 +344,7 @@ const createSimpleOutline = (
     return true;
 
   } catch (error) {
-    console.error('❌ Failed to create outline:', error);
+    console.error('Failed to create outline:', error);
     return false;
   }
 };
@@ -624,7 +624,7 @@ const EnhancedAnimationLab: React.FC<EnhancedAnimationLabProps> = ({ layoutMode 
         console.log('📂 Found symbols in game config:', configSymbols.length);
       }
     } catch (error) {
-      console.error('❌ Error loading symbols:', error);
+      console.error('Error loading symbols:', error);
     }
   }, [gameId, config]);
 
@@ -683,7 +683,7 @@ const EnhancedAnimationLab: React.FC<EnhancedAnimationLabProps> = ({ layoutMode 
               symbol.imageUrl = typeof savedUrl === 'string' ? savedUrl : savedUrl.filePath;
             }
           } catch (error) {
-            console.error('❌ Error saving symbol image:', error);
+            console.error('Error saving symbol image:', error);
           }
         }
       }
@@ -702,7 +702,7 @@ const EnhancedAnimationLab: React.FC<EnhancedAnimationLabProps> = ({ layoutMode 
 
       console.log('✅ Symbols saved successfully');
     } catch (error) {
-      console.error('❌ Error saving symbols:', error);
+      console.error('Error saving symbols:', error);
     }
   }, [gameId, updateConfig]);
 
@@ -1099,7 +1099,7 @@ const EnhancedAnimationLab: React.FC<EnhancedAnimationLabProps> = ({ layoutMode 
   // GPT Vision full image analysis helper
   const analyzeFullImageWithVision = useCallback(async (imageUrl: string, letterSprites: any[]): Promise<{ [spriteId: string]: string }> => {
     if (!imageUrl) {
-      console.log(`❌ No full image URL provided`);
+      console.log(`No full image URL provided`);
       return {};
     }
 
@@ -1169,10 +1169,10 @@ Important: Only identify what letter you actually see at each position. The posi
         return letterMap;
 
       } else {
-        console.log(`❌ GPT Vision full image analysis failed:`, response.error || 'No response.success or response.analysis');
+        console.log(`GPT Vision full image analysis failed:`, response.error || 'No response.success or response.analysis');
       }
     } catch (error) {
-      console.log(`❌ GPT Vision full image error:`, error);
+      console.log(`GPT Vision full image error:`, error);
     }
 
     return {};
@@ -1257,7 +1257,7 @@ Only use the letters from ${expectedWord}. If you can't clearly see a letter at 
         return letterMap;
 
       } else {
-        console.log('🏷️ ❌ GPT Vision failed, using fallback spatial assignment');
+        console.log('🏷️ GPT Vision failed, using fallback spatial assignment');
         // Fallback: assign letters based on spatial order
         const letterMap: { [spriteId: string]: string } = {};
         const expectedLetters = expectedWord.split('');
@@ -1273,7 +1273,7 @@ Only use the letters from ${expectedWord}. If you can't clearly see a letter at 
         return letterMap;
       }
     } catch (error) {
-      console.error('🏷️ ❌ Letter identification failed:', error);
+      console.error('🏷️ Letter identification failed:', error);
       // Final fallback: assign letters in order
       const letterMap: { [spriteId: string]: string } = {};
       const expectedLetters = expectedWord.split('');
@@ -1317,7 +1317,7 @@ Only use the letters from ${expectedWord}. If you can't clearly see a letter at 
       visionLetterMap = await analyzeFullImageWithVision(fullImageUrl, letterSprites);
       console.log('🔍 GPT Vision letter mapping received:', Object.keys(visionLetterMap).length, 'assignments');
     } else {
-      console.log('❌ No full image URL available for GPT Vision analysis');
+      console.log('No full image URL available for GPT Vision analysis');
     }
 
     // Try to identify letters by vision results first, then fallback methods
@@ -2081,7 +2081,7 @@ Only use the letters from ${expectedWord}. If you can't clearly see a letter at 
             });
             console.log(`✅ Scaled main symbol ${mainSymbol.id}: (${mainSymbol.bounds.x},${mainSymbol.bounds.y}) [${scaled.debug.sourceFormat}] → (${Math.round(scaled.x)},${Math.round(scaled.y)}) size=${Math.round(scaled.width)}x${Math.round(scaled.height)}`);
           } else {
-            console.log(`❌ Main symbol ${mainSymbol.id} missing bounds or imageUrl:`, {
+            console.log(`Main symbol ${mainSymbol.id} missing bounds or imageUrl:`, {
               hasBounds: !!mainSymbol.bounds,
               hasImageUrl: !!mainSymbol.imageUrl,
               bounds: mainSymbol.bounds,
@@ -2102,7 +2102,7 @@ Only use the letters from ${expectedWord}. If you can't clearly see a letter at 
             console.log(`⚠️ Using fallback positioning for main symbol ${mainSymbol.id}`);
           }
         } else {
-          console.log(`❌ No main symbol found in ${allSprites?.length} sprites`);
+          console.log(`No main symbol found in ${allSprites?.length} sprites`);
         }
 
         // Position letters/other elements with proper scaling
@@ -2230,10 +2230,10 @@ Only use the letters from ${expectedWord}. If you can't clearly see a letter at 
 
             console.log('✅ All sprites updated with sprite sheet elements');
           } else {
-            console.error('❌ Expected main symbol + 4 letter images, got:', mainSymbol ? 'main symbol' : 'no main symbol', letterImages.length, 'letters');
+            console.error('Expected main symbol + 4 letter images, got:', mainSymbol ? 'main symbol' : 'no main symbol', letterImages.length, 'letters');
           }
         }).catch(error => {
-          console.error('❌ Failed to create letter images:', error);
+          console.error('Failed to create letter images:', error);
         });
 
         // AUTO-TRIGGER: Automatically split text for better individual letters
@@ -2316,7 +2316,7 @@ Only use the letters from ${expectedWord}. If you can't clearly see a letter at 
 
     // ERROR CASE: No sprites detected - this means detection failed
     else {
-      console.error('❌ No sprites detected! This indicates sprite detection failure.');
+      console.error('No sprites detected! This indicates sprite detection failure.');
       console.error('Debug info:', {
         contentType: selectedSymbol.contentType,
         hasLetterSprites: !!(selectedSymbol.letterSprites && selectedSymbol.letterSprites.length > 0),
@@ -2421,11 +2421,11 @@ Only use the letters from ${expectedWord}. If you can't clearly see a letter at 
 
         console.log('✅ Image processed successfully:', atlasResult);
       } else {
-        console.error('❌ Image processing failed:', atlasResult.error);
+        console.error('Image processing failed:', atlasResult.error);
         alert(`Image processing failed: ${atlasResult.error}`);
       }
     } catch (error) {
-      console.error('❌ Image upload failed:', error);
+      console.error('Image upload failed:', error);
       alert('Image upload failed');
     } finally {
       setIsProcessing(false);
@@ -2821,7 +2821,7 @@ Only use the letters from ${expectedWord}. If you can't clearly see a letter at 
 
               console.log('✅ AUTO-PROCESSING: UNIVERSAL extraction complete');
             } else {
-              console.error('❌ Universal detection failed: Found 0 sprites');
+              console.error('Universal detection failed: Found 0 sprites');
               console.warn('🔄 FALLBACK: Will use template system instead');
 
               // Don't throw error - let it fall back to template system
@@ -2829,7 +2829,7 @@ Only use the letters from ${expectedWord}. If you can't clearly see a letter at 
               return; // Exit the universal block, let template system handle it
             }
           } catch (error) {
-            console.error('❌ AUTO-PROCESSING failed:', error);
+            console.error('AUTO-PROCESSING failed:', error);
             console.warn('🔄 FALLBACK: Pixel-perfect failed, template system will handle sprite extraction');
           } finally {
             setIsProcessing(false);
@@ -2839,7 +2839,7 @@ Only use the letters from ${expectedWord}. If you can't clearly see a letter at 
         throw new Error(response.error || 'Image generation failed');
       }
     } catch (error) {
-      console.error('❌ Symbol generation failed:', error);
+      console.error('Symbol generation failed:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       alert(`Symbol generation failed: ${errorMessage}`);
     } finally {
@@ -2872,7 +2872,7 @@ Only use the letters from ${expectedWord}. If you can't clearly see a letter at 
 
   const handleIndividualizeText = useCallback(async () => {
     if (!selectedSymbol?.imageUrl) {
-      console.log('❌ No selected symbol or image URL');
+      console.log('No selected symbol or image URL');
       return;
     }
 
@@ -3013,7 +3013,7 @@ Only use the letters from ${expectedWord}. If you can't clearly see a letter at 
         alert('No sprites detected - the image may be too simple or have connectivity issues.');
       }
     } catch (error) {
-      console.error('❌ Universal sprite detection failed:', error);
+      console.error('Universal sprite detection failed:', error);
       alert('Sprite detection failed');
     } finally {
       setIsProcessing(false);
@@ -4121,7 +4121,7 @@ function findSymbolRegionInImage(img: HTMLImageElement): { x: number; y: number;
 
     // Validate that we found significant symbol
     if (symbolBounds.pixelCount < 100 || symbolBounds.maxX <= symbolBounds.minX) {
-      console.log('❌ No significant symbol region found in top portion');
+      console.log('No significant symbol region found in top portion');
       return null;
     }
 
@@ -4138,7 +4138,7 @@ function findSymbolRegionInImage(img: HTMLImageElement): { x: number; y: number;
     return finalBounds;
 
   } catch (error) {
-    console.error('❌ Symbol region detection failed:', error);
+    console.error('Symbol region detection failed:', error);
     return null;
   }
 }
@@ -4188,7 +4188,7 @@ function findTextRegionInImage(img: HTMLImageElement): { x: number; y: number; w
 
     // Validate that we found significant text
     if (textBounds.pixelCount < 100 || textBounds.maxX <= textBounds.minX) {
-      console.log('❌ No significant text region found in bottom portion');
+      console.log('No significant text region found in bottom portion');
       return null;
     }
 
@@ -4206,7 +4206,7 @@ function findTextRegionInImage(img: HTMLImageElement): { x: number; y: number; w
     return finalBounds;
 
   } catch (error) {
-    console.error('❌ Text region detection failed:', error);
+    console.error('Text region detection failed:', error);
     return null;
   }
 }
@@ -4416,7 +4416,7 @@ async function createSpriteSheetElements(imageUrl: string, letters: string[], ex
           letterImages: letterImages
         });
       } catch (error) {
-        console.error('❌ Failed to create sprite sheet elements:', error);
+        console.error('Failed to create sprite sheet elements:', error);
         resolve({
           mainSymbol: '',
           letterImages: []
@@ -4425,7 +4425,7 @@ async function createSpriteSheetElements(imageUrl: string, letters: string[], ex
     };
 
     img.onerror = () => {
-      console.error('❌ Failed to load image for sprite sheet extraction');
+      console.error('Failed to load image for sprite sheet extraction');
       resolve({
         mainSymbol: '',
         letterImages: []

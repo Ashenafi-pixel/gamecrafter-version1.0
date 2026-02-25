@@ -485,7 +485,7 @@ export const createSoundSystem = () => {
         } else if (audioCache['reelStop'] && !audioCache['reelStop'].error) {
           key = 'reelStop';
         } else {
-          console.warn('❌ No reel stop audio available');
+          console.warn('No reel stop audio available');
           return; // No audio available
         }
       }
@@ -495,7 +495,7 @@ export const createSoundSystem = () => {
         audio.volume = Math.max(0, Math.min(1, volume / 100));
         audio.currentTime = 0;
       } else {
-        console.warn('❌ Audio not available or has error:', audio?.error);
+        console.warn('Audio not available or has error:', audio?.error);
       }
     },
 

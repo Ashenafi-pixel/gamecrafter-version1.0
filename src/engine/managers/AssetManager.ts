@@ -113,7 +113,7 @@ export class AssetManager implements IAssetManager {
       }
       
     } catch (error) {
-      console.error(`❌ Failed to load asset ${definition.id}:`, error);
+      console.error(`Failed to load asset ${definition.id}:`, error);
       
       const metadata = this.assets.get(definition.id)!;
       metadata.error = error instanceof Error ? error.message : 'Unknown error';

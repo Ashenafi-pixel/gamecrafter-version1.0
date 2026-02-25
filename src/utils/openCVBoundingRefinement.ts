@@ -143,7 +143,7 @@ export class OpenCVBoundingRefinement {
       };
       
     } catch (error) {
-      console.error('❌ OpenCV refinement failed:', error);
+      console.error('OpenCV refinement failed:', error);
       return {
         success: false,
         refinedBounds: roughBounds, // Return original bounds as fallback

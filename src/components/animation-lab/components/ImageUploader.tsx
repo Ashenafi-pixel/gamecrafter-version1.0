@@ -60,7 +60,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUploaded, isProces
       }
 
     } catch (error) {
-      console.error('❌ Image processing failed:', error);
+      console.error('Image processing failed:', error);
       setUploadProgress(0);
       // Show error to user
       alert('Failed to process image. Please try a different image.');

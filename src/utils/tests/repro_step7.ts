@@ -44,13 +44,13 @@ async function runStep7Logic() {
         console.log("Embedded JSON Keys:", Object.keys(embeddedJson));
 
         if (!embeddedJson.scratch) {
-            console.error("❌ CRITICAL: 'scratch' property is MISSING in embedded config!");
+            console.error("CRITICAL: 'scratch' property is MISSING in embedded config!");
             process.exit(1);
         } else {
             console.log("✅ 'scratch' property is present. Verification PASSED.");
         }
     } else {
-        console.error("❌ Could not find embedded JSON in HTML");
+        console.error("Could not find embedded JSON in HTML");
         process.exit(1);
     }
 }

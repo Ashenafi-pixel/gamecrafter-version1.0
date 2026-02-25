@@ -23,7 +23,7 @@
     console.log('✅ Step updated to 1 directly');
     return;
   } catch (e) {
-    console.log('❌ Direct state approach failed:', e);
+    console.log('Direct state approach failed:', e);
   }
   
   // 2. Alternative: Try to click any Next buttons in the DOM
@@ -43,7 +43,7 @@
       return;
     }
   } catch (e) {
-    console.log('❌ Button approach failed:', e);
+    console.log('Button approach failed:', e);
   }
   
   // 3. Final fallback: URL navigation

@@ -2352,9 +2352,9 @@ const Step10_SplashPreloader: React.FC = () => {
                       <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs">
                         <div className="font-medium text-yellow-800 mb-2">🐛 Interactive Debug Info</div>
                         <div className="space-y-1 text-yellow-700">
-                          <div>Studio Logo: {splashConfig.studioLogo ? '✅ Loaded' : '❌ Not loaded'}</div>
-                          <div>Game Logo: {splashConfig.gameLogo ? '✅ Loaded' : '❌ Not loaded'}</div>
-                          <div>Continue Button: {splashConfig.continueButton ? '✅ Loaded' : '❌ Not loaded'}</div>
+                          <div>Studio Logo: {splashConfig.studioLogo ? '✅ Loaded' : 'Not loaded'}</div>
+                          <div>Game Logo: {splashConfig.gameLogo ? '✅ Loaded' : 'Not loaded'}</div>
+                          <div>Continue Button: {splashConfig.continueButton ? '✅ Loaded' : 'Not loaded'}</div>
                           <div>Studio Position: {Math.round(splashConfig.studioLogoPosition.x)}%, {Math.round(splashConfig.studioLogoPosition.y)}%</div>
                           <div>Game Position: {Math.round(splashConfig.gameLogoPosition.x)}%, {Math.round(splashConfig.gameLogoPosition.y)}%</div>
                           <div>Continue Position: {Math.round(splashConfig.continueButtonPosition.x)}%, {Math.round(splashConfig.continueButtonPosition.y)}%</div>

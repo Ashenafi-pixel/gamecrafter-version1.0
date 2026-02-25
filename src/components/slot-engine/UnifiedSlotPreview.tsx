@@ -304,7 +304,7 @@ export const UnifiedSlotPreview: React.FC<UnifiedSlotPreviewProps> = ({
               engineRef.current.updateBackgroundAdjustments(testAdjustments);
               console.log('✅ [UnifiedSlotPreview] Test background adjustments applied');
             } catch (err) {
-              console.error('❌ [UnifiedSlotPreview] Test background adjustments failed:', err);
+              console.error('[UnifiedSlotPreview] Test background adjustments failed:', err);
             }
           }
         }, 1000);
@@ -326,14 +326,14 @@ export const UnifiedSlotPreview: React.FC<UnifiedSlotPreviewProps> = ({
             await (engine.renderer as any).updateLogo(gameConfig.logo, deviceLogoPosition, deviceLogoScale);
             console.log('[UnifiedSlotPreview] ✅ Immediate logo sync completed successfully');
           } else {
-            console.log('[UnifiedSlotPreview] ❌ No logo found for immediate sync:', {
+            console.log('[UnifiedSlotPreview] No logo found for immediate sync:', {
               hasConfig: !!gameConfig,
               hasLogo: !!gameConfig?.logo,
               hasRenderer: !!engine.renderer
             });
           }
         } catch (logoError) {
-          console.error('[UnifiedSlotPreview] ❌ Immediate logo sync failed:', logoError);
+          console.error('[UnifiedSlotPreview] Immediate logo sync failed:', logoError);
         }
 
         // Emit initialization event
@@ -749,7 +749,7 @@ export const UnifiedSlotPreview: React.FC<UnifiedSlotPreviewProps> = ({
           await engineRef.current.updateBackground(detail.backgroundUrl, backgroundAdjustments);
           console.log(`✅ [UnifiedSlotPreview] Background updated successfully with adjustments`);
         } catch (err) {
-          console.error(`❌ [UnifiedSlotPreview] Failed to update background:`, err);
+          console.error(`[UnifiedSlotPreview] Failed to update background:`, err);
         }
       }
     };
@@ -783,7 +783,7 @@ export const UnifiedSlotPreview: React.FC<UnifiedSlotPreviewProps> = ({
         }
         console.log(`✅ [UnifiedSlotPreview] Background adjustments applied successfully`);
       } catch (err) {
-        console.error(`❌ [UnifiedSlotPreview] Failed to update background adjustments:`, err);
+        console.error(`[UnifiedSlotPreview] Failed to update background adjustments:`, err);
       }
     };
 
@@ -1075,7 +1075,7 @@ export const UnifiedSlotPreview: React.FC<UnifiedSlotPreviewProps> = ({
         });
         console.log(`✅ Freespin transition completed successfully`);
       } catch (error) {
-        console.error(`❌ Freespin transition failed:`, error);
+        console.error(`Freespin transition failed:`, error);
       }
     };
     
@@ -1278,7 +1278,7 @@ export const UnifiedSlotPreview: React.FC<UnifiedSlotPreviewProps> = ({
               opacity: 1.0 // Full opacity since this is now persistent
             }}
             onLoad={() => console.log('[UnifiedSlotPreview] ✅ CSS Logo loaded')}
-            onError={() => console.error('[UnifiedSlotPreview] ❌ CSS Logo failed')}
+            onError={() => console.error('[UnifiedSlotPreview] CSS Logo failed')}
           />
         </div>
       )}

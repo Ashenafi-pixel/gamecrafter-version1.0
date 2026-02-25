@@ -19,12 +19,12 @@ const initializeReelsAndSymbols = useCallback(async () => {
   
   const app = pixiAppRef.current;
   if (!app) {
-    console.error('❌ CRITICAL: No PIXI Application found');
+    console.error('CRITICAL: No PIXI Application found');
     return;
   }
   
   if (!app.stage) {
-    console.error('❌ CRITICAL: No PIXI Stage found');
+    console.error('CRITICAL: No PIXI Stage found');
     return;
   }
   
@@ -158,7 +158,7 @@ const initializeReelsAndSymbols = useCallback(async () => {
   
   const textureCache = symbolTexturesRef.current;
   if (!textureCache) {
-    console.error('❌ CRITICAL: No texture cache available');
+    console.error('CRITICAL: No texture cache available');
     return;
   }
   
@@ -190,7 +190,7 @@ const initializeReelsAndSymbols = useCallback(async () => {
     fallbackTexture = app.renderer.generateTexture(fallbackGraphics);
     console.log('✅ Fallback texture created');
   } catch (error) {
-    console.error('❌ Failed to create fallback texture:', error);
+    console.error('Failed to create fallback texture:', error);
     fallbackTexture = PIXI.Texture.WHITE;
   }
   
@@ -368,13 +368,13 @@ const initializeReelsAndSymbols = useCallback(async () => {
   
   // Validation checks
   if (totalReels !== reels) {
-    console.error(`❌ CRITICAL: Expected ${reels} reels, got ${totalReels}`);
+    console.error(`CRITICAL: Expected ${reels} reels, got ${totalReels}`);
   } else {
     console.log(`✅ Reel count validation passed: ${totalReels}/${reels}`);
   }
   
   if (totalSymbols !== reels * (rows + 8)) {
-    console.error(`❌ CRITICAL: Expected ${reels * (rows + 8)} symbols, got ${totalSymbols}`);
+    console.error(`CRITICAL: Expected ${reels * (rows + 8)} symbols, got ${totalSymbols}`);
   } else {
     console.log(`✅ Symbol count validation passed: ${totalSymbols}/${reels * (rows + 8)}`);
   }
@@ -410,7 +410,7 @@ const loadSymbolTextures = async (symbolImages: string[]): Promise<void> => {
   
   const textureCache = symbolTexturesRef.current;
   if (!textureCache) {
-    console.error('❌ No texture cache available');
+    console.error('No texture cache available');
     return;
   }
   

@@ -288,7 +288,7 @@ export const SimpleAnimationCanvas: React.FC<SimpleAnimationCanvasProps> = ({
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) {
-      console.log('❌ Cannot get canvas context');
+      console.log('Cannot get canvas context');
       return;
     }
 
@@ -2226,7 +2226,7 @@ The result should be a clean sprite sheet with separated elements, NOT a complet
                     console.log(`✅ Updated atlas with pixel-perfect bounds: ${pixelPerfectAtlas.spriteElements.length} sprites`);
                   }
                 } catch (error) {
-                  console.error('❌ Pixel-perfect bounds update failed:', error);
+                  console.error('Pixel-perfect bounds update failed:', error);
                   onError(`Pixel-perfect detection failed: ${error}`);
                 }
               }

@@ -12,7 +12,7 @@ These rules should be strictly followed when working on this codebase:
 🔍 If a fix affects multiple parts of a file, consolidate it inside that single file.
 
 ## 2️⃣ No Bypass Fixes
-❌ Do not hide or suppress layout bugs using conditional rendering or visibility hacks.
+Do not hide or suppress layout bugs using conditional rendering or visibility hacks.
 
 ✅ Identify the real cause of the problem (CSS/layout/flex/grid/logic/etc.) and correct it properly.
 
@@ -21,7 +21,7 @@ These rules should be strictly followed when working on this codebase:
 ## 3️⃣ UI Must Match Visual Expectations
 ✅ UI changes must visually match the instructions and screenshots provided.
 
-❌ Do not introduce placeholders or alternate components unless explicitly allowed.
+Do not introduce placeholders or alternate components unless explicitly allowed.
 
 ✅ Maintain full layout alignment, spacing, and scaling expectations — pixel-perfect behavior is preferred.
 
@@ -37,7 +37,7 @@ These rules should be strictly followed when working on this codebase:
 
 ✅ Use className, flex, grid, and Tailwind conventions consistently.
 
-❌ Avoid hardcoded magic numbers unless specifically justified.
+Avoid hardcoded magic numbers unless specifically justified.
 
 ✅ Prefer descriptive variable/class naming.
 

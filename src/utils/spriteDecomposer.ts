@@ -223,7 +223,7 @@ export class SpriteDecomposer {
             console.log(`🔄 Updated layer analysis with professionally derived ${detectedText} letters`);
           }
         } catch (derivationError) {
-          console.error('❌ Letter derivation failed for uploaded image:', derivationError);
+          console.error('Letter derivation failed for uploaded image:', derivationError);
           // Fallback to keep GPT-4 Vision detected letters if derivation fails
           console.log('🔄 Keeping GPT-4 Vision detected letters as fallback...');
         }
@@ -818,7 +818,7 @@ The result should be just the letter "${letter}" cleanly extracted and isolated.
       return generatedSprites;
 
     } catch (error) {
-      console.error('❌ Coordinate-based extraction failed, falling back to legacy method:', error);
+      console.error('Coordinate-based extraction failed, falling back to legacy method:', error);
       
       // Fallback to the old regeneration method if coordinate extraction fails
       return this.generateSpriteElements(imageFile, elements, originalDimensions, userText);

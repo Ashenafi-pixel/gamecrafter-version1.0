@@ -99,7 +99,7 @@ class AIAnimationEngine {
       }
       // 🚫 NO OTHER FALLBACKS - Only GPT-4 Vision results are allowed
       else {
-        console.error('❌ No GPT-4 Vision results available and no fallbacks allowed');
+        console.error('No GPT-4 Vision results available and no fallbacks allowed');
         throw new Error('AI analysis requires GPT-4 Vision results. No fallback detection methods allowed.');
       }
       
@@ -116,7 +116,7 @@ class AIAnimationEngine {
         return this.generateCreatureAnalysis(specificCreatureType);
       }
     } catch (error) {
-      console.error('❌ AI Analysis failed - NO FALLBACKS:', error);
+      console.error('AI Analysis failed - NO FALLBACKS:', error);
       throw error; // Re-throw - no fallback analysis allowed
     }
   }
@@ -641,7 +641,7 @@ class AIAnimationEngine {
       return mockAnalysis;
       
     } catch (error) {
-      console.error('❌ AI analysis failed:', error);
+      console.error('AI analysis failed:', error);
       // Fallback to basic analysis
       return this.createFallbackAnalysis();
     }

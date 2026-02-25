@@ -998,7 +998,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
           localStorage.setItem(`slotai_save_${gameId}`, JSON.stringify(saveData));
           console.log('✅ Game progress saved after aggressive cleanup');
         } catch (finalError) {
-          console.error('❌ Failed to save even after clearing all data:', finalError);
+          console.error('Failed to save even after clearing all data:', finalError);
           // Don't throw - just continue without saving to prevent crashes
           console.warn('⚠️ Continuing without saving to localStorage');
         }

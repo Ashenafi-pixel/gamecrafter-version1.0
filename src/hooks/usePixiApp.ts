@@ -35,7 +35,7 @@ export function usePixiApp(options: UsePixiAppOptions): UsePixiAppReturn {
   // Initialize PIXI application
   const initializeApp = useCallback(async () => {
     if (!containerRef.current) {
-      console.warn('❌ Container ref not available');
+      console.warn('Container ref not available');
       return;
     }
 
@@ -93,7 +93,7 @@ export function usePixiApp(options: UsePixiAppOptions): UsePixiAppReturn {
 
       console.log('✅ PIXI Application initialized successfully');
     } catch (error) {
-      console.error('❌ Failed to initialize PIXI:', error);
+      console.error('Failed to initialize PIXI:', error);
       throw error;
     }
   }, [options.width, options.height, options.backgroundColor, options.antialias, options.resolution]);

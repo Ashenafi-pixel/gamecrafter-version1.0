@@ -97,7 +97,7 @@ class ManualSwordExtractor {
       this.debugLog.push(debugEntry);
 
       if (!pixelValidation.isValid) {
-        console.error(`🗡️ ❌ [VALIDATION FAILED]`, pixelValidation.error);
+        console.error(`🗡️ [VALIDATION FAILED]`, pixelValidation.error);
         throw new Error(`Pixel bounds validation failed: ${pixelValidation.error}`);
       }
 
@@ -110,7 +110,7 @@ class ManualSwordExtractor {
       return this.debugLog;
 
     } catch (error) {
-      console.error(`🗡️ ❌ [STEP 1 FAILED]`, error);
+      console.error(`🗡️ [STEP 1 FAILED]`, error);
       
       const errorEntry: SwordExtractionDebug = {
         step: "Step 1: FAILED",
@@ -219,7 +219,7 @@ class ManualSwordExtractor {
       console.log(`🗡️ [ROI STATS] Opacity ratio: ${(opaquePixels / totalPixels * 100).toFixed(1)}%`);
 
     } catch (error) {
-      console.error(`🗡️ ❌ [ROI] Failed to extract region:`, error);
+      console.error(`🗡️ [ROI] Failed to extract region:`, error);
       throw new Error(`ROI extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -316,7 +316,7 @@ class ManualSwordExtractor {
       return { edges, roiData, debugInfo };
 
     } catch (error) {
-      console.error(`🗡️ ❌ [STEP 2 FAILED] Edge detection error:`, error);
+      console.error(`🗡️ [STEP 2 FAILED] Edge detection error:`, error);
       throw error;
     }
   }
@@ -570,7 +570,7 @@ class ManualSwordExtractor {
       return { contourPoints: globalContour, debugInfo };
       
     } catch (error) {
-      console.error(`🗡️ ❌ [STEP 3 FAILED] Contour tracing error:`, error);
+      console.error(`🗡️ [STEP 3 FAILED] Contour tracing error:`, error);
       throw error;
     }
   }
@@ -1210,7 +1210,7 @@ class ManualSwordExtractor {
       };
       
     } catch (error) {
-      console.error(`🗡️ ❌ [STEP 4 FAILED] Alpha mask generation error:`, error);
+      console.error(`🗡️ [STEP 4 FAILED] Alpha mask generation error:`, error);
       throw error;
     }
   }
@@ -1553,7 +1553,7 @@ class ManualSwordExtractor {
       };
       
     } catch (error) {
-      console.error(`🗡️ ❌ [STEP 5 FAILED] Sprite creation error:`, error);
+      console.error(`🗡️ [STEP 5 FAILED] Sprite creation error:`, error);
       throw error;
     }
   }
@@ -1913,7 +1913,7 @@ class ManualSwordExtractor {
       };
       
     } catch (error) {
-      console.error(`🗡️ ❌ [STEP 6 FAILED] Background completion error:`, error);
+      console.error(`🗡️ [STEP 6 FAILED] Background completion error:`, error);
       throw error;
     }
   }
@@ -2283,7 +2283,7 @@ class ManualSwordExtractor {
       };
       
     } catch (error) {
-      console.error(`🗡️ ❌ [STEP 7 FAILED] Enhanced validation error:`, error);
+      console.error(`🗡️ [STEP 7 FAILED] Enhanced validation error:`, error);
       throw error;
     }
   }

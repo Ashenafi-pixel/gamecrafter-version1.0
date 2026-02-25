@@ -48,7 +48,7 @@ class AIWingSegmentation {
           console.log(`✅ Wing segmentation complete - Left: ${result.leftWing.confidence.toFixed(2)}, Right: ${result.rightWing.confidence.toFixed(2)}`);
           resolve(result);
         } catch (error) {
-          console.error('❌ Wing segmentation failed:', error);
+          console.error('Wing segmentation failed:', error);
           reject(error);
         }
       };

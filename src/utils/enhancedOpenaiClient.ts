@@ -1,9 +1,8 @@
-// USE THE WORKING API KEY FROM YOUR MAIN ANALYSIS
-const OPENAI_API_KEY = "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";
-const OPENAI_ORG_ID = "org-EbZLwKpoPUaLvuyhZJid8rUF";
+// Image generation goes through our server proxy so the API key is never in the browser (avoids CORS + 401).
 const IMAGE_MODEL = "gpt-image-1.5";
-const API_ENDPOINT = "https://api.openai.com/v1/images/generations";
-const API_EDITS_ENDPOINT = "https://api.openai.com/v1/images/edits";
+const IMAGE_PROXY =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_OPENAI_IMAGE_PROXY) ||
+  '/.netlify/functions/openai-images';
 
 // Type definitions
 export interface ImageGenerationConfig {
@@ -96,15 +95,11 @@ async function generateImage(
 
     while (retryCount < maxRetries) {
       try {
-        const response = await fetch(API_ENDPOINT, {
+        const response = await fetch(IMAGE_PROXY, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${OPENAI_API_KEY}`,
-            'OpenAI-Organization': OPENAI_ORG_ID
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(180000) // Increased to 3 minutes for complex UI generation
+          signal: AbortSignal.timeout(180000) // 3 minutes for complex UI generation
         });
 
         if (response.ok) {
@@ -192,39 +187,22 @@ async function generateImageWithConfig(config: {
       onProgress(10);
     }
 
-    // Determine endpoint and payload based on whether we have a source image or referenced_image_ids
-    let endpoint = API_ENDPOINT;
+    // All image generation goes through server proxy (no API key in browser).
     let payload: any;
-    let requestBody: string | FormData;
+    let requestBody: string;
 
     if (sourceImage) {
-      // Use image edits endpoint for image-to-image transformation
-      endpoint = API_EDITS_ENDPOINT;
-      console.log(`[gpt-image-1] Using image edits endpoint for transformation`);
-
-      // For image edits, we need to use FormData
-      const formData = new FormData();
-
-      // Convert base64 to blob if needed
-      if (sourceImage.startsWith('data:image/')) {
-        const base64Data = sourceImage.split(',')[1];
-        const binaryData = atob(base64Data);
-        const bytes = new Uint8Array(binaryData.length);
-        for (let i = 0; i < binaryData.length; i++) {
-          bytes[i] = binaryData.charCodeAt(i);
-        }
-        const blob = new Blob([bytes], { type: 'image/png' });
-        formData.append('image', blob, 'source.png');
-      }
-
-      formData.append('model', IMAGE_MODEL);
-      formData.append('prompt', prompt);
-      formData.append('n', '1');
-      formData.append('size', config.size || '1024x1024');
-      formData.append('quality', 'high');
-
-      requestBody = formData;
-      console.log(`[gpt-image-1] Prepared FormData for image editing`);
+      // Image edits (source image → new image) require multipart; our proxy is JSON-only.
+      // Fall back to prompt-only generation so the flow still works.
+      console.warn(`[gpt-image-1] Source image supplied but edits proxy not used; using prompt-only generation`);
+      payload = {
+        model: IMAGE_MODEL,
+        prompt: prompt,
+        n: 1,
+        size: config.size || "1024x1024",
+        quality: "high"
+      };
+      requestBody = JSON.stringify(payload);
     } else if (config.referenced_image_ids && config.referenced_image_ids.length > 0) {
       // Use regular generations endpoint with referenced_image_ids parameter
       console.log(`[gpt-image-1] Using generations endpoint with referenced images`);
@@ -261,21 +239,11 @@ async function generateImageWithConfig(config: {
 
     while (retryCount < maxRetries) {
       try {
-        const headers: any = {
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-          'OpenAI-Organization': OPENAI_ORG_ID
-        };
-
-        // Only add Content-Type for JSON requests (FormData sets its own)
-        if (!sourceImage) {
-          headers['Content-Type'] = 'application/json';
-        }
-
-        const response = await fetch(endpoint, {
+        const response = await fetch(IMAGE_PROXY, {
           method: 'POST',
-          headers,
+          headers: { 'Content-Type': 'application/json' },
           body: requestBody,
-          signal: AbortSignal.timeout(180000) // Increased to 3 minutes for complex generation
+          signal: AbortSignal.timeout(180000) // 3 minutes for complex generation
         });
 
         if (onProgress) {
@@ -363,14 +331,17 @@ async function generateSpriteComponents(
  */
 async function analyzeImageWithGPT4O(imageUrl: string, prompt: string): Promise<GPTVisionResult> {
   try {
+    const visionKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_OPENAI_API_KEY) || '';
+    if (!visionKey) {
+      return { success: false, analysis: '', error: 'VITE_OPENAI_API_KEY not set for vision analysis' };
+    }
     console.log('🧠 [GPT-4o Vision] Analyzing image for sprite refinement...');
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'OpenAI-Organization': OPENAI_ORG_ID
+        'Authorization': `Bearer ${visionKey}`
       },
       body: JSON.stringify({
         model: "gpt-4o",
@@ -413,7 +384,7 @@ async function analyzeImageWithGPT4O(imageUrl: string, prompt: string): Promise<
     };
 
   } catch (error) {
-    console.error('❌ [GPT-4o Vision] Analysis failed:', error);
+    console.error('[GPT-4o Vision] Analysis failed:', error);
     return {
       success: false,
       analysis: '',

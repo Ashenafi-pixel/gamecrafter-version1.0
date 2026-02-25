@@ -62,7 +62,7 @@ async function verify() {
         console.log("\n🎉 BASE64 EXPORT VERIFIED!");
 
     } catch (e: any) {
-        console.error("\n❌ VERIFICATION FAILED:", e.message);
+        console.error("\nVERIFICATION FAILED:", e.message);
         process.exit(1);
     }
 }

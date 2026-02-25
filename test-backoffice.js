@@ -40,7 +40,7 @@ async function testBackoffice() {
         if (foundGame) {
             console.log(`✅ Catalog Check Passed: Found ${gameId} with status ${foundGame.status}`);
         } else {
-            console.error(`❌ Catalog Check Failed: ${gameId} not found in analytics/games`);
+            console.error(`Catalog Check Failed: ${gameId} not found in analytics/games`);
         }
 
         // 2. Play 5 Rounds
@@ -65,7 +65,7 @@ async function testBackoffice() {
         if (history.length >= 5) {
             console.log('✅ History Check Passed: Records found.');
         } else {
-            console.error('❌ History Check Failed: Insufficient records.');
+            console.error('History Check Failed: Insufficient records.');
         }
 
         // 4. Verify Financials
@@ -77,7 +77,7 @@ async function testBackoffice() {
         if (stats.rounds > 0 && stats.totalBet > 0) {
             console.log('✅ Financial Check Passed.');
         } else {
-            console.error('❌ Financial Check Failed.');
+            console.error('Financial Check Failed.');
         }
 
         // 5. Verify Audit Logs
@@ -89,7 +89,7 @@ async function testBackoffice() {
         if (publishLog) {
             console.log('✅ Audit Check Passed: "GAME_PUBLISH" event found.');
         } else {
-            console.error('❌ Audit Check Failed: Publish event missing.');
+            console.error('Audit Check Failed: Publish event missing.');
         }
 
         // 6. Verify Analytics Endpoints
@@ -119,7 +119,7 @@ async function testBackoffice() {
         if (vipUser && vipUser.totalBet >= 5.0) {
             console.log(`✅ Player Analytics Check Passed: VIP_USER_1 tracked (Total Bet: ${vipUser.totalBet}).`);
         } else {
-            console.error(`❌ Player Analytics Check Failed: VIP_USER_1 not found or bet mismatch (Expected >= 5.0).`);
+            console.error(`Player Analytics Check Failed: VIP_USER_1 not found or bet mismatch (Expected >= 5.0).`);
         }
 
         // 7. Verify Workshop Drafts
@@ -144,13 +144,13 @@ async function testBackoffice() {
         if (foundDraft && foundDraft.currentStep === 3) {
             console.log('✅ Workshop Check Passed: Draft saved and retrieved.');
         } else {
-            console.error('❌ Workshop Check Failed: Draft not found.');
+            console.error('Workshop Check Failed: Draft not found.');
         }
 
         console.log('\n=== Verification Complete ===');
 
     } catch (error) {
-        console.error('\n❌ Verification Failed:', error);
+        console.error('\nVerification Failed:', error);
     }
 }
 

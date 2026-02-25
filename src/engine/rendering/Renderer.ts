@@ -161,7 +161,7 @@ export class Renderer implements IRenderer {
       });
       console.log('✅ PIXI Application created successfully');
     } catch (pixiError) {
-      console.error('❌ Failed to create PIXI Application:', pixiError);
+      console.error('Failed to create PIXI Application:', pixiError);
       throw new Error(`PIXI initialization failed: ${pixiError}`);
     }
 
@@ -476,7 +476,7 @@ export class Renderer implements IRenderer {
             await this.setSymbolAt(col, row, symbolId);
             console.log(`✅ Symbol set at [${col}, ${row}]`);
           } catch (symbolError) {
-            console.error(`❌ Failed to set symbol at [${col}, ${row}]:`, symbolError);
+            console.error(`Failed to set symbol at [${col}, ${row}]:`, symbolError);
             // Continue with other symbols
           }
         }
@@ -507,7 +507,7 @@ export class Renderer implements IRenderer {
 
       console.log('🔍 DEBUG: About to complete setSymbols method...');
     } catch (error) {
-      console.error('❌ Error setting symbols on grid:', error);
+      console.error('Error setting symbols on grid:', error);
       throw error;
     }
 
@@ -575,13 +575,13 @@ export class Renderer implements IRenderer {
         ]);
         console.log(`✅ SYMBOL RENDER: Got sprite for [${col}, ${row}]`);
       } catch (error) {
-        console.error(`❌ SYMBOL RENDER: Failed to get sprite for [${col}, ${row}]:`, error);
+        console.error(`SYMBOL RENDER: Failed to get sprite for [${col}, ${row}]:`, error);
         // Create fallback sprite instead of failing
         try {
           sprite = this.createFallbackSymbol(symbolIdOrPath);
           console.log(`🔄 SYMBOL RENDER: Using fallback sprite for [${col}, ${row}]`);
         } catch (fallbackError) {
-          console.error(`❌ SYMBOL RENDER: Fallback failed for [${col}, ${row}]:`, fallbackError);
+          console.error(`SYMBOL RENDER: Fallback failed for [${col}, ${row}]:`, fallbackError);
           return;
         }
       }
@@ -640,7 +640,7 @@ export class Renderer implements IRenderer {
       console.log(`🔍 DEBUG: Set sprite zIndex to: ${sprite.zIndex}`);
 
     } catch (error) {
-      console.error(`❌ Error in setSymbolAt for [${col}, ${row}]:`, error);
+      console.error(`Error in setSymbolAt for [${col}, ${row}]:`, error);
       throw error;
     }
   }

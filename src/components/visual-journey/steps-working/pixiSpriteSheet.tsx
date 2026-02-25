@@ -80,11 +80,11 @@ export default function PixiAnimatedSymbol({
         onSpriteGenerated?.(result.spriteSheetUrl);
         console.log('✅ Sprite sheet generated successfully');
       } else {
-        console.error('❌ Sprite generation failed:', result.error);
+        console.error('Sprite generation failed:', result.error);
         alert(`Sprite generation failed: ${result.error}`);
       }
     } catch (error) {
-      console.error('❌ Sprite generation error:', error);
+      console.error('Sprite generation error:', error);
       alert(`Sprite generation error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsGenerating(false);
@@ -195,7 +195,7 @@ export default function PixiAnimatedSymbol({
 
       // Create AnimatedSprite with error handling
       if (textures.length === 0) {
-        console.error('❌ No textures created for animation');
+        console.error('No textures created for animation');
         return;
       }
 
@@ -235,7 +235,7 @@ export default function PixiAnimatedSymbol({
       console.log(`🎮 Animation started: ${anim.width}x${anim.height} at (${anim.x},${anim.y})`);
 
     }).catch((error) => {
-      console.error('❌ Failed to load or analyze sprite sheet:', error);
+      console.error('Failed to load or analyze sprite sheet:', error);
       console.error('URL:', currentImageUrl);
 
       // Show detailed error in the container
@@ -260,7 +260,7 @@ export default function PixiAnimatedSymbol({
           ">
             <div>
               <div style="font-weight: bold; margin-bottom: 8px;">
-                ${isValidationError ? '⚠️ Sprite Sheet Issue' : '❌ Failed to Load'}
+                ${isValidationError ? '⚠️ Sprite Sheet Issue' : 'Failed to Load'}
               </div>
               <div style="font-size: 12px; opacity: 0.8; margin-bottom: 8px;">
                 ${isValidationError ? 'Check sprite sheet format' : 'Check console for details'}

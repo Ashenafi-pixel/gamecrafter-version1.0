@@ -91,7 +91,7 @@ const AAAProfessionalAnimationStudio: React.FC<AAAProfessionalAnimationStudioPro
         setProcessingStep('Professional renderer ready');
         console.log('✅ AAA Studio: Professional renderer initialized successfully');
       } catch (error) {
-        console.error('❌ AAA Studio: Failed to initialize professional renderer:', error);
+        console.error('AAA Studio: Failed to initialize professional renderer:', error);
         setProcessingStep(`Renderer error: ${error.message}`);
       }
     };
@@ -196,9 +196,9 @@ const AAAProfessionalAnimationStudio: React.FC<AAAProfessionalAnimationStudioPro
       }, 1000);
 
     } catch (error) {
-      console.error('❌ AAA Studio: Professional pipeline failed:', error);
+      console.error('AAA Studio: Professional pipeline failed:', error);
       setIsProcessing(false);
-      setProcessingStep(`❌ Error: ${error.message}`);
+      setProcessingStep(`Error: ${error.message}`);
     }
   };
 

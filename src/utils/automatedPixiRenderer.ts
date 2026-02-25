@@ -132,7 +132,7 @@ class AutomatedPixiRenderer {
       console.log('✅ Symbol loaded with enhanced wing animation system');
 
     } catch (error) {
-      console.error('❌ Failed to load symbol:', error);
+      console.error('Failed to load symbol:', error);
       throw error;
     }
   }

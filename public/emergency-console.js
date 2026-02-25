@@ -130,7 +130,7 @@
   
   // If we still don't have the store, use fallback method
   if (!store) {
-    console.log('%c❌ Could not find Zustand store, using DOM manipulation fallback', 'color: red');
+    console.log('%cCould not find Zustand store, using DOM manipulation fallback', 'color: red');
     
     // Try direct DOM button click
     console.log('Attempting to find and click the Next button...');
@@ -153,7 +153,7 @@
         button.click();
       });
     } else {
-      console.log('%c❌ No Next buttons found', 'color: red');
+      console.log('%cNo Next buttons found', 'color: red');
       
       // Ultimate fallback: Try URL manipulation
       console.log('Using URL navigation as final fallback');
@@ -265,7 +265,7 @@
         if (newState.currentStep === 1) {
           console.log('%c✅ NAVIGATION SUCCESSFUL!', 'color: green; font-weight: bold; font-size: 16px');
         } else {
-          console.log('%c❌ Navigation failed, current step is still: ' + newState.currentStep, 'color: red; font-weight: bold');
+          console.log('%cNavigation failed, current step is still: ' + newState.currentStep, 'color: red; font-weight: bold');
           console.log('Trying URL redirection as last resort...');
           
           // Last resort: URL redirect

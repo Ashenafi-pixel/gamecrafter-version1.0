@@ -33,7 +33,7 @@ class ProjectArchitect:
             return self.results
             
         except Exception as e:
-            print(f"❌ Error: {e}")
+            print(f"Error: {e}")
             sys.exit(1)
     
     def validate_target(self):

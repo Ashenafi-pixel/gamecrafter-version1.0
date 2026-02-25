@@ -41,7 +41,7 @@ async function testDirectoryCreation() {
     if (fs.existsSync(testGameDir)) {
       console.log(`Test game directory verified: ${testGameDir}`);
     } else {
-      console.error(`❌ Test game directory was not created properly: ${testGameDir}`);
+      console.error(`Test game directory was not created properly: ${testGameDir}`);
     }
 
     // Create test subdirectories (symbols, background, frame, config)
@@ -55,7 +55,7 @@ async function testDirectoryCreation() {
       if (fs.existsSync(subDir)) {
         console.log(`${dir} directory created: ${subDir}`);
       } else {
-        console.error(`❌ ${dir} directory was not created properly: ${subDir}`);
+        console.error(`${dir} directory was not created properly: ${subDir}`);
       }
     }
 
@@ -72,12 +72,12 @@ async function testDirectoryCreation() {
     if (fs.existsSync(testFilePath)) {
       console.log(`✅ Test file created successfully: ${testFilePath}`);
     } else {
-      console.error(`❌ Test file was not created properly: ${testFilePath}`);
+      console.error(`Test file was not created properly: ${testFilePath}`);
     }
 
     console.log("Directory creation test completed successfully!");
   } catch (error) {
-    console.error(`❌ Error during directory creation test: ${error.message}`);
+    console.error(`Error during directory creation test: ${error.message}`);
     console.error(error);
   }
 }

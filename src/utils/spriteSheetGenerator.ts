@@ -138,7 +138,7 @@ One 1024×1024 PNG with 25 animation frames in a seamless, fixed 5×5 grid—rea
     }
 
   } catch (error) {
-    console.error('❌ 5x5 grid generation failed:', error);
+    console.error('5x5 grid generation failed:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'

@@ -60,7 +60,7 @@ export class SymbolPool {
               });
               
               texture.baseTexture.once('error', (error) => {
-                console.error(`❌ SymbolPool: Texture load error:`, error);
+                console.error(`SymbolPool: Texture load error:`, error);
                 clearTimeout(timeout);
                 reject(error);
               });

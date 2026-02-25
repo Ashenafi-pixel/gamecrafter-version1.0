@@ -173,7 +173,7 @@ export class PixelPerfectBoundingBox {
       };
       
     } catch (error) {
-      console.error('❌ Pixel analysis failed:', error);
+      console.error('Pixel analysis failed:', error);
       return {
         success: false,
         sprites: [],

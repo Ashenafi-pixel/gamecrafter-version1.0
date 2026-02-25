@@ -190,7 +190,7 @@ export class GameEngine {
             await this._renderer.createGrid(config.reels || 5, config.rows || 3);
             console.log('✅ Fallback grid created successfully');
           } catch (fallbackError) {
-            console.error('❌ CRITICAL: Even fallback failed:', fallbackError);
+            console.error('CRITICAL: Even fallback failed:', fallbackError);
           }
         }
         
@@ -234,7 +234,7 @@ export class GameEngine {
       console.log('✅ Game Engine initialized successfully');
       
     } catch (error) {
-      console.error('❌ Failed to initialize Game Engine:', error);
+      console.error('Failed to initialize Game Engine:', error);
       console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
       this.state = 'error';
       throw error;
@@ -388,7 +388,7 @@ export class GameEngine {
       return spinResponse;
       
     } catch (error) {
-      console.error('❌ Spin failed:', error);
+      console.error('Spin failed:', error);
       
       // Clean up timeouts on error too
       this.spinStopTimeouts.forEach(timeout => clearTimeout(timeout));
@@ -593,7 +593,7 @@ export class GameEngine {
       console.log('✅ Grid updated');
       
     } catch (error) {
-      console.error('❌ Failed to update grid:', error);
+      console.error('Failed to update grid:', error);
       this.state = 'error';
       throw error;
     }
@@ -632,7 +632,7 @@ export class GameEngine {
       await this._renderer.updateBackground(backgroundUrl, adjustments);
       console.log('✅ Background updated');
     } catch (error) {
-      console.error('❌ Failed to update background:', error);
+      console.error('Failed to update background:', error);
       throw error;
     }
   }
@@ -655,7 +655,7 @@ export class GameEngine {
       this._renderer.applyBackgroundAdjustments(adjustments);
       console.log('✅ Background adjustments updated');
     } catch (error) {
-      console.error('❌ Failed to update background adjustments:', error);
+      console.error('Failed to update background adjustments:', error);
       throw error;
     }
   }
@@ -671,7 +671,7 @@ export class GameEngine {
       await this._renderer.updateFrame(frameUrl);
       console.log('✅ Frame updated');
     } catch (error) {
-      console.error('❌ Failed to update frame:', error);
+      console.error('Failed to update frame:', error);
       throw error;
     }
   }
@@ -687,7 +687,7 @@ export class GameEngine {
       await this._renderer.updateLogo(logoUrl, position, scale);
       console.log('✅ Logo updated');
     } catch (error) {
-      console.error('❌ Failed to update logo:', error);
+      console.error('Failed to update logo:', error);
       throw error;
     }
   }
@@ -703,7 +703,7 @@ export class GameEngine {
       await this._renderer.updateUIButtons(buttons);
       console.log('✅ UI buttons updated');
     } catch (error) {
-      console.error('❌ Failed to update UI buttons:', error);
+      console.error('Failed to update UI buttons:', error);
       throw error;
     }
   }
@@ -785,7 +785,7 @@ export class GameEngine {
       
       console.log('✅ Symbols updated');
     } catch (error) {
-      console.error('❌ Failed to update symbols:', error);
+      console.error('Failed to update symbols:', error);
       throw error;
     } finally {
       // Clear busy flag
@@ -865,7 +865,7 @@ export class GameEngine {
       
       return success;
     } catch (error) {
-      console.error(`❌ Slam stop error for reel ${reelIndex}:`, error);
+      console.error(`Slam stop error for reel ${reelIndex}:`, error);
       return false;
     }
   }
@@ -898,7 +898,7 @@ export class GameEngine {
             console.warn(`⚠️ Slam stop failed for reel ${reelNum}`);
           }
         } catch (error) {
-          console.error(`❌ Slam stop error for reel ${reelNum}:`, error);
+          console.error(`Slam stop error for reel ${reelNum}:`, error);
           results.push(false);
         }
         

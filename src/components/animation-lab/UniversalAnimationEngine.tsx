@@ -131,7 +131,7 @@ export const UniversalAnimationEngine: React.FC<UniversalAnimationEngineProps> =
       console.log(`✅ [Universal Engine] Analysis complete: ${elements.length} elements, ${rules.length} animation rules`);
       
     } catch (error) {
-      console.error('❌ [Universal Engine] Analysis failed:', error);
+      console.error('[Universal Engine] Analysis failed:', error);
       setAnalysisStatus('error');
     } finally {
       setIsAnalyzing(false);
@@ -164,7 +164,7 @@ export const UniversalAnimationEngine: React.FC<UniversalAnimationEngineProps> =
       console.log('✨ [Universal Engine] Animation orchestration active');
       
     } catch (error) {
-      console.error('❌ [Universal Engine] Animation failed:', error);
+      console.error('[Universal Engine] Animation failed:', error);
     }
   }, [symbolImage, detectedElements, animationRules]);
 
@@ -200,7 +200,7 @@ export const UniversalAnimationEngine: React.FC<UniversalAnimationEngineProps> =
       console.log(`✅ [Sprite Processor] Successfully processed ${analysis.frameCount} frames`);
       
     } catch (error) {
-      console.error('❌ [Sprite Processor] Failed:', error);
+      console.error('[Sprite Processor] Failed:', error);
     } finally {
       setIsSpriteProcessing(false);
     }
@@ -542,7 +542,7 @@ Respond in JSON format:
                 }`}>
                   Status: {analysisStatus === 'analyzing' && '🔄 Analyzing with AI...'}
                          {analysisStatus === 'complete' && '✅ Analysis Complete'}
-                         {analysisStatus === 'error' && '❌ Analysis Failed'}
+                         {analysisStatus === 'error' && 'Analysis Failed'}
                          {analysisStatus === 'idle' && '⏳ Ready for Analysis'}
                 </div>
                 

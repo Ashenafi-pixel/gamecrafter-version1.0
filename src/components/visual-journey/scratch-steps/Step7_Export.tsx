@@ -368,7 +368,7 @@ const Step7_Export: React.FC = () => {
 
             // 1. Background
             const bgValue = configForHtml.theme.generated.background;
-            console.log('✓ Background:', bgValue ? (bgValue.startsWith?.('data:') ? '✅ Base64 embedded' : `⚠️ Path: ${bgValue}`) : '❌ Missing');
+            console.log('✓ Background:', bgValue ? (bgValue.startsWith?.('data:') ? '✅ Base64 embedded' : `⚠️ Path: ${bgValue}`) : 'Missing');
 
             // 2. Symbols
             console.log(`✓ Symbols: ${Object.keys(symbolMap).length} symbols`);
@@ -379,19 +379,19 @@ const Step7_Export: React.FC = () => {
 
             // 3. Surface (Scratch Cover)
             const surfaceValue = configForHtml.theme.generated.surface;
-            console.log('✓ Scratch Surface:', surfaceValue ? (surfaceValue.startsWith?.('data:') ? '✅ Base64 embedded' : `⚠️ Value: ${surfaceValue}`) : '❌ Missing');
+            console.log('✓ Scratch Surface:', surfaceValue ? (surfaceValue.startsWith?.('data:') ? '✅ Base64 embedded' : `⚠️ Value: ${surfaceValue}`) : 'Missing');
 
             // 4. Frame (Persistent Overlay)
             const frameValue = configForHtml.theme.generated.frame;
-            console.log('✓ Card Frame:', frameValue ? (frameValue.startsWith?.('data:') ? '✅ Base64 embedded' : `⚠️ Path: ${frameValue}`) : '❌ Missing');
+            console.log('✓ Card Frame:', frameValue ? (frameValue.startsWith?.('data:') ? '✅ Base64 embedded' : `⚠️ Path: ${frameValue}`) : 'Missing');
 
             // 5. Mascot
             const mascotValue = configForHtml.theme.generated.mascot;
-            console.log('✓ Mascot:', mascotValue ? (mascotValue.startsWith?.('data:') ? '✅ Base64 embedded' : `⚠️ Path: ${mascotValue}`) : '❌ Missing');
+            console.log('✓ Mascot:', mascotValue ? (mascotValue.startsWith?.('data:') ? '✅ Base64 embedded' : `⚠️ Path: ${mascotValue}`) : 'Missing');
 
             // 6. Brush settings
             const brushValue = embeddedConfig.scratch?.brush;
-            console.log('✓ Brush:', brushValue ? `✅ Configured (${brushValue.tipType}, size: ${brushValue.size})` : '❌ Missing');
+            console.log('✓ Brush:', brushValue ? `✅ Configured (${brushValue.tipType}, size: ${brushValue.size})` : 'Missing');
 
             // 7. Sounds - check scratch.audio
             const audioSounds = embeddedConfig.scratch?.audio || {};
@@ -404,7 +404,7 @@ const Step7_Export: React.FC = () => {
 
             // 8. Logo
             const logoValue = embeddedConfig.scratch?.logo?.image;
-            console.log('✓ Logo:', logoValue ? (logoValue.startsWith?.('data:') ? '✅ Base64 embedded' : `⚠️ Path: ${logoValue}`) : '❌ Missing');
+            console.log('✓ Logo:', logoValue ? (logoValue.startsWith?.('data:') ? '✅ Base64 embedded' : `⚠️ Path: ${logoValue}`) : 'Missing');
 
             console.log('==========================================\n');
 
@@ -434,7 +434,7 @@ const Step7_Export: React.FC = () => {
 
             showSuccess('Export Complete', `Bundle downloaded with ${assetMap.size} assets`);
         } catch (e: any) {
-            console.error('❌ EXPORT FAILED:', e);
+            console.error('EXPORT FAILED:', e);
             console.error('Stack trace:', e.stack);
             showWarning('Export Failed', e.message);
         }
@@ -685,7 +685,7 @@ const Step7_Export: React.FC = () => {
 
             showSuccess('Upload Complete', `Bundle uploaded successfully to RGS server`);
         } catch (e: any) {
-            console.error('❌ UPLOAD FAILED:', e);
+            console.error('UPLOAD FAILED:', e);
             
             // Extract user-friendly error message
             let userMessage = 'Upload failed. Please try again.';

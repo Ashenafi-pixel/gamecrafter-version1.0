@@ -295,7 +295,7 @@
           
           imageObj.onerror = function() {
             console.error(`Image ${img.id} failed to load:`, img.path);
-            resultsEl.innerHTML += `❌ ERROR: ${img.path} failed to load<br>`;
+            resultsEl.innerHTML += `ERROR: ${img.path} failed to load<br>`;
             
             // Try fetch as backup
             fetch(`${img.path}?t=${timestamp}`, { method: 'HEAD' })
@@ -329,7 +329,7 @@
               if (domImg.naturalWidth === 0) {
                 console.error(`DOM element ${img.id} failed to load`);
                 resultsEl.innerHTML += 
-                  `❌ DOM element ${img.id} failed to load<br>`;
+                  `DOM element ${img.id} failed to load<br>`;
               } else {
                 console.log(`DOM element ${img.id} loaded:`, {
                   width: domImg.naturalWidth,

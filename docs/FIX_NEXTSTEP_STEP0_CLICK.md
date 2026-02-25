@@ -87,7 +87,7 @@ The solution was to simplify the architecture and remove all the excessive emerg
      if (onNextStep && typeof onNextStep === 'function') {
        console.log("✅ onNextStep is properly defined as a function");
      } else {
-       console.error("❌ onNextStep is not defined properly:", onNextStep);
+       console.error("onNextStep is not defined properly:", onNextStep);
      }
      
      // Check button in DOM after render

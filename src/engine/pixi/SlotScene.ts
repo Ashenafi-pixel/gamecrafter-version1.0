@@ -550,7 +550,7 @@ export class SlotScene {
 
     // Verify this is only for 5x3
     if (this.config.reels !== 5 || this.config.rows !== 3) {
-      console.error(`❌ Professional slot machine only supports 5x3, got ${this.config.reels}x${this.config.rows}`);
+      console.error(`Professional slot machine only supports 5x3, got ${this.config.reels}x${this.config.rows}`);
       return;
     }
 
@@ -572,7 +572,7 @@ export class SlotScene {
 
     // Verify we have textures before creating slot machine
     if (this.symbolTextureMap.size === 0) {
-      console.error('❌ No textures loaded, cannot create slot machine');
+      console.error('No textures loaded, cannot create slot machine');
       // Create fallback textures
       await this.createFallbackTextures();
     }
@@ -655,7 +655,7 @@ export class SlotScene {
             this.symbolTextureMap.set(id, texture);
             console.log(`  ✅ Loaded texture for ${id} (${texture.width}x${texture.height})`);
           } catch (err) {
-            console.error(`  ❌ Failed to load texture for ${id}:`, err);
+            console.error(`  Failed to load texture for ${id}:`, err);
             // Use WHITE texture as fallback
             this.symbolTextureMap.set(id, PIXI.Texture.WHITE);
           }
@@ -688,7 +688,7 @@ export class SlotScene {
           this.symbolTextureMap.set(id, texture);
           console.log(`  ✅ Loaded default texture for ${id}`);
         }).catch(() => {
-          console.error(`  ❌ Failed to load default texture for ${id}`);
+          console.error(`  Failed to load default texture for ${id}`);
           this.symbolTextureMap.set(id, PIXI.Texture.WHITE);
         });
         defaultPromises.push(loadPromise);
@@ -728,13 +728,13 @@ export class SlotScene {
     }
 
     if (!sprite) {
-      console.warn(`❌ Failed to get sprite from pool for symbol ${symbol.id} at [${reel},${row}], creating placeholder`);
+      console.warn(`Failed to get sprite from pool for symbol ${symbol.id} at [${reel},${row}], creating placeholder`);
       return this.createPlaceholderSymbol(reel, row);
     }
 
     // Additional validation that sprite is usable
     if (!sprite.scale || !sprite.anchor || sprite.destroyed) {
-      console.error(`❌ Sprite returned from pool is invalid for symbol ${symbol.id} at [${reel},${row}]`);
+      console.error(`Sprite returned from pool is invalid for symbol ${symbol.id} at [${reel},${row}]`);
       return this.createPlaceholderSymbol(reel, row);
     }
 

@@ -506,7 +506,7 @@ class ProfessionalLayerExtractor {
     try {
       spriteData = new ImageData(width, height);
     } catch (error) {
-      console.error(`❌ [CV] Failed to create ImageData (${width}x${height}):`, error);
+      console.error(`[CV] Failed to create ImageData (${width}x${height}):`, error);
       throw new Error(`Invalid ImageData dimensions: ${width}x${height}`);
     }
     

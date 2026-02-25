@@ -62,7 +62,7 @@ const attemptStepTransition = () => {
         console.warn(`⚠️ Step transition failed, retrying...`);
         attemptStepTransition();
       } else {
-        console.error('❌ Failed to transition to next step after maximum retries');
+        console.error('Failed to transition to next step after maximum retries');
         alert('There was an issue navigating to the next step. Please try again.');
       }
     } else {
@@ -85,7 +85,7 @@ Comprehensive logging was added throughout the navigation process to help debug 
 - 🔄 Step transition attempts
 - ✅ Success confirmations
 - ⚠️ Warning for retry attempts
-- ❌ Error messages for failures
+- Error messages for failures
 - 🔍 Verification of current step after transition
 
 ## Non-Critical Step Handling
