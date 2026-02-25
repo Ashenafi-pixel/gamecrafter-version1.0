@@ -103,8 +103,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
         currentOutcome,
         buyTicket,
         generateRound,
-        resolveRound,
-        statusMessage // New status message
+        resolveRound
     } = useScratchSession();
 
     // Win Sound Effect
@@ -690,13 +689,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
     return (
         <div ref={mainRef} className={`flex flex-col h-full bg-gray-900 rounded-xl overflow-hidden shadow-2xl relative ${className}`}>
 
-            {/* Status Message Toast */}
-            {statusMessage && (
-                <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[100] bg-red-600/90 text-white px-4 py-2 rounded-full text-xs font-bold shadow-lg animate-bounce">
-                    {statusMessage}
-                </div>
-            )}
-
+            
             {/* Audio Toggle */}
             <button
                 onClick={() => setIsMuted(prev => !prev)}
