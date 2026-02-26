@@ -26,6 +26,7 @@ interface GameControlsProps {
         termsText?: string;
         paytableConfig?: any;
     };
+    isLoadingRound?: boolean;
 }
 
 export interface AutoplayConfig {
@@ -37,7 +38,7 @@ export interface AutoplayConfig {
 }
 
 export const GameControls: React.FC<GameControlsProps> = ({
-    balance, bet, win, gameState, onBetChange, onBuy, onAutoplay, isAutoPlaying, onStopAuto, isFixedBet = false, gameTitle = 'GAME TITLE', rulesConfig
+    balance, bet, win, gameState, onBetChange, onBuy, onAutoplay, isAutoPlaying, onStopAuto, isFixedBet = false, gameTitle = 'GAME TITLE', rulesConfig, isLoadingRound = false
 }) => {
     const [showAutoModal, setShowAutoModal] = useState(false);
     const [showInfoModal, setShowInfoModal] = useState(false);
@@ -104,7 +105,7 @@ export const GameControls: React.FC<GameControlsProps> = ({
                 {/* Auto */}
                 <button
                     onClick={() => setShowAutoModal(true)}
-                    disabled={isAutoPlaying || gameState === 'playing'}
+                    disabled={isAutoPlaying || gameState === 'playing' || isLoadingRound}
                     className="w-8 h-8 md:w-12 md:h-12 bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-700 text-white transition-colors disabled:opacity-50 shrink-0"
                 >
                     <div className="flex flex-col items-center justify-center">
@@ -126,9 +127,9 @@ export const GameControls: React.FC<GameControlsProps> = ({
                     ) : (
                         <button
                             onClick={onBuy}
-                            disabled={gameState === 'playing'}
+                            disabled={gameState === 'playing' || isLoadingRound}
                             className={`h-9 md:h-14 px-4 md:px-10 rounded-full font-black text-xs md:text-xl shadow-[0_3px_0_#15803d] active:shadow-none active:translate-y-[2px] transition-all flex items-center justify-center gap-2 uppercase tracking-wide
-                                ${gameState === 'playing'
+                                ${gameState === 'playing' || isLoadingRound
                                     ? 'bg-gray-600 text-gray-400 cursor-not-allowed shadow-none translate-y-[2px]'
                                     : gameState === 'won' || gameState === 'revealed'
                                         ? 'bg-[#4ade80] text-green-900 hover:bg-[#22c55e]'
@@ -136,7 +137,12 @@ export const GameControls: React.FC<GameControlsProps> = ({
                                 }
                             `}
                         >
-                            {gameState === 'playing' ? '...' : gameState === 'revealed' ? 'Play' : 'Buy'}
+                            {isLoadingRound ? (
+                                <>
+                                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                                    <span>Loading...</span>
+                                </>
+                            ) : gameState === 'playing' ? '...' : gameState === 'revealed' ? 'Play' : 'Buy'}
                         </button>
                     )}
                 </div>

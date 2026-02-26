@@ -49,8 +49,19 @@ const FrameConfig: React.FC = () => {
 
     // --- Local State for Smooth Sliders ---
     const [localTransform, setLocalTransform] = React.useState(transform);
-    const [localDesc, setLocalDesc] = React.useState<string>('');
+    const [localDesc, setLocalDesc] = React.useState<string>(() => {
+        // Filter out any base64 image data that might have been accidentally saved
+        const initialValue = '';
+        return initialValue.startsWith('data:image/') ? '' : initialValue;
+    });
     const [isGenerating, setIsGenerating] = React.useState(false);
+
+    // Wrapper function to filter out base64 image data from localDesc
+    const setLocalDescSafe = (value: string) => {
+        // Filter out base64 image data
+        const filteredValue = value.startsWith('data:image/') ? '' : value;
+        setLocalDesc(filteredValue);
+    };
 
     // Sync from global store if changed externally
     React.useEffect(() => {
@@ -251,7 +262,7 @@ const FrameConfig: React.FC = () => {
                     <div className="flex-1">
                         <textarea
                             value={localDesc}
-                            onChange={(e) => setLocalDesc(e.target.value)}
+                            onChange={(e) => setLocalDescSafe(e.target.value)}
                             placeholder="Describe style..."
                             className="w-full h-full min-h-[36px] bg-slate-50 border border-slate-200 rounded p-2 text-[10px] focus:ring-1 focus:ring-indigo-500 outline-none resize-none placeholder:text-slate-400 leading-tight"
                         />
