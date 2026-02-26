@@ -5,7 +5,7 @@ import { useGameStore } from '../../../store';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Pagination, EffectCoverflow, Mousewheel, Autoplay } from 'swiper/modules';
 import { slotApiClient } from '../../../utils/apiClient';
-import { useSuccessPopup, useWarningPopup } from '../../popups';
+import { useWarningPopup } from '../../popups';
 
 // Import Swiper styles
 import 'swiper/css';
@@ -68,7 +68,6 @@ const EnhancedThemeExplorer: React.FC = () => {
   const [displayNameInput, setDisplayNameInput] = useState(config.displayName || '');
   const [isSaving, setIsSaving] = useState(false);
   const { showWarning } = useWarningPopup();
-  const {showSuccess}=useSuccessPopup()
   const swiperRef = useRef<any>(null);
   const spinSoundRef = useRef<HTMLAudioElement | null>(null);
 
@@ -341,7 +340,34 @@ const startRandomSelection = () => {
                         displayName: displayName
                       });
                       
-                      showSuccess("success",`Game "${displayName}" saved successfully!`);
+                      // Show success notification
+                      const notification = document.createElement('div');
+                      notification.className = 'fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center space-x-2 transform transition-all duration-500 -translate-y-20 opacity-0';
+                      notification.innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                        </svg>
+                        <span>Game "${displayName}" saved successfully!</span>
+                      `;
+                      document.body.appendChild(notification);
+                      
+                      // Animate in
+                      setTimeout(() => {
+                        notification.style.transform = 'translateY(0)';
+                        notification.style.opacity = '1';
+                      }, 100);
+                      
+                      // Animate out and remove after 3 seconds
+                      setTimeout(() => {
+                        notification.style.transform = 'translateY(-20px)';
+                        notification.style.opacity = '0';
+                        
+                        setTimeout(() => {
+                          if (document.body.contains(notification)) {
+                            document.body.removeChild(notification);
+                          }
+                        }, 500);
+                      }, 3000);
                     } else {
                       console.error('RGS API save failed:', result.message);
                       alert(`Failed to save: ${result.message}`);

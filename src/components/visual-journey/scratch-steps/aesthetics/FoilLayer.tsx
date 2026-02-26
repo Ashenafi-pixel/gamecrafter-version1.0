@@ -8,7 +8,18 @@ import { motion } from 'framer-motion';
 const FoilLayer: React.FC = () => {
     const { config, updateConfig } = useGameStore();
     const [isGenerating, setIsGenerating] = useState(false);
-    const [localDesc, setLocalDesc] = useState('');
+    const [localDesc, setLocalDesc] = useState(() => {
+        // Filter out any base64 image data that might have been accidentally saved
+        const initialValue = '';
+        return initialValue.startsWith('data:image/') ? '' : initialValue;
+    });
+
+    // Wrapper function to filter out base64 image data from localDesc
+    const setLocalDescSafe = (value: string) => {
+        // Filter out base64 image data
+        const filteredValue = value.startsWith('data:image/') ? '' : value;
+        setLocalDesc(filteredValue);
+    };
 
     // Helper to update scratch config
     const updateScratchConfig = (updates: Partial<ScratchConfig>) => {
@@ -198,7 +209,7 @@ const FoilLayer: React.FC = () => {
                             <input
                                 type="text"
                                 value={localDesc}
-                                onChange={(e) => setLocalDesc(e.target.value)}
+                                onChange={(e) => setLocalDescSafe(e.target.value)}
                                 placeholder="Describe texture (e.g. brushed metal, gold coins)..."
                                 className="flex-1 bg-slate-50 border border-slate-200 rounded text-[10px] px-2 py-1 outline-none focus:border-indigo-500"
                             />
