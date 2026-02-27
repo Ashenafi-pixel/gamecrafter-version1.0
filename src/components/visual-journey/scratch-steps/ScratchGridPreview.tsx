@@ -1166,13 +1166,13 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
     const handleBuyClick = async () => {
 
-        const success = await buyTicket();
+        // [FIX] Reset foil FIRST so progress resets to 0 BEFORE gameState becomes 'playing'.
+        // If we call buyTicket first, the auto-reveal effect sees:
+        //   progress >= threshold (still high) AND gameState === 'playing'
+        // ...and immediately resolves the new round, causing the double-click issue.
+        applyFoilStyle();
 
-        if (success) {
-
-            applyFoilStyle(); // Reset foil
-
-        }
+        await buyTicket();
 
     };
 
@@ -1382,7 +1382,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
 
 
-            
+
 
             {/* Audio Toggle */}
 
@@ -1612,7 +1612,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
                         <div
 
-                            className="absolute z-20 origin-center shadow-[0_20px_60px_rgba(0,0,0,0.6)] rounded-xl overflow-hidden"
+                            className={`absolute z-20 origin-center shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden ${overlayColor === 'transparent' ? 'rounded-xl' : ''}`}
 
                             style={{
 
@@ -1638,7 +1638,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
                             <div
 
-                                className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none"
+                                className={`absolute inset-0 overflow-hidden pointer-events-none ${overlayColor === 'transparent' ? 'rounded-xl' : ''}`}
 
                                 style={{ zIndex: overlayZIndex < 50 ? 5 : 120, mixBlendMode: overlayBlendMode as any }}
 
@@ -1906,43 +1906,45 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
             {/* Custom Cursor */}
 
-            {showCursor && (
+            {
+                showCursor && (
 
-                <div
+                    <div
 
-                    className="fixed pointer-events-none z-[9999] flex items-center justify-center transition-transform duration-75"
+                        className="fixed pointer-events-none z-[9999] flex items-center justify-center transition-transform duration-75"
 
-                    style={{
+                        style={{
 
-                        left: cursorPos.x,
+                            left: cursorPos.x,
 
-                        top: cursorPos.y,
+                            top: cursorPos.y,
 
-                        width: `${brushSize * fitScale}px`,
+                            width: `${brushSize * fitScale}px`,
 
-                        height: `${brushSize * fitScale}px`,
+                            height: `${brushSize * fitScale}px`,
 
-                        transformOrigin: 'center center',
+                            transformOrigin: 'center center',
 
-                        transform: `translate(-50%, -50%) ${isScratching ? 'scale(0.95)' : 'scale(1)'}`
+                            transform: `translate(-50%, -50%) ${isScratching ? 'scale(0.95)' : 'scale(1)'}`
 
-                    }}
+                        }}
 
-                >
+                    >
 
-                    {brushUrl ? (
+                        {brushUrl ? (
 
-                        <img src={brushUrl} className="w-full h-full object-contain drop-shadow-lg" />
+                            <img src={brushUrl} className="w-full h-full object-contain drop-shadow-lg" />
 
-                    ) : (
+                        ) : (
 
-                        <div className="w-full h-full rounded-full border-2 border-white/50 bg-black/20 backdrop-blur-sm" />
+                            <div className="w-full h-full rounded-full border-2 border-white/50 bg-black/20 backdrop-blur-sm" />
 
-                    )}
+                        )}
 
-                </div>
+                    </div>
 
-            )}
+                )
+            }
 
 
 
@@ -1980,7 +1982,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
             </div>
 
-        </div>
+        </div >
 
     );
 
