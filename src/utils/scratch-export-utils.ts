@@ -1600,7 +1600,7 @@ function setupScene() {
     gridContainer.pivot.set(CARD_WIDTH / 2, gridBaseHeight / 2);
     
     // Add Grid Background
-    var gridBg = new PIXI.Graphics().rect(0, 0, CARD_WIDTH, gridBaseHeight).fill({ color: gridBgColor, alpha: gridBgColor === 'transparent' ? 0 : 0.95 });
+    var gridBg = new PIXI.Graphics().rect(0, 0, CARD_WIDTH, gridBaseHeight).fill({ color: gridBgColor, alpha: (gridBgColor === 'transparent' || overlayColor === 'transparent') ? 0 : 0.95 });
     gridContainer.addChild(gridBg);
     innerCardGroup.addChild(gridContainer);
 
@@ -1618,7 +1618,7 @@ function setupScene() {
 
     for (var r = 0; r < rows; r++) {
         for (var c = 0; c < cols; c++) {
-            if (cellStyle === 'boxed') {
+            if (cellStyle === 'boxed' && overlayColor !== 'transparent') {
                 var box = new PIXI.Graphics()
                     .roundRect(c * cellW + 4, r * cellH + 4, cellW - 8, cellH - 8, 8)
                     .fill({ color: 0xffffff, alpha: 0.9 })
@@ -1710,12 +1710,7 @@ function setupScene() {
 
     
     // E. Masking (Card Rounding) - Applied to INNER GROUP ONLY
-    var mask = new PIXI.Graphics();
-    if (overlayColor === 'transparent') {
-        mask.roundRect(0, 0, CARD_WIDTH, CARD_HEIGHT, 16).fill({ color: 0xffffff });
-    } else {
-        mask.rect(0, 0, CARD_WIDTH, CARD_HEIGHT).fill({ color: 0xffffff });
-    }
+    var mask = new PIXI.Graphics().roundRect(0, 0, CARD_WIDTH, CARD_HEIGHT, 16).fill({ color: 0xffffff });
     innerCardGroup.addChild(mask);
     innerCardGroup.mask = mask;
 

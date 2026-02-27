@@ -1611,9 +1611,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                         {/* Card Group */}
 
                         <div
-
-                            className={`absolute z-20 origin-center shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden ${overlayColor === 'transparent' ? 'rounded-xl' : ''}`}
-
+                            className={`absolute z-20 origin-center rounded-xl overflow-hidden ${overlayColor !== 'transparent' ? 'shadow-[0_20px_60px_rgba(0,0,0,0.6)]' : ''}`}
                             style={{
 
                                 left: 0,
@@ -1638,7 +1636,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
                             <div
 
-                                className={`absolute inset-0 overflow-hidden pointer-events-none ${overlayColor === 'transparent' ? 'rounded-xl' : ''}`}
+                                className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none"
 
                                 style={{ zIndex: overlayZIndex < 50 ? 5 : 120, mixBlendMode: overlayBlendMode as any }}
 
@@ -1723,9 +1721,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                                     width: `${CARD_WIDTH}px`,
 
                                     height: config.scratch?.mechanic?.type === 'wheel' ? '320px' : '400px',
-
-                                    backgroundColor: config.scratch?.mechanic?.type === 'wheel' ? 'transparent' : gridBgColor,
-
+                                    backgroundColor: (config.scratch?.mechanic?.type === 'wheel' || overlayColor === 'transparent') ? 'transparent' : gridBgColor,
                                     left: '50%',
 
                                     top: '50%',
@@ -1795,32 +1791,30 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                                     return (
 
                                         <div
-
                                             key={i}
-
-                                            className={`flex items-center justify-center relative transition-all overflow-hidden ${cellStyle === 'boxed' ? 'bg-white rounded-md shadow-inner border border-gray-200 p-2' : 'p-1 rounded-sm'} ${gameState === 'won' && currentOutcome?.isWin && getSymbolForCell(i) === winningSymbol ? 'ring-2 ring-yellow-400 animate-pulse' : ''}`}
-
+                                            className={`flex items-center justify-center relative transition-all overflow-hidden ${cellStyle === 'boxed' ? `${overlayColor !== 'transparent' ? 'bg-white shadow-inner border border-gray-200' : ''} rounded-md p-2` : 'p-1 rounded-sm'} ${gameState === 'won' && currentOutcome?.isWin && getSymbolForCell(i) === winningSymbol ? 'ring-2 ring-yellow-400 animate-pulse' : ''}`}
                                         >
 
-                                            {showNumericPreview ? (
+                                            {
+                                                showNumericPreview ? (
 
-                                                <div className="flex flex-col items-center justify-center w-full h-full">
+                                                    <div className="flex flex-col items-center justify-center w-full h-full" >
 
-                                                    <span className={`${fontSizeClass} font-black text-gray-800 tracking-tight`}>${mockValue}</span>
+                                                        <span className={`${fontSizeClass} font-black text-gray-800 tracking-tight`}>${mockValue}</span>
 
-                                                </div>
+                                                    </div>
 
-                                            ) : (
+                                                ) : (
 
-                                                <>
+                                                    <>
 
-                                                    <img src={getSymbolForCell(i)} className="w-full h-full object-contain" />
+                                                        <img src={getSymbolForCell(i)} className="w-full h-full object-contain" />
 
-                                                    <span className={`absolute bottom-1 right-1 text-[10px] font-mono font-bold ${cellStyle === 'boxed' ? 'text-gray-400' : 'text-gray-600'}`}>$10</span>
+                                                        <span className={`absolute bottom-1 right-1 text-[10px] font-mono font-bold ${cellStyle === 'boxed' ? 'text-gray-400' : 'text-gray-600'}`}>$10</span>
 
-                                                </>
+                                                    </>
 
-                                            )}
+                                                )}
 
                                         </div>
 
@@ -1894,13 +1888,13 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
                 </div>
 
-            </div>
+            </div >
 
 
 
             {/* Global Particle Overlay */}
 
-            <canvas ref={particleCanvasRef} className="absolute inset-0 z-[40] pointer-events-none w-full h-full" />
+            < canvas ref={particleCanvasRef} className="absolute inset-0 z-[40] pointer-events-none w-full h-full" />
 
 
 
