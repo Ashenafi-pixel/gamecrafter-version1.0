@@ -1710,7 +1710,12 @@ function setupScene() {
 
     
     // E. Masking (Card Rounding) - Applied to INNER GROUP ONLY
-    var mask = new PIXI.Graphics().roundRect(0, 0, CARD_WIDTH, CARD_HEIGHT, 16).fill({ color: 0xffffff });
+    var mask = new PIXI.Graphics();
+    if (overlayColor === 'transparent') {
+        mask.roundRect(0, 0, CARD_WIDTH, CARD_HEIGHT, 16).fill({ color: 0xffffff });
+    } else {
+        mask.rect(0, 0, CARD_WIDTH, CARD_HEIGHT).fill({ color: 0xffffff });
+    }
     innerCardGroup.addChild(mask);
     innerCardGroup.mask = mask;
 
