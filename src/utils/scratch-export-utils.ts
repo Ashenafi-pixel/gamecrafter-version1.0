@@ -1600,7 +1600,7 @@ function setupScene() {
     gridContainer.pivot.set(CARD_WIDTH / 2, gridBaseHeight / 2);
     
     // Add Grid Background
-    var gridBg = new PIXI.Graphics().rect(0, 0, CARD_WIDTH, gridBaseHeight).fill({ color: gridBgColor, alpha: gridBgColor === 'transparent' ? 0 : 0.95 });
+    var gridBg = new PIXI.Graphics().rect(0, 0, CARD_WIDTH, gridBaseHeight).fill({ color: gridBgColor, alpha: (gridBgColor === 'transparent' || overlayColor === 'transparent') ? 0 : 0.95 });
     gridContainer.addChild(gridBg);
     innerCardGroup.addChild(gridContainer);
 
@@ -1618,7 +1618,7 @@ function setupScene() {
 
     for (var r = 0; r < rows; r++) {
         for (var c = 0; c < cols; c++) {
-            if (cellStyle === 'boxed') {
+            if (cellStyle === 'boxed' && overlayColor !== 'transparent') {
                 var box = new PIXI.Graphics()
                     .roundRect(c * cellW + 4, r * cellH + 4, cellW - 8, cellH - 8, 8)
                     .fill({ color: 0xffffff, alpha: 0.9 })

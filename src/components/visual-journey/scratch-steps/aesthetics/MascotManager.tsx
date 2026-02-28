@@ -7,7 +7,18 @@ import { enhancedOpenaiClient } from '../../../../utils/enhancedOpenaiClient';
 const MascotManager: React.FC = () => {
     const { config, updateConfig } = useGameStore();
     const [isGenerating, setIsGenerating] = useState(false);
-    const [localDesc, setLocalDesc] = useState('');
+    const [localDesc, setLocalDesc] = useState(() => {
+        // Filter out any base64 image data that might have been accidentally saved
+        const initialValue = config.scratch?.mascot?.image || '';
+        return initialValue.startsWith('data:image/') ? '' : initialValue;
+    });
+
+    // Wrapper function to filter out base64 image data from localDesc
+    const setLocalDescSafe = (value: string) => {
+        // Filter out base64 image data
+        const filteredValue = value.startsWith('data:image/') ? '' : value;
+        setLocalDesc(filteredValue);
+    };
 
     // Helper to update scratch config
     const updateScratchConfig = (updates: Partial<ScratchConfig>) => {
@@ -29,7 +40,7 @@ const MascotManager: React.FC = () => {
             console.log('[MascotManager] Generating with prompt:', prompt);
 
             const result = await enhancedOpenaiClient.generateImage(prompt, {
-                quality: 'standard',
+                quality: 'low',
                 size: '1024x1024'
             });
 
@@ -98,7 +109,7 @@ const MascotManager: React.FC = () => {
                         <div className="flex-1">
                             <textarea
                                 value={localDesc}
-                                onChange={(e) => setLocalDesc(e.target.value)}
+                                onChange={(e) => setLocalDescSafe(e.target.value)}
                                 placeholder="Describe mascot (e.g. Cute golden star with happy face)..."
                                 className="w-full h-full min-h-[36px] bg-slate-50 border border-slate-200 rounded p-2 text-[10px] focus:ring-1 focus:ring-pink-500 outline-none resize-none placeholder:text-slate-400 leading-tight"
                             />
