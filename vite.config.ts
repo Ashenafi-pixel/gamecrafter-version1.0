@@ -30,6 +30,7 @@ export default defineConfig({
     assetsDir: 'assets',
     manifest: true,
     sourcemap: false, // Disable sourcemaps to reduce memory usage
+    copyPublicDir: true, // Ensure public directory is copied
     rollupOptions: {
       treeshake: true, // Enable tree shaking to reduce bundle size
       input: {
