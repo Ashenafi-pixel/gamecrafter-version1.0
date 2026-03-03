@@ -1197,133 +1197,88 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
     // Asset Resolution
 
     const getSymbolForCell = (index: number) => {
-
         // Use the resolved outcome map if available
-
         if (currentOutcome?.revealMap && currentOutcome.revealMap[index]) {
-
             const rawValue = currentOutcome.revealMap[index];
 
-
-
-            // A. If it's already a URL/Path, return it
-
-            if (rawValue.startsWith('http') || rawValue.startsWith('data:') || rawValue.startsWith('/')) {
-
-                return rawValue;
-
-            }
-
-
-
-            // B. If it's an ID, look it up in the Prize Table
-
+            // A. If it's an ID, look it up in the Prize Table
             const matchedPrize = config.scratch?.prizes?.find(p => p.id === rawValue);
-
-
-
-            // Check for valid image source (Image property OR explicit SymbolId override)
-
             const resolvedPrizeImage = matchedPrize?.symbolId || matchedPrize?.image;
 
-
-
-            // DEBUG: Log failures to help trace why it's not matching
-
-            // Ignore valid 'LOSE' symbols or internal tier markers which aren't in the prize table
-
-            const isExpectedMissing = rawValue.toUpperCase().startsWith('LOSE') || rawValue.startsWith('tier_');
-
-
-
-            if (!matchedPrize && !isExpectedMissing) {
-
-                // console.warn(`[Preview] Symbol ID '${rawValue}' not found in Prize Table.`);
-
-            } else if (matchedPrize && !resolvedPrizeImage) {
-
-                console.warn(`[Preview] Symbol ID '${rawValue}' found, but has no image or symbolId!`, matchedPrize);
-
-            }
-
-
-
+            // If we have an explicit prize mapping, that takes TOP priority
             if (resolvedPrizeImage) {
-
                 return resolvedPrizeImage;
-
             }
 
+            // B. INTERCEPTION: If we have library symbols, we want to prioritize them 
+            // over generic IDs (like high_1, low_2) or default theme URLs.
+            const librarySymbols = config.scratch?.symbols?.customAssets || [];
+            if (librarySymbols.length > 0) {
+                // Check if the current value is already one of our library symbols
+                const isLibraryUrl = librarySymbols.some(a => a.url === rawValue);
+                // We intercept if it's NOT a library URL and it looks like a generic symbol or decoy
+                const isLoseSymbol = rawValue.toUpperCase().startsWith('LOSE') || rawValue.startsWith('tier_') || !matchedPrize;
 
-
-            // C. Special Handling for "Lose" Symbols
-
-            if (rawValue.toUpperCase().startsWith('LOSE') || !matchedPrize) {
-
-                // [UPDATED] Check for Manual Decoy Variants first
-
-                const decoys = config.scratch?.symbols?.loseVariants;
-
-                if (decoys && decoys.length > 0) {
-
-                    const hash = rawValue.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
-
-                    const index = hash % decoys.length;
-
-                    return decoys[index];
-
+                if (!isLibraryUrl && isLoseSymbol) {
+                    const hash = rawValue.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), index);
+                    const validLibrary = librarySymbols.filter(a => a.url).map(a => a.url);
+                    if (validLibrary.length > 0) {
+                        return validLibrary[hash % validLibrary.length] as string;
+                    }
                 }
-
-
-
-                // Fallback to Style Presets
-
-                const style = config.scratch?.symbols?.style || 'gems';
-
-                const assetSet = (ASSET_MAP as any)[style] || (ASSET_MAP as any)['gems'];
-
-
-
-                if (assetSet && assetSet.lose && assetSet.lose.length > 0) {
-
-                    const hash = rawValue.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
-
-                    const index = hash % assetSet.lose.length;
-
-                    return assetSet.lose[index];
-
-                }
-
             }
 
+            // C. Fallback for Explicit URLs/Paths (if not intercepted)
+            if (rawValue.startsWith('http') || rawValue.startsWith('data:') || rawValue.startsWith('/')) {
+                return rawValue;
+            }
 
+            // D. Secondary Fallback: Manual Decoy Variants
+            const decoys = config.scratch?.symbols?.loseVariants || [];
+            if (decoys.length > 0) {
+                const hash = rawValue.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), index);
+                return decoys[hash % decoys.length];
+            }
 
-            // D. Fallback: Lookup in ASSET_MAP if it matches a style key (Unlikely for dynamic IDs)
+            // E. Last Resort: Theme Symbols or ASSET_MAP
+            const themePool = Object.values((config.theme?.generated?.symbols as any) || {});
+            const validPool = themePool.filter((v, i, self) =>
+                v && typeof v === 'string' && (v.includes('/') || v.startsWith('data:')) && self.indexOf(v) === i
+            ) as string[];
+
+            if (validPool.length > 0) {
+                const hash = rawValue.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), index);
+                return validPool[hash % validPool.length];
+            }
+
+            const style = config.scratch?.symbols?.style || 'gems';
+            const assetSet = (ASSET_MAP as any)[style] || (ASSET_MAP as any)['gems'];
+            if (assetSet && assetSet.lose && assetSet.lose.length > 0) {
+                const hash = rawValue.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), index);
+                return assetSet.lose[hash % assetSet.lose.length];
+            }
 
             return rawValue;
-
         }
 
+        // --- Initial Load Fallback (Before first round) ---
+        const librarySymbols = config.scratch?.symbols?.customAssets || [];
+        if (librarySymbols.length > 0) {
+            const validLibrary = librarySymbols.filter(a => a.url).map(a => a.url);
+            if (validLibrary.length > 0) {
+                return validLibrary[index % validLibrary.length] as string;
+            }
+        }
 
-
-        // Fallback (e.g. initial load before any round generated)
+        const themePool = Object.values((config.theme?.generated?.symbols as any) || {});
+        if (themePool.length > 0) return themePool[index % themePool.length] as string;
 
         const style = config.scratch?.symbols?.style || 'gems';
-
         const assetSet = (ASSET_MAP as any)[style] || (ASSET_MAP as any)['gems'];
-
-        // Safety check: ensure set exists before accessing win
-
         if (!assetSet || !assetSet.win || assetSet.win.length === 0) {
-
-            // Ultimate fallback to prevent crash
-
             return 'https://cdn-icons-png.flaticon.com/512/616/616430.png';
-
         }
-
-        return assetSet.win[0];
-
+        return assetSet.win[index % assetSet.win.length];
     };
 
 
@@ -1771,51 +1726,13 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
                                 {/* GRID RENDERER */}
 
                                 {config.scratch?.mechanic?.type !== 'wheel' && Array.from({ length: rows * cols }).map((_, i) => {
-
-                                    const isMatchMechanic = config.scratch?.mechanic?.type?.startsWith('match_');
-
-                                    const isPreviewMode = mode === 'layout' || mode === 'mechanics';
-
-                                    const isNumberStyle = config.scratch?.symbols?.style === 'numbers';
-
-                                    const showNumericPreview = (isMatchMechanic && isPreviewMode) || isNumberStyle;
-
-                                    const mockValues = [5, 10, 20, 50, 100, 500, 1000, 5, 10, 50, 100, 2500];
-
-                                    const mockValue = mockValues[i % mockValues.length];
-
-                                    const fontSizeClass = cols >= 4 ? 'text-lg' : 'text-2xl';
-
-
-
                                     return (
 
                                         <div
                                             key={i}
                                             className={`flex items-center justify-center relative transition-all overflow-hidden ${cellStyle === 'boxed' ? `${overlayColor !== 'transparent' ? 'bg-white shadow-inner border border-gray-200' : ''} rounded-md p-2` : 'p-1 rounded-sm'} ${gameState === 'won' && currentOutcome?.isWin && getSymbolForCell(i) === winningSymbol ? 'ring-2 ring-yellow-400 animate-pulse' : ''}`}
                                         >
-
-                                            {
-                                                showNumericPreview ? (
-
-                                                    <div className="flex flex-col items-center justify-center w-full h-full" >
-
-                                                        <span className={`${fontSizeClass} font-black text-gray-800 tracking-tight`}>${mockValue}</span>
-
-                                                    </div>
-
-                                                ) : (
-
-                                                    <>
-
-                                                        <img src={getSymbolForCell(i)} className="w-full h-full object-contain" />
-
-                                                        <span className={`absolute bottom-1 right-1 text-[10px] font-mono font-bold ${cellStyle === 'boxed' ? 'text-gray-400' : 'text-gray-600'}`}>$10</span>
-
-                                                    </>
-
-                                                )}
-
+                                            <img src={getSymbolForCell(i)} className="w-full h-full object-contain" />
                                         </div>
 
                                     );
