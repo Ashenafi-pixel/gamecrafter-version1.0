@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '../../../../store';
 import { ScratchConfig, SymbolHuntRules } from '../../../../types';
-import { Layout, Trophy, Target, Settings2 } from 'lucide-react';
+import { Layout, Trophy, Target, Settings2, Wallet } from 'lucide-react';
 
 const Step2_ScratchLayout: React.FC = () => {
     const { config, updateConfig } = useGameStore();
@@ -25,6 +25,7 @@ const Step2_ScratchLayout: React.FC = () => {
     const [ruleMode, setRuleMode] = useState<SymbolHuntRules['ruleMode']>(config.scratch?.rulesGrid?.ruleMode || 'COLLECT_X');
     const [requiredHits, setRequiredHits] = useState(config.scratch?.rulesGrid?.requiredHits || 3);
     const [revealStyle, setRevealStyle] = useState<SymbolHuntRules['revealStyle']>(config.scratch?.rulesGrid?.revealStyle || 'MANUAL');
+    const [startingBalance, setStartingBalance] = useState(config.scratch?.math?.startingBalance || 1000);
 
     // 3. Validation & Sync Logic
     const totalCells = rows * cols;
@@ -88,9 +89,15 @@ const Step2_ScratchLayout: React.FC = () => {
             updatedConfig.mechanic.winningSymbol = currentTargetSymbol;
         }
 
+        // Update Math Config
+        updatedConfig.math = {
+            ...updatedConfig.math,
+            startingBalance
+        };
+
         updateConfig({ scratch: updatedConfig as ScratchConfig });
 
-    }, [rows, cols, ruleMode, requiredHits, revealStyle, isSymbolHunt, currentTargetSymbol]);
+    }, [rows, cols, ruleMode, requiredHits, revealStyle, isSymbolHunt, currentTargetSymbol, startingBalance]);
 
 
     // Handlers
@@ -241,6 +248,40 @@ const Step2_ScratchLayout: React.FC = () => {
                                     onClick={() => handleGridChange('cols', 1)}
                                     disabled={cols >= MAX_COLS}
                                     className="w-5 h-5 flex items-center justify-center rounded bg-white shadow-sm border border-gray-200 hover:border-purple-300 text-gray-600 text-xs font-bold disabled:opacity-30"
+                                >
+                                    +
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* SECTION 3: Starting Balance */}
+                <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex flex-col gap-2">
+                    <div className="flex items-center gap-2 text-green-600 mb-1">
+                        <Wallet size={14} className="fill-green-50" />
+                        <h3 className="font-bold text-gray-900 text-xs uppercase tracking-wide">Starting Balance</h3>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="flex-1 flex items-center gap-3 bg-gray-50 px-3 py-2 rounded-md border border-gray-200">
+                            <span className="text-gray-400 font-bold">€</span>
+                            <input
+                                type="number"
+                                value={startingBalance}
+                                onChange={(e) => setStartingBalance(Number(e.target.value))}
+                                className="bg-transparent border-none focus:ring-0 text-gray-800 font-bold text-sm w-full outline-none"
+                            />
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => setStartingBalance(prev => Math.max(0, prev - 100))}
+                                    className="w-6 h-6 flex items-center justify-center rounded bg-white shadow-sm border border-gray-200 hover:border-green-300 text-gray-600 text-xs font-bold"
+                                >
+                                    -
+                                </button>
+                                <button
+                                    onClick={() => setStartingBalance(prev => prev + 100)}
+                                    className="w-6 h-6 flex items-center justify-center rounded bg-white shadow-sm border border-gray-200 hover:border-green-300 text-gray-600 text-xs font-bold"
                                 >
                                     +
                                 </button>
