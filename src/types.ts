@@ -860,6 +860,7 @@ export interface ScratchConfig {
     targetHitFrequency?: number; // Deprecated
     totalTickets?: number; // Deck Size (POOL only)
     ticketPrice?: number; // Base price for calculations (default 1)
+    startingBalance?: number; // Starting balance for the game (default 1000)
   };
 }
 

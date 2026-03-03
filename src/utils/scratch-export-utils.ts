@@ -1103,6 +1103,7 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                     // Initialize Math & Shell State from Config
                     ticketPrice = (config.scratch && config.scratch.math && config.scratch.math.ticketPrice) ? Number(config.scratch.math.ticketPrice) : 1;
                     shellState.bet = ticketPrice;
+                    shellState.balance = (config.scratch && config.scratch.math && config.scratch.math.startingBalance) ? Number(config.scratch.math.startingBalance) : 1000;
                     scratchThreshold = (config.scratch && config.scratch.brush && config.scratch.brush.revealThreshold) ? Number(config.scratch.brush.revealThreshold) : 0.95;
                     // [FIX] Normalize threshold (Handle 65% vs 0.65 parity)
                     if (scratchThreshold > 1) scratchThreshold /= 100;
@@ -1634,21 +1635,6 @@ function setupScene() {
                 s.x = c * cellW + cellW / 2;
                 s.y = r * cellH + cellH / 2;
                 gridContainer.addChild(s);
-
-                // Add small currency label like at bottom right
-                var currencyLabel = new PIXI.Text({
-                    text: '$10',
-                    style: {
-                        fontFamily: 'monospace',
-                        fontSize: 10,
-                        fontWeight: 'bold',
-                        fill: gridBgColor === 'transparent' ? 0x666666 : 0x999999,
-                    }
-                });
-                currencyLabel.anchor.set(1, 1);
-                currencyLabel.x = (c + 1) * cellW - 6;
-                currencyLabel.y = (r + 1) * cellH - 6;
-                gridContainer.addChild(currencyLabel);
             }
         }
     }

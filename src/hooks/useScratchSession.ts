@@ -81,11 +81,8 @@ export const useScratchSession = (options: ScratchSessionOptions = {}) => {
 
 
         } else {
-
             console.log("Running in DEMO mode (No Session)");
-
-            setBalance(1000); // Demo balance
-
+            setBalance(config.scratch?.math?.startingBalance ?? 1000); // Demo balance
         }
 
     }, []);
