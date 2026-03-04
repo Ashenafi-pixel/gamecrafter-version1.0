@@ -321,32 +321,20 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
         const overlayMascots = config.scratch?.layers?.overlay?.mascots || [];
 
         overlayMascots.forEach(mascot => {
+    const mScale = mascot.scale || 1;
+    const mWidth = 120 * mScale;
+    const mHeight = 150 * mScale;
+    let mX = cardCenterX;
+    let mY = cardCenterY;
 
-            const mScale = mascot.scale || 1;
+    if (mascot.position.includes('left')) mX = -30;
+    if (mascot.position.includes('right')) mX = CARD_WIDTH + 30;
+    if (mascot.position.includes('top')) mY = -30;
+    if (mascot.position.includes('bottom')) mY = CARD_HEIGHT + 30;
 
-            const mWidth = 120 * mScale;
-
-            let mX = cardCenterX;
-
-            let mY = cardCenterY;
-
-
-
-            if (mascot.position.includes('left')) mX = -30;
-
-            if (mascot.position.includes('right')) mX = CARD_WIDTH + 30;
-
-            if (mascot.position.includes('top')) mY = -30;
-
-            if (mascot.position.includes('bottom')) mY = CARD_HEIGHT + 30;
-
-
-
-            maxDistX = Math.max(maxDistX, Math.abs(mX - cardCenterX) + mWidth / 2);
-
-            maxDistY = Math.max(maxDistY, Math.abs(mY - cardCenterY) + mWidth / 2);
-
-        });
+    maxDistX = Math.max(maxDistX, Math.abs(mX - cardCenterX) + mWidth / 2);
+    maxDistY = Math.max(maxDistY, Math.abs(mY - cardCenterY) + mHeight / 2);
+});
 
 
 
@@ -414,9 +402,9 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
             const isMobile = width <= 640;
             const isDesktop = width > 640;
-            const isLargeDesktop = width > 1200;
-            const marginX = isMobile ? 32 : isLargeDesktop ? 20 : 40;
-            const marginY = isLargeDesktop ? 60 : isDesktop ? 80 : 100;
+            const isLargeDesktop = width > 900;
+            const marginX = isMobile ? 32 : isLargeDesktop ? 16 : 32;
+            const marginY = isLargeDesktop ? 40 : isDesktop ? 60 : 100;
 
 
 
