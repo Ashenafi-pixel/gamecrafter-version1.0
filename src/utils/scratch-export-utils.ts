@@ -541,7 +541,7 @@ export const generateScratchHTML = (cleanConfig: any): string => {
         .loading-dots { display: inline-block; width: 20px; text-align: left; }
         @keyframes cardFlip { 0%, 100% { transform: rotateY(0deg) scale(1); } 50% { transform: rotateY(180deg) scale(1.1); } }
         @keyframes sparkle { 0%, 100% { opacity: 0; transform: scale(0); } 50% { opacity: 1; transform: scale(1); } }
-        #game-container { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; position: relative; width: 100%; overflow: hidden; }
+        #game-container { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; position: relative; width: 100%; overflow: hidden; padding: 8px 0; box-sizing: border-box; }
         canvas { display: block; touch-action: none; }
         /* Casino Shell Footer */
         #casino-footer { position: fixed; bottom: 0; left: 0; right: 0; height: 70px; background: #000; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; padding-bottom: env(safe-area-inset-bottom, 0px); border-top: 1px solid #333; z-index: 50; box-shadow: 0 -4px 20px rgba(0,0,0,0.4); }
@@ -1420,18 +1420,19 @@ function setupScene() {
         // 2. Legacy/Overlay Mascots (Stickers)
         var overlayMascots = (config.scratch && config.scratch.layers && config.scratch.layers.overlay && config.scratch.layers.overlay.mascots) || [];
         overlayMascots.forEach(function(mascot) {
-            var mScale = mascot.scale || 1;
-            var mWidth = 120 * mScale;
-            var mX = cardCenterX;
-            var mY = cardCenterY;
-            if (mascot.position.includes('left')) mX = -30;
-            if (mascot.position.includes('right')) mX = CARD_WIDTH + 30;
-            if (mascot.position.includes('top')) mY = -30;
-            if (mascot.position.includes('bottom')) mY = CARD_HEIGHT + 30;
-            
-            maxDistX = Math.max(maxDistX, Math.abs(mX - cardCenterX) + mWidth / 2);
-            maxDistY = Math.max(maxDistY, Math.abs(mY - cardCenterY) + mWidth / 2);
-        });
+    var mScale = mascot.scale || 1;
+    var mWidth = 120 * mScale;
+    var mHeight = 150 * mScale; // separate height
+    var mX = cardCenterX;
+    var mY = cardCenterY;
+    if (mascot.position.includes('left')) mX = -30;
+    if (mascot.position.includes('right')) mX = CARD_WIDTH + 30;
+    if (mascot.position.includes('top')) mY = -30;
+    if (mascot.position.includes('bottom')) mY = CARD_HEIGHT + 30;
+
+    maxDistX = Math.max(maxDistX, Math.abs(mX - cardCenterX) + mWidth / 2);
+    maxDistY = Math.max(maxDistY, Math.abs(mY - cardCenterY) + mHeight / 2); // use mHeight
+});
 
         // 3. Logo extent
         var logoConfig = (config.scratch && config.scratch.logo) || {};
@@ -1464,9 +1465,11 @@ function setupScene() {
         }
 
         // 2. Card Scaling & Centering
-        var isLandscapePhone = window.innerHeight <= 500 && window.innerWidth > window.innerHeight;
-var isMobile = window.innerWidth <= 640;
-var isLargeDesktop = window.innerWidth > 1200;
+        var containerW = app.screen.width;
+var containerH = app.screen.height;
+var isLandscapePhone = containerH <= 500 && containerW > containerH;
+var isMobile = containerW <= 640;
+var isLargeDesktop = containerW > 1200;
 var footerH = isLandscapePhone ? 56 : (isMobile ? 80 : 70);
 var marginX = isMobile ? 32 : isLargeDesktop ? 20 : 40;
 var marginY = isLandscapePhone
@@ -1478,17 +1481,17 @@ var marginY = isLandscapePhone
             : (60 + footerH);
 
         // [FIX] Export Scale: Always use fully responsive, content-aware scaling for the standalone game.
-        var targetW = totalW;
-        var targetH = totalH;
+
 
         // [FINAL] Content-Aware Scaling: elements fit to available space.
-        fitScale = Math.min((app.screen.width - marginX) / targetW, (app.screen.height - marginY) / targetH);
+        fitScale = Math.min((containerW - marginX) / CARD_WIDTH, (containerH - marginY) / CARD_HEIGHT);        
         cardAnchor.scale.set(fitScale);
         
         // Center the entire Bounding Box (vOffsetX...maxX) on the screen
         cardAnchor.pivot.set(cardCenterX, cardCenterY);
         cardAnchor.x = app.screen.width / 2;
-        cardAnchor.y = ((app.screen.height - footerH) / 2);
+        cardAnchor.y = ((app.screen.height - footerH) / 2) + 30;
+
 
         // [FIX] Scale brush tip to match fitScale (keep 1:1 with card logical size)
         if (brushTip) brushTip.scale.set(fitScale);
@@ -1737,7 +1740,15 @@ var marginY = isLandscapePhone
     surfaceContainer.mask = maskSprite;
     surfaceContainer.addChild(maskSprite); // Add to local space
     
-    // G. Mascot Layer (Independent - Attached to Anchor, NOT Masked Group)
+    // G. Mascot Layer (Independent - Attached to MAIN CONTAINER, NOT cardAnchor)
+    // Calculate footer height and screen dimensions for mascot positioning
+    var containerW = app.screen.width;
+    var containerH = app.screen.height;
+    var isLandscapePhone = containerH <= 500 && containerW > containerH;
+    var isMobile = containerW <= 640;
+    var isLargeDesktop = containerW > 1200;
+    var footerH = isLandscapePhone ? 56 : (isMobile ? 80 : 70);
+    
     // 1. Dynamic Mascot (from Step 3/Theme)
     if (mascotUrl) {
         var mascot = textureCache.has(mascotUrl) ? PIXI.Sprite.from(mascotUrl) : PIXI.Sprite.from(mascotUrl);
@@ -1745,11 +1756,15 @@ var marginY = isLandscapePhone
         var userScalePct = (mascotConfig.scale || 100) / 100;
         
         var baseRatio = CARD_HEIGHT / mascot.texture.height; 
-        mascot.scale.set(baseRatio * userScalePct); 
+        mascot.scale.set(baseRatio * userScalePct * fitScale); // Scale with fitScale
         mascot.anchor.set(0.5);
-        mascot.x = (CARD_WIDTH / 2) + (mascotConfig.customPosition?.x || 0);
-        mascot.y = (CARD_HEIGHT / 2) + (mascotConfig.customPosition?.y || 0);
-        cardAnchor.addChild(mascot);
+        
+        // Position mascot independently of card movement
+        var cardScreenX = app.screen.width / 2;
+        var cardScreenY = ((app.screen.height - footerH) / 2) + 30; // Match card position
+        mascot.x = cardScreenX + ((mascotConfig.customPosition?.x || 0) * fitScale);
+        mascot.y = cardScreenY - 25 + ((mascotConfig.customPosition?.y || 0) * fitScale); // Move up 30px relative to card
+        container.addChild(mascot);
         log('Mascot Overlay Added: ' + mascot.x + ',' + mascot.y);
     }
     
