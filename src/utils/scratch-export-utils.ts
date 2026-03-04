@@ -1465,10 +1465,17 @@ function setupScene() {
 
         // 2. Card Scaling & Centering
         var isLandscapePhone = window.innerHeight <= 500 && window.innerWidth > window.innerHeight;
-        var isMobile = window.innerWidth <= 640;
-        var footerH = isLandscapePhone ? 56 : (isMobile ? 80 : 70);
-        var marginX = isMobile ? 32 : 60;
-        var marginY = isLandscapePhone ? (40 + footerH) : (isMobile ? (100 + footerH) : (180 + footerH));
+var isMobile = window.innerWidth <= 640;
+var isLargeDesktop = window.innerWidth > 1200;
+var footerH = isLandscapePhone ? 56 : (isMobile ? 80 : 70);
+var marginX = isMobile ? 32 : isLargeDesktop ? 20 : 40;
+var marginY = isLandscapePhone
+    ? (40 + footerH)
+    : isMobile
+        ? (100 + footerH)
+        : isLargeDesktop
+            ? (40 + footerH)
+            : (60 + footerH);
 
         // [FIX] Export Scale: Always use fully responsive, content-aware scaling for the standalone game.
         var targetW = totalW;
