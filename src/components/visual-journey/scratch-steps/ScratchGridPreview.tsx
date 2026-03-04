@@ -412,11 +412,11 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
 
 
+            const isMobile = width <= 640;
             const isDesktop = width > 640;
-
-            const marginX = isDesktop ? 60 : 40;
-
-            const marginY = isDesktop ? 180 : 100;
+            const isLargeDesktop = width > 1200;
+            const marginX = isMobile ? 32 : isLargeDesktop ? 20 : 40;
+            const marginY = isLargeDesktop ? 60 : isDesktop ? 80 : 100;
 
 
 
