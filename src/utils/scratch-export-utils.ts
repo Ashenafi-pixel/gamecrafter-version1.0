@@ -1763,7 +1763,7 @@ var marginY = isLandscapePhone
         var cardScreenX = app.screen.width / 2;
         var cardScreenY = ((app.screen.height - footerH) / 2) + 30; // Match card position
         mascot.x = cardScreenX + ((mascotConfig.customPosition?.x || 0) * fitScale);
-        mascot.y = cardScreenY - 50 + ((mascotConfig.customPosition?.y || 0) * fitScale); // Move up 50px relative to card
+        mascot.y = cardScreenY - 25 + ((mascotConfig.customPosition?.y || 0) * fitScale); // Move up 30px relative to card
         container.addChild(mascot);
         log('Mascot Overlay Added: ' + mascot.x + ',' + mascot.y);
     }
