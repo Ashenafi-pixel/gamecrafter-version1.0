@@ -34,7 +34,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
     mode = 'layout',
 
-    isResponsive = false
+    isResponsive: _isResponsive = false
 
 }) => {
 
@@ -254,18 +254,15 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
     const foilLogicRef = React.useRef({ reapply: () => { } });
 
-
-
     // --- Responsive Scaling Logic ---
-
     const wrapperRef = React.useRef<HTMLDivElement>(null!);
-
+    const controlsRef = React.useRef<HTMLDivElement>(null!);
     const [fitScale, setFitScale] = useState(1);
 
-
+    // [FIX] Store explicit center position to match PixiJS exact math, instead of flexbox
+    const [layoutCenter, setLayoutCenter] = useState({ x: '50%', y: '50%' });
 
     // [FINAL] Content-Aware Scaling (Card-Centric)
-
     // We calculate the maximum distance from the card center to ensure
 
     // all elements (mascots, logos) are visible, while keeping the card
@@ -321,20 +318,32 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
         const overlayMascots = config.scratch?.layers?.overlay?.mascots || [];
 
         overlayMascots.forEach(mascot => {
-    const mScale = mascot.scale || 1;
-    const mWidth = 120 * mScale;
-    const mHeight = 150 * mScale;
-    let mX = cardCenterX;
-    let mY = cardCenterY;
 
-    if (mascot.position.includes('left')) mX = -30;
-    if (mascot.position.includes('right')) mX = CARD_WIDTH + 30;
-    if (mascot.position.includes('top')) mY = -30;
-    if (mascot.position.includes('bottom')) mY = CARD_HEIGHT + 30;
+            const mScale = mascot.scale || 1;
 
-    maxDistX = Math.max(maxDistX, Math.abs(mX - cardCenterX) + mWidth / 2);
-    maxDistY = Math.max(maxDistY, Math.abs(mY - cardCenterY) + mHeight / 2);
-});
+            const mWidth = 120 * mScale;
+
+            let mX = cardCenterX;
+
+            let mY = cardCenterY;
+
+
+
+            if (mascot.position.includes('left')) mX = -30;
+
+            if (mascot.position.includes('right')) mX = CARD_WIDTH + 30;
+
+            if (mascot.position.includes('top')) mY = -30;
+
+            if (mascot.position.includes('bottom')) mY = CARD_HEIGHT + 30;
+
+
+
+            maxDistX = Math.max(maxDistX, Math.abs(mX - cardCenterX) + mWidth / 2);
+
+            maxDistY = Math.max(maxDistY, Math.abs(mY - cardCenterY) + mWidth / 2);
+
+        });
 
 
 
@@ -400,35 +409,36 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
 
 
-            const isMobile = width <= 640;
-            const isDesktop = width > 640;
-            const isLargeDesktop = width > 900;
-            const marginX = isMobile ? 32 : isLargeDesktop ? 16 : 32;
-            const marginY = isLargeDesktop ? 40 : isDesktop ? 60 : 100;
+            // [FIX] A4 Paper / Fixed Logical Resolution (Letterboxing)
+            // The game behaves as if it's drawn on a fixed 480x700 canvas.
+            // We find the scale required to fit that entire 480x700 canvas into the screen space.
+            const LOGICAL_WIDTH = 480;
+            const LOGICAL_HEIGHT = 700; // Optimal fixed letterbox ratio
 
-
-
-            // [FIX] Differentiate between Editor (Fixed) and Preview (Responsive):
-
-            // In responsive mode (Test Game), we scale for the whole visual area.
-
-            // In design view, we scale for the CARD frame so it stays a fixed size.
-
-            const targetW = isResponsive ? (visualBounds.width || CARD_WIDTH) : CARD_WIDTH;
-
-            const targetH = isResponsive ? (visualBounds.height || CARD_HEIGHT) : CARD_HEIGHT;
-
-
+            // wrapperRef is flex-1, so its height ALREADY excludes the footer controls!
+            // Therefore, available rendering height is simply `height`. 
+            const availableH = height;
 
             const s = Math.min(
-
-                (width - marginX) / targetW,
-
-                (height - marginY) / targetH
-
+                width / LOGICAL_WIDTH,
+                availableH / LOGICAL_HEIGHT
             );
 
+
+
             setFitScale(s > 0 ? s : 1);
+
+
+
+            // The logical center remains exactly in the middle of the available scrolling box
+
+            setLayoutCenter({
+
+                x: `${width / 2}px`,
+
+                y: `${availableH / 2}px`
+
+            });
 
         };
 
@@ -436,9 +446,27 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
         observer.observe(wrapperRef.current);
 
+        // Also observe the footer so scale updates when footer resizes
+
+        let controlsObserver: ResizeObserver | null = null;
+
+        if (controlsRef.current) {
+
+            controlsObserver = new ResizeObserver(updateScale);
+
+            controlsObserver.observe(controlsRef.current);
+
+        }
+
         updateScale();
 
-        return () => observer.disconnect();
+        return () => {
+
+            observer.disconnect();
+
+            controlsObserver?.disconnect();
+
+        };
 
     }, [visualBounds, CARD_WIDTH, CARD_HEIGHT]);
 
@@ -1347,7 +1375,9 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
             {/* 1. Game Area (Top) */}
 
-            <div ref={wrapperRef} className="flex-1 relative overflow-hidden flex items-center justify-center p-4 bg-gray-800/50">
+            {/* [FIX] Removed flex items-center justify-center to use explicit absolute positioning matching PixiJS */}
+
+            <div ref={wrapperRef} className="flex-1 relative overflow-hidden p-4 bg-gray-800/50">
 
 
 
@@ -1369,17 +1399,27 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
 
 
+                {/* Exact math matching PixiJS Pivot logic */}
+
                 <div
 
-                    className="relative z-10 origin-center"
+                    className="absolute z-10"
 
                     style={{
+
+                        left: layoutCenter.x,
+
+                        top: layoutCenter.y,
+
+                        // Origin is center so that left/top act like a PixiJS pivot
+
+                        transformOrigin: 'center center',
+
+                        transform: `translate(-50%, -50%) scale(${fitScale})`,
 
                         width: `${CARD_WIDTH}px`,
 
                         height: `${CARD_HEIGHT}px`,
-
-                        transform: `scale(${fitScale})`
 
                     }}
 
@@ -1505,10 +1545,8 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
                                 >
 
-                                    <div className={animClass} style={{ transform: `translate(${mascotX}px, ${mascotY}px)` }}>
-
-                                        <img src={config.scratch.mascot.image} className="object-contain drop-shadow-2xl" style={{ height: `${mascotH}px` }} />
-
+                                    <div className={`flex-none min-h-0 ${animClass}`} style={{ transform: `translate(${mascotX}px, ${mascotY}px)` }}>
+                                        <img src={config.scratch.mascot.image} className="object-contain drop-shadow-2xl max-h-none" style={{ height: `${mascotH}px` }} />
                                     </div>
 
                                 </div>
@@ -1849,7 +1887,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
             {/* Controls */}
 
-            <div className="relative z-50 border-t border-gray-800">
+            <div ref={controlsRef} className="relative z-50 border-t border-gray-800">
 
                 <GameControls
 
