@@ -4,6 +4,8 @@
 export interface ApiConfig {
   baseUrl: string;
   apiKey?: string;
+  getBalanceUrl?: string;
+  betUrl?: string;
   enabled?: boolean;
   useLocalMock?: boolean;
 }

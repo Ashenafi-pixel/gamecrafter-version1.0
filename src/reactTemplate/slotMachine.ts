@@ -23,8 +23,13 @@ import { gameConfig } from '../config/gameConfig';
 
 const SlotMachine =() => {
   const {balance , bet, setBalance, setBet , isSpinning, setIsSpinning, showMenu, setShowMenu ,showInfo, setShowInfo, showSettings, setShowSettings,
-  showAutoPlaySettings, setShowAutoPlaySettings
+  showAutoPlaySettings, setShowAutoPlaySettings, fetchBalance
   } = useGameStore();
+
+  // Fetch balance on mount
+  useEffect(() => {
+    fetchBalance?.();
+  }, []);
   const config = gameConfig;
   const { theme, setTheme } = useTheme();
   const canvasRef = useRef<HTMLDivElement>(null);

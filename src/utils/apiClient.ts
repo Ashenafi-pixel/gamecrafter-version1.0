@@ -2152,6 +2152,7 @@ export const slotApiClient = {
     if (config.gameRules) configResult.gameRules = config.gameRules;
     if (config.localization) configResult.localization = config.localization;
     if (config.scratch) configResult.scratch = config.scratch;
+    if (config.api) configResult.api = config.api;
 
     // Create the wrapper structure that the API expects based on documentation
     return {

@@ -1,10 +1,10 @@
 import { GameConfig } from './gameTypes';
 export const generateGameConfig = (config: GameConfig) => {
   const symbols = Array.isArray(config.symbols) ? config.symbols : Object.values(config.symbols || {});
-  
+
   // Always use actual symbol keys from GameStore object
   let symbolTypes: string[];
-  
+
   if (!Array.isArray(config.symbols) && config.symbols && typeof config.symbols === 'object') {
     // Use the actual keys from GameStore symbols object
     symbolTypes = Object.keys(config.symbols);
@@ -19,15 +19,15 @@ export const generateGameConfig = (config: GameConfig) => {
     });
     console.log('Generated symbol types from array:', symbolTypes);
   }
-  
+
   // Extract bonus symbols from GameStore
   const bonusSymbols = config?.theme?.generated?.bonusSymbols || {};
   console.log('🎯 Found bonus symbols:', Object.keys(bonusSymbols));
-  
+
   // Combine regular symbols with bonus symbols
   const allSymbols = [...symbols];
   const allSymbolTypes = [...symbolTypes];
-  
+
   // Add bonus symbols to the arrays
   Object.entries(bonusSymbols).forEach(([key, url]) => {
     if (typeof url === 'string' && url) {
@@ -38,24 +38,24 @@ export const generateGameConfig = (config: GameConfig) => {
       console.log(`✅ Added bonus symbol: ${symbolName}`);
     }
   });
-  
+
   const symbolPaths = allSymbols.map((symbolUrl, index) => {
     if (!symbolUrl) return null;
     const symbolName = allSymbolTypes[index] || `symbol_${index + 1}`;
     return `'/assets/symbols/${symbolName}.png'`;
   }).filter(Boolean).join(',\n    ');
-  
+
   // Extract grid and betline configuration from GameStore
   const reels = config.reels?.layout?.reels || 5;
   const rows = config.reels?.layout?.rows || 3;
   const payMechanism = config.reels?.payMechanism || 'betlines';
   const betlines = config.reels?.betlines || 25;
   const winAnimationType = config.winAnimationType || 'both';
-  
+
   // Generate betline patterns based on grid configuration
   const generateBetlinePatterns = (reels: number, rows: number, betlines: number) => {
     const patterns = [];
-    
+
     // Standard betline patterns for different grid sizes
     if (reels === 5 && rows === 3) {
       // Standard 5x3 patterns
@@ -86,37 +86,37 @@ export const generateGameConfig = (config: GameConfig) => {
         [0, 2, 1, 2, 0], // Line 24: W shape
         [2, 0, 1, 0, 2]  // Line 25: M shape
       ];
-      
+
       for (let i = 0; i < Math.min(betlines, standardPatterns.length); i++) {
         patterns.push(standardPatterns[i]);
       }
     } else if (reels === 3 && rows === 3) {
-  const standardPatterns = [
-    [1, 1, 1], // Middle horizontal
-    [0, 0, 0], // Top horizontal  
-    [2, 2, 2], // Bottom horizontal
-    [0, 1, 2], // Diagonal down
-    [2, 1, 0], // Diagonal up
-    [1, 0, 1], // V-shape
-    [1, 2, 1], // Inverted V
-    [0, 1, 0], // Top dip
-    [2, 1, 2]  // Bottom dip
-  ];
-  for (let i = 0; i < Math.min(betlines, standardPatterns.length); i++) {
+      const standardPatterns = [
+        [1, 1, 1], // Middle horizontal
+        [0, 0, 0], // Top horizontal  
+        [2, 2, 2], // Bottom horizontal
+        [0, 1, 2], // Diagonal down
+        [2, 1, 0], // Diagonal up
+        [1, 0, 1], // V-shape
+        [1, 2, 1], // Inverted V
+        [0, 1, 0], // Top dip
+        [2, 1, 2]  // Bottom dip
+      ];
+      for (let i = 0; i < Math.min(betlines, standardPatterns.length); i++) {
         patterns.push(standardPatterns[i]);
       }
-    } else if (reels === 3 && rows ===4) {
-      const standardPatterns =[
-  [1,1,1],[1,1,2],[1,2,1],[1,2,2],[1,2,3],
-  [2,1,1],[2,1,2],[2,2,1],[2,2,2],[2,2,3],
-  [2,3,2],[2,3,3],[2,3,4],
-  [3,2,1],[3,2,2],[3,2,3],
-  [3,3,2],[3,3,3],[3,3,4],
-  [3,4,3],[3,4,4],
-  [4,3,2],[4,3,3],[4,3,4],
-  [4,4,3],[4,4,4]
-]
-for (let i = 0; i < Math.min(betlines, standardPatterns.length); i++) {
+    } else if (reels === 3 && rows === 4) {
+      const standardPatterns = [
+        [1, 1, 1], [1, 1, 2], [1, 2, 1], [1, 2, 2], [1, 2, 3],
+        [2, 1, 1], [2, 1, 2], [2, 2, 1], [2, 2, 2], [2, 2, 3],
+        [2, 3, 2], [2, 3, 3], [2, 3, 4],
+        [3, 2, 1], [3, 2, 2], [3, 2, 3],
+        [3, 3, 2], [3, 3, 3], [3, 3, 4],
+        [3, 4, 3], [3, 4, 4],
+        [4, 3, 2], [4, 3, 3], [4, 3, 4],
+        [4, 4, 3], [4, 4, 4]
+      ]
+      for (let i = 0; i < Math.min(betlines, standardPatterns.length); i++) {
         patterns.push(standardPatterns[i]);
       }
 
@@ -138,13 +138,13 @@ for (let i = 0; i < Math.min(betlines, standardPatterns.length); i++) {
         }
       }
     }
-    
+
     return patterns;
   };
-  
+
   // Generate symbol paytable based on actual symbol types (including bonus symbols)
   const symbolPaytable: Record<string, Record<number, number>> = {};
-  
+
   allSymbolTypes.forEach((symbolType, index) => {
     if (symbolType === 'wild') {
       symbolPaytable[symbolType] = { 3: 50, 4: 200, 5: 1000 };
@@ -166,16 +166,16 @@ for (let i = 0; i < Math.min(betlines, standardPatterns.length); i++) {
       symbolPaytable[symbolType] = { 3: 5, 4: 20, 5: 80 };
     }
   });
-  
+
   console.log('Generated paytable for symbols:', Object.keys(symbolPaytable));
   console.log('🎯 Total symbols (including bonus):', allSymbols.length, 'Types:', allSymbolTypes);
-  
+
   // Extract loading assets
   const generated = config?.theme?.generated || {};
   const loadingAssets = config?.loadingAssets || {};
   const hasStudioLogo = loadingAssets?.studioLogo?.url || config.studioLogo;
   const hasLoadingSprite = loadingAssets?.loadingSprite?.url || config.loadingSprite;
-  
+
   // Extract extended symbols from presetSymbol
   const extendedSymbols = config?.theme?.presetSymbol || {};
   const extendedSymbolPaths = Object.entries(extendedSymbols)
@@ -184,11 +184,11 @@ for (let i = 0; i < Math.min(betlines, standardPatterns.length); i++) {
       const symbolType = key.replace('_extended', '');
       return `${symbolType}_extended: '/assets/symbols/${symbolType}_extended.png'`;
     }).join(',\n    ');
-  
+
   // Extract number images from generatedAssets (including decimal point)
   const numberImages = config?.generatedAssets?.numberImages || {};
   const bonusNumberImages = config?.generatedAssets?.bonusNumberImage || {};
-  
+
   // Add decimal point to number images if it exists
   if (config?.generatedAssets?.numberImages?.dot) {
     numberImages.dot = config.generatedAssets.numberImages.dot;
@@ -196,10 +196,16 @@ for (let i = 0; i < Math.min(betlines, standardPatterns.length); i++) {
   if (config?.generatedAssets?.bonusNumberImage?.dot) {
     bonusNumberImages.dot = config.generatedAssets.bonusNumberImage.dot;
   }
-  
+
   return `
   import { GameConfig } from '../types';
   export const gameConfig:GameConfig = {
+  api: {
+    baseUrl: '${config.api?.baseUrl || ''}',
+    getBalanceUrl: '${config.api?.getBalanceUrl || ''}',
+    apiKey: '',
+    enabled: true
+  },
   name: '${config.name || config.gameId || 'My Slot Game'}',
   background: '${config.background ? '/assets/backgrounds/background.png' : ''}',
   logo: '${config.logo ? '/assets/logo.png' : ''}',

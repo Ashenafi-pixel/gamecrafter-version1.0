@@ -28,7 +28,6 @@ import Step4_InstantAssets from './instant-steps/Step4_InstantAssets';
 
 import Step1_CrashMechanics from './crash-steps/Step1_CrashMechanics';
 import Step2_CrashVisuals from './crash-steps/Step2_CrashVisuals';
-import Step2_CrashVisuals from './crash-steps/Step2_CrashVisuals';
 import Step4_CrashExport from './crash-steps/Step4_CrashExport';
 
 import { SLOT_STEPS_V2 } from './slots-new/steps-config';
@@ -211,8 +210,7 @@ const StepIndicator: React.FC<{
           {/* Connector line between circles */}
           {index > 0 && (
             <div
-              className={`w - 12 h - 1 ${index <= currentStep ? 'bg-blue-500' : 'bg-gray-300'
-                } `}
+              className={`w-12 h-1 ${index <= currentStep ? 'bg-blue-500' : 'bg-gray-300'}`}
             />
           )}
 
@@ -221,8 +219,8 @@ const StepIndicator: React.FC<{
             onClick={() => isClickable && onStepClick(index)}
             title={`Go to step ${index + 1}: ${steps[index]?.title} `}
             className={`
-w - 10 h - 10 rounded - full flex items - center justify - center
-transition - all duration - 300 transform 
+w-10 h-10 rounded-full flex items-center justify-center
+transition-all duration-300 transform 
               ${isActive ? 'scale-110 ring-4 ring-blue-200' : ''}
               ${isCompleted
                 ? 'bg-blue-500 text-white cursor-pointer hover:bg-blue-600'
@@ -230,7 +228,7 @@ transition - all duration - 300 transform
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }
-m - 1 p - 0.5
+m-1 p-0.5
   `}
           >
             {isCompleted ? (
@@ -876,7 +874,7 @@ const VisualJourneyContent: React.FC = () => {
           onClick={goToPrevStep}
           disabled={currentVisualStep === 0}
           className={`
-            flex items - center gap - 2 px - 6 py - 3 rounded - lg
+            flex items-center gap-2 px-6 py-3 rounded-lg
             ${currentVisualStep === 0
               ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
               : 'bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors'
@@ -891,7 +889,7 @@ const VisualJourneyContent: React.FC = () => {
           <button
             onClick={handleSaveProgress}
             className={`
-px - 4 py - 2 rounded - lg border flex items - center gap - 2
+px-4 py-2 rounded-lg border flex items-center gap-2
               ${hasUnsavedChanges
                 ? 'border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 animate-pulse'
                 : 'border-gray-200 text-gray-500 hover:bg-gray-50'

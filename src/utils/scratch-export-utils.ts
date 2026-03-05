@@ -541,7 +541,7 @@ export const generateScratchHTML = (cleanConfig: any): string => {
         .loading-dots { display: inline-block; width: 20px; text-align: left; }
         @keyframes cardFlip { 0%, 100% { transform: rotateY(0deg) scale(1); } 50% { transform: rotateY(180deg) scale(1.1); } }
         @keyframes sparkle { 0%, 100% { opacity: 0; transform: scale(0); } 50% { opacity: 1; transform: scale(1); } }
-        #game-container { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; position: relative; width: 100%; overflow: hidden; padding: 8px 0; box-sizing: border-box; }
+        #game-container { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; position: relative; width: 100%; overflow: hidden; }
         canvas { display: block; touch-action: none; }
         /* Casino Shell Footer */
         #casino-footer { position: fixed; bottom: 0; left: 0; right: 0; height: 70px; background: #000; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; padding-bottom: env(safe-area-inset-bottom, 0px); border-top: 1px solid #333; z-index: 50; box-shadow: 0 -4px 20px rgba(0,0,0,0.4); }
@@ -857,6 +857,270 @@ export const generateScratchHTML = (cleanConfig: any): string => {
         let shellState = { balance: 1000, bet: 1, win: 0, gameState: 'idle', isAutoPlaying: false, autoplayId: 0, autoplayRounds: 10 };
         let OPERATOR_ENDPOINT = '';
 
+        // --- Platform Session (reads from URL params injected by the platform at launch) ---
+        const _urlParams = new URLSearchParams(window.location.search);
+        const _SESSION_ID   = _urlParams.get('session_id') || _urlParams.get('token') || '';
+        const _PLAYER_ID    = _urlParams.get('player_id') || '';
+        const _CURRENCY     = _urlParams.get('currency') || 'USD';
+        const _GAME_CODE    = _urlParams.get('game_code') || _urlParams.get('game_id') || _urlParams.get('gameid') || 'scratch-demo';
+        const _OPERATOR_URL = _urlParams.get('operator_endpoint') || _urlParams.get('rgs_base_url') || '';
+
+        if (_SESSION_ID) {
+            console.log('[Platform] Session detected, SESSION_ID:', _SESSION_ID, 'PLAYER_ID:', _PLAYER_ID);
+        } else {
+            console.log('[Platform] No session found in URL — running in DEMO mode');
+        }
+
+        // Helper: build Operator Transaction API URL
+        function _buildTxUrl(action, extraParams) {
+            if (!_OPERATOR_URL || !_SESSION_ID) return null;
+            // Remove trailing slash if present
+            const base = _OPERATOR_URL.endsWith('/') ? _OPERATOR_URL.slice(0, -1) : _OPERATOR_URL;
+            const params = new URLSearchParams({
+                action,
+                player_id: _PLAYER_ID,
+                session_id: _SESSION_ID,
+                game_code: _GAME_CODE,
+                device_type: 'desktop',
+                api_version: '1.0',
+                ...extraParams
+            });
+            return base + '?' + params.toString();
+        }
+
+        // Notify parent platform to refresh its balance display (postMessage)
+        function _notifyPlatformRefresh() {
+            try {
+                window.parent.postMessage({ type: 'PLATFORM_API_REQUEST', action: 'GET_BALANCE', requestId: 'rq-' + Date.now() }, '*');
+                window.parent.postMessage({ type: 'RGS_BALANCE_UPDATED' }, '*');
+            } catch(e) {}
+        }
+
+        // Generate a unique transaction ID
+        function _genTxId() {
+            return 'tx-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        }
+
+        let _currentRoundId = null;
+
+        // Listen for balance pushed FROM parent platform
+        window.addEventListener('message', function(event) {
+            const d = event.data;
+            if (!d) return;
+            if (d.type === 'PLATFORM_BALANCE_UPDATED' || d.type === 'PLATFORM_API_RESPONSE') {
+                const balances = d.payload;
+                if (balances && typeof balances[_CURRENCY] === 'number') {
+                    console.log('[Platform] Balance pushed from parent:', balances[_CURRENCY]);
+                    shellState.balance = balances[_CURRENCY];
+                    updateFooterDisplay();
+                }
+            }
+        });
+
+        // Place bet via Operator Transaction API (action=debit)
+        async function placeBet() {
+            if (_SESSION_ID && _OPERATOR_URL) {
+                _currentRoundId = 'rnd-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                const url = _buildTxUrl('debit', {
+                    bet_amount: shellState.bet.toFixed(2),
+                    round_id: _currentRoundId,
+                    tx_id: _genTxId()
+                });
+                console.log('[Platform] Placing bet (debit):', url);
+                try {
+                    const resp = await fetch(url, { mode: 'cors' });
+                    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                    const data = await resp.json();
+                    console.log('[Platform] Debit response:', data);
+                    if (data.code === 0 || data.status === 'Success') {
+                        const bal = typeof data.cash_balance === 'number' ? data.cash_balance : (typeof data.balance === 'number' ? data.balance : null);
+                        if (bal !== null) { shellState.balance = bal; updateFooterDisplay(); }
+                        _notifyPlatformRefresh();
+                    } else {
+                        console.warn('[Platform] Debit failed:', data.status, data.code);
+                    }
+                } catch(err) {
+                    console.error('[Platform] Debit failed:', err.message);
+                }
+                return;
+            }
+
+            // Fallback: POST to config.api.baseUrl (Matching Postman)
+            const api = config && config.api;
+            if (api && api.enabled && api.baseUrl) {
+                const betEndpoint = api.betUrl || '/api/balance/debit';
+                const sep = (api.baseUrl.endsWith('/') || betEndpoint.startsWith('/')) ? '' : '/';
+                const url = api.baseUrl + sep + betEndpoint;
+                console.log('[Platform] Sending POST bet to:', url);
+                try {
+                    const payload = {
+                        currency: _CURRENCY || 'USD',
+                        amount: shellState.bet,
+                        gameId: _GAME_CODE,
+                        sessionId: _SESSION_ID || 'demo'
+                    };
+                    const headers = { 'Content-Type': 'application/json' };
+                    if (_SESSION_ID && _SESSION_ID !== 'demo') {
+                        headers['Authorization'] = 'Bearer ' + _SESSION_ID;
+                    }
+                    const resp = await fetch(url, { 
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify(payload)
+                    });
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        console.log('[Platform] POST Debit response:', data);
+                        if (data.balances && typeof data.balances[_CURRENCY || 'USD'] === 'number') {
+                            shellState.balance = data.balances[_CURRENCY || 'USD'];
+                        } else if (typeof data.balance === 'number') {
+                            shellState.balance = data.balance;
+                        }
+                        updateFooterDisplay();
+                        _notifyPlatformRefresh();
+                    }
+                } catch(err) { console.warn('[Platform] Config POST bet failed:', err.message); }
+            }
+        }
+
+        // Credit win via Operator Transaction API (action=credit)
+        async function creditWin(winAmount) {
+            if (_SESSION_ID && _OPERATOR_URL && _currentRoundId) {
+                const url = _buildTxUrl('credit', {
+                    win_amount: winAmount.toFixed(2),
+                    round_id: _currentRoundId,
+                    tx_id: _genTxId(),
+                    round_status: 'completed'
+                });
+                console.log('[Platform] Crediting win:', url);
+                try {
+                    const resp = await fetch(url, { mode: 'cors' });
+                    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                    const data = await resp.json();
+                    console.log('[Platform] Credit response:', data);
+                    if (data.code === 0 || data.status === 'Success') {
+                        const bal = typeof data.cash_balance === 'number' ? data.cash_balance : (typeof data.balance === 'number' ? data.balance : null);
+                        if (bal !== null) { shellState.balance = bal; updateFooterDisplay(); }
+                        _notifyPlatformRefresh();
+                    }
+                } catch(err) {
+                    console.error('[Platform] Credit failed:', err.message);
+                }
+                _currentRoundId = null;
+                return;
+            }
+
+            // Fallback: POST to config.api.baseUrl (Matching Postman)
+            const api = config && config.api;
+            if (api && api.enabled && api.baseUrl) {
+                const winEndpoint = '/api/balance/credit'; // inferred from sibling endpoint /api/balance/debit
+                const sep = (api.baseUrl.endsWith('/') || winEndpoint.startsWith('/')) ? '' : '/';
+                const url = api.baseUrl + sep + winEndpoint;
+                console.log('[Platform] Sending POST credit to:', url);
+                try {
+                    const payload = {
+                        currency: _CURRENCY || 'USD',
+                        amount: winAmount,
+                        gameId: _GAME_CODE,
+                        sessionId: _SESSION_ID || 'demo'
+                    };
+                    const headers = { 'Content-Type': 'application/json' };
+                    if (_SESSION_ID && _SESSION_ID !== 'demo') {
+                        headers['Authorization'] = 'Bearer ' + _SESSION_ID;
+                    }
+                    const resp = await fetch(url, { 
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify(payload)
+                    });
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        console.log('[Platform] POST Credit response:', data);
+                        if (data.balances && typeof data.balances[_CURRENCY || 'USD'] === 'number') {
+                            shellState.balance = data.balances[_CURRENCY || 'USD'];
+                        } else if (typeof data.balance === 'number') {
+                            shellState.balance = data.balance;
+                        }
+                        updateFooterDisplay();
+                        _notifyPlatformRefresh();
+                    }
+                } catch(err) { console.warn('[Platform] Config POST credit failed:', err.message); }
+            }
+        }
+
+        // Fetch real balance — tries strategies in order:
+        // 1. postMessage to parent platform (works in crypto-latam iframe immediately)
+        // 2. Operator Transaction API (if operator_endpoint is in URL)
+        // 3. Config URL fallback (non-localhost)
+        async function fetchBalance() {
+            if (window.self !== window.top) {
+                const balanceFromParent = await new Promise(function(resolve) {
+                    const reqId = 'init-balance-' + Date.now();
+                    const timeout = setTimeout(function() { resolve(null); }, 3000);
+                    function onMsg(event) {
+                        const d = event.data;
+                        if (!d) return;
+                        if (d.type === 'PLATFORM_API_RESPONSE' && d.requestId === reqId) {
+                            clearTimeout(timeout); window.removeEventListener('message', onMsg); resolve(d.payload);
+                        }
+                        if (d.type === 'PLATFORM_BALANCE_UPDATED' && d.payload) {
+                            clearTimeout(timeout); window.removeEventListener('message', onMsg); resolve(d.payload);
+                        }
+                    }
+                    window.addEventListener('message', onMsg);
+                    try { window.parent.postMessage({ type: 'PLATFORM_API_REQUEST', action: 'GET_BALANCE', requestId: reqId }, '*'); }
+                    catch(e) { clearTimeout(timeout); resolve(null); }
+                });
+                if (balanceFromParent) {
+                    const bal = typeof balanceFromParent[_CURRENCY] === 'number' ? balanceFromParent[_CURRENCY]
+                              : typeof balanceFromParent['USD'] === 'number' ? balanceFromParent['USD'] : null;
+                    if (bal !== null) {
+                        console.log('[Platform] Balance from parent postMessage:', bal);
+                        shellState.balance = bal; updateFooterDisplay(); return;
+                    }
+                }
+            }
+            if (_SESSION_ID && _OPERATOR_URL) {
+                const url = _buildTxUrl('balance', {});
+                try {
+                    const resp = await fetch(url, { mode: 'cors' });
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        if (data.code === 0 || data.status === 'Success') {
+                            const bal = typeof data.cash_balance === 'number' ? data.cash_balance : (typeof data.balance === 'number' ? data.balance : null);
+                            if (bal !== null) { shellState.balance = bal; updateFooterDisplay(); return; }
+                        }
+                    }
+                } catch(err) { console.warn('[Platform] Transaction API balance failed:', err.message); }
+            }
+            const api = config && config.api;
+            if (api && api.enabled && api.baseUrl) {
+                const getEndpoint = api.getBalanceUrl || '/api/balance';
+                const sep = (api.baseUrl.endsWith('/') || getEndpoint.startsWith('/')) ? '' : '/';
+                const url = api.baseUrl + sep + getEndpoint;
+                try {
+                    const headers = { 'Content-Type': 'application/json' };
+                    if (_SESSION_ID && _SESSION_ID !== 'demo') {
+                        headers['Authorization'] = 'Bearer ' + _SESSION_ID;
+                    }
+                    const resp = await fetch(url, { 
+                        method: 'GET',
+                        mode: 'cors',
+                        headers: headers
+                    });
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        if (data.balances && typeof data.balances[_CURRENCY || 'USD'] === 'number') {
+                            shellState.balance = data.balances[_CURRENCY || 'USD'];
+                        } else {
+                            const bal = typeof data.balance === 'number' ? data.balance : (data.data && typeof data.data.balance === 'number' ? data.data.balance : null);
+                            if (bal !== null) { shellState.balance = bal; updateFooterDisplay(); }
+                        }
+                    }
+                } catch(err) { console.warn('[Balance] Config URL fetch failed:', err.message); }
+            }
+        }
+
         // --- UI Modal & Footer Logic ---
         function openInfoModal() { 
             populateInfoModal();
@@ -1009,9 +1273,18 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                     winDiv.classList.add('animate-pulse');
                     spawnWinConfetti(); // Trigger celebration
                     playSound('win'); // [FIX] Add win sound parity with preview
-                    hasCelebrated = true; 
-                    shellState.balance += shellState.win; // Add win to balance in demo
-                    if (balanceEl) balanceEl.textContent = shellState.balance.toFixed(2);
+                    hasCelebrated = true;
+                    if (_SESSION_ID && _OPERATOR_URL) {
+                        // REAL MODE (Operator URL): credit the win via the platform API
+                        creditWin(shellState.win);
+                    } else if (config && config.api && config.api.enabled) {
+                        // REAL MODE (Fallback API): credit the win via the POST /api/balance/credit
+                        creditWin(shellState.win);
+                    } else {
+                        // DEMO MODE: add win to local balance
+                        shellState.balance += shellState.win;
+                        if (balanceEl) balanceEl.textContent = shellState.balance.toFixed(2);
+                    }
                 } else if (!hasWin) {
                     winDiv.classList.remove('animate-pulse');
                 }
@@ -1047,7 +1320,10 @@ export const generateScratchHTML = (cleanConfig: any): string => {
 
         function buyTicket() {
             if (shellState.gameState === 'playing' || shellState.balance < shellState.bet || shellState.isAutoPlaying) return;
-            shellState.balance -= shellState.bet;
+            const isApiMode = config && config.api && config.api.enabled;
+            if (!isApiMode && (!_SESSION_ID || !_OPERATOR_URL)) {
+                shellState.balance -= shellState.bet;
+            }
             shellState.win = 0;
             shellState.gameState = 'playing';
             hasCelebrated = false;
@@ -1062,6 +1338,9 @@ export const generateScratchHTML = (cleanConfig: any): string => {
             
             setupScene();
             updateFooterDisplay();
+            
+            // Send bet to API if configured
+            placeBet();
         }
 
 
@@ -1103,7 +1382,13 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                     // Initialize Math & Shell State from Config
                     ticketPrice = (config.scratch && config.scratch.math && config.scratch.math.ticketPrice) ? Number(config.scratch.math.ticketPrice) : 1;
                     shellState.bet = ticketPrice;
-                    shellState.balance = (config.scratch && config.scratch.math && config.scratch.math.startingBalance) ? Number(config.scratch.math.startingBalance) : 1000;
+
+                    const startingBalance = (config.scratch && config.scratch.math && config.scratch.math.startingBalance) ? Number(config.scratch.math.startingBalance) : 1000;
+                    const isApiEnabled = config.api && config.api.enabled;
+                    
+                    // If API is enabled, start with 0 and wait for fetch. Otherwise use static balance.
+                    shellState.balance = isApiEnabled ? 0 : startingBalance;
+                    
                     scratchThreshold = (config.scratch && config.scratch.brush && config.scratch.brush.revealThreshold) ? Number(config.scratch.brush.revealThreshold) : 0.95;
                     // [FIX] Normalize threshold (Handle 65% vs 0.65 parity)
                     if (scratchThreshold > 1) scratchThreshold /= 100;
@@ -1112,6 +1397,8 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                     throw new Error("Failed to parse embedded config: " + e.message);
                 }
 
+                // Fetch real balance after config is loaded
+                fetchBalance();
                 // 2. Setup Pixi App
                 // A. Background (Scene)
                 var bgUrl = (config.scratch && config.scratch.layers && config.scratch.layers.scene && config.scratch.layers.scene.value) || 
@@ -1420,19 +1707,18 @@ function setupScene() {
         // 2. Legacy/Overlay Mascots (Stickers)
         var overlayMascots = (config.scratch && config.scratch.layers && config.scratch.layers.overlay && config.scratch.layers.overlay.mascots) || [];
         overlayMascots.forEach(function(mascot) {
-    var mScale = mascot.scale || 1;
-    var mWidth = 120 * mScale;
-    var mHeight = 150 * mScale; // separate height
-    var mX = cardCenterX;
-    var mY = cardCenterY;
-    if (mascot.position.includes('left')) mX = -30;
-    if (mascot.position.includes('right')) mX = CARD_WIDTH + 30;
-    if (mascot.position.includes('top')) mY = -30;
-    if (mascot.position.includes('bottom')) mY = CARD_HEIGHT + 30;
-
-    maxDistX = Math.max(maxDistX, Math.abs(mX - cardCenterX) + mWidth / 2);
-    maxDistY = Math.max(maxDistY, Math.abs(mY - cardCenterY) + mHeight / 2); // use mHeight
-});
+            var mScale = mascot.scale || 1;
+            var mWidth = 120 * mScale;
+            var mX = cardCenterX;
+            var mY = cardCenterY;
+            if (mascot.position.includes('left')) mX = -30;
+            if (mascot.position.includes('right')) mX = CARD_WIDTH + 30;
+            if (mascot.position.includes('top')) mY = -30;
+            if (mascot.position.includes('bottom')) mY = CARD_HEIGHT + 30;
+            
+            maxDistX = Math.max(maxDistX, Math.abs(mX - cardCenterX) + mWidth / 2);
+            maxDistY = Math.max(maxDistY, Math.abs(mY - cardCenterY) + mWidth / 2);
+        });
 
         // 3. Logo extent
         var logoConfig = (config.scratch && config.scratch.logo) || {};
@@ -1465,33 +1751,46 @@ function setupScene() {
         }
 
         // 2. Card Scaling & Centering
-        var containerW = app.screen.width;
-var containerH = app.screen.height;
-var isLandscapePhone = containerH <= 500 && containerW > containerH;
-var isMobile = containerW <= 640;
-var isLargeDesktop = containerW > 1200;
-var footerH = isLandscapePhone ? 56 : (isMobile ? 80 : 70);
-var marginX = isMobile ? 32 : isLargeDesktop ? 20 : 40;
-var marginY = isLandscapePhone
-    ? (40 + footerH)
-    : isMobile
-        ? (100 + footerH)
-        : isLargeDesktop
-            ? (40 + footerH)
-            : (60 + footerH);
 
-        // [FIX] Export Scale: Always use fully responsive, content-aware scaling for the standalone game.
+        var isLandscapePhone = window.innerHeight <= 500 && window.innerWidth > window.innerHeight;
+
+        var isMobile = window.innerWidth <= 640;
+
+        var footerH = isLandscapePhone ? 56 : (isMobile ? 80 : 70);
 
 
-        // [FINAL] Content-Aware Scaling: elements fit to available space.
-        fitScale = Math.min((containerW - marginX) / CARD_WIDTH, (containerH - marginY) / CARD_HEIGHT);        
+
+        // [FIX] A4 Paper / Fixed Logical Resolution (Letterboxing)
+
+        // The game acts as a fixed 480x700 canvas that 
+
+        // never changes its layout proportions, merely scaling up or down 
+
+        // (letterbox/pillarbox) to fit the available screen.
+
+        var LOGICAL_WIDTH = 480;
+
+        var LOGICAL_HEIGHT = 700;
+
+        var availableH = app.screen.height - footerH;
+
+
+
+        // [FINAL] Scaling: perfectly match the Preview Editor scaling math
+
+        fitScale = Math.min((app.screen.width) / LOGICAL_WIDTH, (availableH) / LOGICAL_HEIGHT);
+
         cardAnchor.scale.set(fitScale);
-        
-        // Center the entire Bounding Box (vOffsetX...maxX) on the screen
-        cardAnchor.pivot.set(cardCenterX, cardCenterY);
-        cardAnchor.x = app.screen.width / 2;
-        cardAnchor.y = ((app.screen.height - footerH) / 2) + 30;
 
+        
+
+        // Center the Logical Canvas inside the physical display
+
+        cardAnchor.pivot.set(cardCenterX, cardCenterY);
+
+        cardAnchor.x = app.screen.width / 2;
+
+        cardAnchor.y = (app.screen.height - footerH) / 2;
 
         // [FIX] Scale brush tip to match fitScale (keep 1:1 with card logical size)
         if (brushTip) brushTip.scale.set(fitScale);
@@ -1740,15 +2039,7 @@ var marginY = isLandscapePhone
     surfaceContainer.mask = maskSprite;
     surfaceContainer.addChild(maskSprite); // Add to local space
     
-    // G. Mascot Layer (Independent - Attached to MAIN CONTAINER, NOT cardAnchor)
-    // Calculate footer height and screen dimensions for mascot positioning
-    var containerW = app.screen.width;
-    var containerH = app.screen.height;
-    var isLandscapePhone = containerH <= 500 && containerW > containerH;
-    var isMobile = containerW <= 640;
-    var isLargeDesktop = containerW > 1200;
-    var footerH = isLandscapePhone ? 56 : (isMobile ? 80 : 70);
-    
+    // G. Mascot Layer (Independent - Attached to Anchor, NOT Masked Group)
     // 1. Dynamic Mascot (from Step 3/Theme)
     if (mascotUrl) {
         var mascot = textureCache.has(mascotUrl) ? PIXI.Sprite.from(mascotUrl) : PIXI.Sprite.from(mascotUrl);
@@ -1756,15 +2047,11 @@ var marginY = isLandscapePhone
         var userScalePct = (mascotConfig.scale || 100) / 100;
         
         var baseRatio = CARD_HEIGHT / mascot.texture.height; 
-        mascot.scale.set(baseRatio * userScalePct * fitScale); // Scale with fitScale
+        mascot.scale.set(baseRatio * userScalePct); 
         mascot.anchor.set(0.5);
-        
-        // Position mascot independently of card movement
-        var cardScreenX = app.screen.width / 2;
-        var cardScreenY = ((app.screen.height - footerH) / 2) + 30; // Match card position
-        mascot.x = cardScreenX + ((mascotConfig.customPosition?.x || 0) * fitScale);
-        mascot.y = cardScreenY - 25 + ((mascotConfig.customPosition?.y || 0) * fitScale); // Move up 30px relative to card
-        container.addChild(mascot);
+        mascot.x = (CARD_WIDTH / 2) + (mascotConfig.customPosition?.x || 0);
+        mascot.y = (CARD_HEIGHT / 2) + (mascotConfig.customPosition?.y || 0);
+        cardAnchor.addChild(mascot);
         log('Mascot Overlay Added: ' + mascot.x + ',' + mascot.y);
     }
     

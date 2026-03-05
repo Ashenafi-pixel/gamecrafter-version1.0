@@ -163,6 +163,15 @@ interface GameStore {
   setBetAmount: (betAmount: number) => void;
   setWinAmount: (winAmount: number) => void;
 
+  // API Config for dynamic balance
+  apiConfig: {
+    baseUrl: string;
+    getBalanceUrl: string;
+    betUrl: string;
+  };
+  setApiConfig: (config: Partial<GameStore['apiConfig']>) => void;
+  fetchBalance: () => Promise<void>;
+
   // UI Buttons
   setIsAutoplayActive: (isAutoPlayActive: boolean) => void;
   setVolume: (volume: number) => void;
@@ -286,6 +295,12 @@ const initialConfig = {
     }
   },
   winDisplayImage: BambooImage,
+  api: {
+    enabled: true,
+    baseUrl: typeof window !== 'undefined' ? localStorage.getItem('slotai_api_base_url') || '' : '',
+    getBalanceUrl: typeof window !== 'undefined' ? localStorage.getItem('slotai_api_get_balance_url') || '' : '',
+    apiKey: ''
+  }
 } as any;
 
 
@@ -377,9 +392,69 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   previewFullscreen: false,
   hasUnsavedChanges: false,
   lastSaved: null,
-  balance: 1000,
+  balance: Number(localStorage.getItem('slotai_balance')) || 1000,
   betAmount: 2,
   winAmount: 0,
+
+  // API Config Implementation
+  apiConfig: {
+    baseUrl: localStorage.getItem('slotai_api_base_url') || '',
+    getBalanceUrl: localStorage.getItem('slotai_api_get_balance_url') || '',
+    betUrl: localStorage.getItem('slotai_api_bet_url') || '',
+  },
+
+  setApiConfig: (newConfig) => {
+    set((state) => {
+      const updatedConfig = { ...state.apiConfig, ...newConfig };
+
+      // Persist to localStorage
+      if (newConfig.baseUrl !== undefined) localStorage.setItem('slotai_api_base_url', newConfig.baseUrl);
+      if (newConfig.getBalanceUrl !== undefined) localStorage.setItem('slotai_api_get_balance_url', newConfig.getBalanceUrl);
+      if (newConfig.betUrl !== undefined) localStorage.setItem('slotai_api_bet_url', newConfig.betUrl);
+
+      return { apiConfig: updatedConfig };
+    });
+  },
+
+  fetchBalance: async () => {
+    const { apiConfig, config, setBalance } = get();
+
+    // Prioritize values from the bundled game config (crucial for exports)
+    const baseUrl = config?.api?.baseUrl || apiConfig.baseUrl;
+    const getBalanceUrl = config?.api?.getBalanceUrl || apiConfig.getBalanceUrl;
+
+    if (!baseUrl || !getBalanceUrl) {
+      console.warn('API Config missing for balance fetch');
+      return;
+    }
+
+    try {
+      const fullUrl = `${baseUrl.replace(/\/$/, '')}/${getBalanceUrl.replace(/^\//, '')}`;
+      const response = await fetch(fullUrl, {
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Assuming the response has a balance field as seen in Postman collection
+        // Postman: "balance": number
+        if (typeof data.balance === 'number') {
+          setBalance(data.balance);
+          localStorage.setItem('slotai_balance', data.balance.toString());
+        } else if (data.data?.balance !== undefined) {
+          // Alternative path
+          setBalance(data.data.balance);
+          localStorage.setItem('slotai_balance', data.data.balance.toString());
+        }
+      } else {
+        console.error('Failed to fetch balance:', response.statusText);
+      }
+    } catch (error) {
+      console.error('Error fetching balance:', error);
+    }
+  },
 
   updateConfig: (update) => set((state) => ({
     config: { ...state.config, ...update }
@@ -798,16 +873,24 @@ export const useGameStore = create<GameStore>()((set, get) => ({
           type === 'instant' ? 4 :
             type === 'grid' ? 5 : 16;
 
-      set({
+      set((state) => ({
         currentStep: 0,
         currentQuestion: 0,
         answers: {},
-        config: initialConfig,
+        config: {
+          ...initialConfig,
+          api: {
+            ...initialConfig.api,
+            baseUrl: state.apiConfig.baseUrl,
+            getBalanceUrl: state.apiConfig.getBalanceUrl,
+            enabled: true
+          }
+        },
         savedProgress: {},
         hasUnsavedChanges: false,
         lastSaved: null,
         totalSteps
-      });
+      }));
     }
   },
 

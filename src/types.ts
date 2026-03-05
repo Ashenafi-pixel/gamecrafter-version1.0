@@ -240,6 +240,8 @@ export type BonusConfig = {
 
 export type ApiConfig = {
   baseUrl: string;
+  getBalanceUrl: string;
+  betUrl: string;
   apiKey: string;
   enabled: boolean;
   lastConnected?: string;
