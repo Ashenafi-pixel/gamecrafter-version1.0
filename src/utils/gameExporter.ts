@@ -412,7 +412,7 @@ const generateStandaloneHTML = (params: {
                 <div class="game-info">
                     <div class="info-item">
                         <div class="info-label">Balance</div>
-                        <div class="info-value">$<span id="balance">${initialBalance.toFixed(2)}</span></div>
+                        <div class="info-value">$<span id="balance">${gameConfig?.api?.enabled ? '0.00' : initialBalance.toFixed(2)}</span></div>
                     </div>
                     <div class="info-item">
                         <div class="info-label">Bet</div>
@@ -455,14 +455,15 @@ const generateStandaloneHTML = (params: {
         initialBalance,
         rtp: (gameConfig?.rtp && (gameConfig.rtp as any).target) || 96,
         volatility: gameConfig?.volatility?.level || 'medium',
-        bonus: gameConfig?.bonus || {}
+        bonus: gameConfig?.bonus || {},
+        api: gameConfig?.api || { enabled: false, baseUrl: '', getBalanceUrl: '', betUrl: '' }
     }, null, 2)};
         
         console.log('🎮 Game configuration loaded:', GAME_CONFIG);
         
         // Game State
         let gameState = {
-            balance: ${initialBalance},
+            balance: (GAME_CONFIG.api && GAME_CONFIG.api.enabled) ? 0 : ${initialBalance},
             bet: ${minBet},
             win: 0,
             isSpinning: false,
@@ -470,6 +471,97 @@ const generateStandaloneHTML = (params: {
             autoplayCount: 0,
             spinHistory: []
         };
+
+        // Fetch balance from API if enabled
+        async function fetchBalance() {
+            console.log('🔍 Checking API configuration...', GAME_CONFIG.api);
+            if (!GAME_CONFIG.api || !GAME_CONFIG.api.enabled || !GAME_CONFIG.api.baseUrl) {
+                console.log('ℹ️ Dynamic balance fetching is disabled or not configured in GAME_CONFIG.');
+                return;
+            }
+
+            const url = GAME_CONFIG.api.baseUrl.endsWith('/') 
+                ? GAME_CONFIG.api.baseUrl + GAME_CONFIG.api.getBalanceUrl
+                : GAME_CONFIG.api.baseUrl + '/' + GAME_CONFIG.api.getBalanceUrl;
+
+            console.log('🌐 Sending balance fetch request to:', url);
+
+            try {
+                const response = await fetch(url, { mode: 'cors' });
+                console.log('📥 API Response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error('Network response was not ok: ' + response.statusText);
+                }
+
+                const data = await response.json();
+                console.log('📦 API Data received:', data);
+                
+                let newBalance = null;
+                if (typeof data.balance === 'number') {
+                    newBalance = data.balance;
+                } else if (data.data && typeof data.data.balance === 'number') {
+                    newBalance = data.data.balance;
+                }
+
+                if (newBalance !== null) {
+                    console.log('✅ Balance synchronized:', newBalance);
+                    gameState.balance = newBalance;
+                    updateUI();
+                } else {
+                    console.warn('⚠️ Could not find "balance" field in API response. Expected { "balance": 123 } or { "data": { "balance": 123 } }');
+                }
+            } catch (error) {
+                console.error('❌ API Error:', error.message);
+            }
+        }
+
+        // Place bet via API if enabled
+        async function placeBet() {
+            if (!GAME_CONFIG.api || !GAME_CONFIG.api.enabled || !GAME_CONFIG.api.baseUrl || !GAME_CONFIG.api.betUrl) {
+                return;
+            }
+
+            const url = GAME_CONFIG.api.baseUrl.endsWith('/') 
+                ? GAME_CONFIG.api.baseUrl + GAME_CONFIG.api.betUrl
+                : GAME_CONFIG.api.baseUrl + '/' + GAME_CONFIG.api.betUrl;
+
+            console.log('🌐 Sending bet request to:', url);
+
+            const payload = {
+                gameId: GAME_CONFIG.gameId,
+                betAmount: gameState.bet,
+                timestamp: new Date().toISOString()
+            };
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    mode: 'cors',
+                    body: JSON.stringify(payload)
+                });
+                
+                console.log('📥 Bet API Response status:', response.status);
+                
+                if (!response.ok) {
+                    console.warn('⚠️ Bet API request failed:', response.statusText);
+                } else {
+                    const data = await response.json();
+                    console.log('✅ Bet recorded:', data);
+                    
+                    // Optional: sync balance again after bet
+                    if (data.balance !== undefined) {
+                        gameState.balance = data.balance;
+                        updateUI();
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Bet API Error:', error.message);
+            }
+        }
         
         // DOM Elements
         const canvas = document.getElementById('gameCanvas');
@@ -513,6 +605,9 @@ const generateStandaloneHTML = (params: {
                 // Setup event listeners
                 setupEventListeners();
                 console.log('✅ Event listeners setup');
+                
+                // Fetch initial balance
+                fetchBalance();
                 
                 console.log('✅ Game initialized successfully');
             } catch (error) {
@@ -885,6 +980,9 @@ const generateStandaloneHTML = (params: {
             gameState.win = 0;
             
             updateUI();
+            
+            // Send bet to API if enabled
+            placeBet();
             
             // Small delay to ensure UI updates before animation starts
             gsap.delayedCall(0.1, animateSpin);

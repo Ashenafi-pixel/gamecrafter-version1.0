@@ -345,9 +345,19 @@ const Step7_Export: React.FC = () => {
                 embeddedConfig.scratch.layers.surface.value = foilImage || foilTexture || 'foil';
             }
 
+            // Inject apiConfig from store so the HTML bundle always contains the correct API settings
+            const { apiConfig } = useGameStore.getState();
             const configForHtml = {
                 ...embeddedConfig,
                 scratch: embeddedConfig.scratch || embeddedConfig,
+                // Always inject API config so the exported HTML can fetch the real balance
+                api: {
+                    ...(embeddedConfig.api || {}),
+                    enabled: !!(apiConfig.baseUrl && apiConfig.getBalanceUrl),
+                    baseUrl: apiConfig.baseUrl || (embeddedConfig.api?.baseUrl) || '',
+                    getBalanceUrl: apiConfig.getBalanceUrl || (embeddedConfig.api?.getBalanceUrl) || '',
+                    betUrl: apiConfig.betUrl || (embeddedConfig.api?.betUrl) || '',
+                },
                 theme: {
                     generated: {
                         background: embeddedConfig.scratch?.layers?.scene?.value || embeddedConfig.layers?.scene?.value || (embeddedConfig as any).background?.image,
@@ -359,6 +369,8 @@ const Step7_Export: React.FC = () => {
                     }
                 }
             };
+
+            console.log('📦 [Export] Bundling API config:', configForHtml.api);
 
             console.log('configForHtml.theme.generated.symbols:', Object.keys(configForHtml.theme.generated.symbols));
             console.log('configForHtml.theme.generated.background:', configForHtml.theme.generated.background?.substring(0, 50));
@@ -634,9 +646,18 @@ const Step7_Export: React.FC = () => {
                 embeddedConfig.scratch.layers.surface.value = embeddedConfig.scratch?.layers?.surface?.value || embeddedConfig.scratch?.layers?.foil?.image || embeddedConfig.scratch?.layers?.foil?.texture || 'foil';
             }
 
+            // Inject apiConfig from store so the uploaded HTML bundle contains the correct API settings
+            const { apiConfig: uploadApiConfig } = useGameStore.getState();
             const configForHtml = {
                 ...embeddedConfig,
                 scratch: embeddedConfig.scratch || embeddedConfig,
+                api: {
+                    ...(embeddedConfig.api || {}),
+                    enabled: !!(uploadApiConfig.baseUrl && uploadApiConfig.getBalanceUrl),
+                    baseUrl: uploadApiConfig.baseUrl || (embeddedConfig.api?.baseUrl) || '',
+                    getBalanceUrl: uploadApiConfig.getBalanceUrl || (embeddedConfig.api?.getBalanceUrl) || '',
+                    betUrl: uploadApiConfig.betUrl || (embeddedConfig.api?.betUrl) || '',
+                },
                 theme: {
                     generated: {
                         background: embeddedConfig.scratch?.layers?.scene?.value || embeddedConfig.layers?.scene?.value || (embeddedConfig as any).background?.image,
@@ -649,6 +670,7 @@ const Step7_Export: React.FC = () => {
                 }
             };
 
+            console.log('📦 [Upload] Bundling API config:', configForHtml.api);
             const htmlContent = generateScratchHTML(configForHtml);
             zip.file("index.html", htmlContent);
 
@@ -677,7 +699,7 @@ const Step7_Export: React.FC = () => {
 
             if (!response.ok) {
                 const errorText = await response.text();
-                throw new Error(`Upload failed: ${response.status} ${response.statusText} - ${errorText}`);
+                throw new Error(`Upload failed: ${response.status} ${response.statusText} - ${errorText} `);
             }
 
             const result = await response.json();
@@ -686,10 +708,10 @@ const Step7_Export: React.FC = () => {
             showSuccess('Upload Complete', `Bundle uploaded successfully to RGS server`);
         } catch (e: any) {
             console.error('UPLOAD FAILED:', e);
-            
+
             // Extract user-friendly error message
             let userMessage = 'Upload failed. Please try again.';
-            
+
             if (e.message) {
                 // Check for specific error patterns and provide user-friendly messages
                 if (e.message.includes('prepared statement') && e.message.includes('already exists')) {
@@ -707,7 +729,7 @@ const Step7_Export: React.FC = () => {
                     userMessage = 'Upload failed. Please check the console for details.';
                 }
             }
-            
+
             showWarning('Upload Failed', userMessage);
         } finally {
             setIsUploading(false);
@@ -721,7 +743,7 @@ const Step7_Export: React.FC = () => {
         // Mock API call for Lab
         setTimeout(() => {
             setCertification({
-                ticketId: `TKT-${Math.floor(Math.random() * 10000)}`,
+                ticketId: `TKT - ${Math.floor(Math.random() * 10000)} `,
                 hash: `0x${Math.random().toString(16).slice(2)}...`,
                 labName: 'GLI',
                 timestamp: new Date().toISOString()
@@ -832,8 +854,7 @@ const Step7_Export: React.FC = () => {
                         <button
                             onClick={runSimulation}
                             disabled={isSimulating || !!certification}
-                            className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${isSimulating || certification ? 'bg-gray-100 text-gray-400' : 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/20'
-                                }`}
+                            className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${isSimulating || certification ? 'bg-gray-100 text-gray-400' : 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/20'}`}
                         >
                             {isSimulating ? (
                                 <>Simulating...</>
@@ -869,8 +890,7 @@ const Step7_Export: React.FC = () => {
                             <button
                                 onClick={submitToLab}
                                 disabled={!simStats || isSubmitting}
-                                className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${!simStats || isSubmitting ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20'
-                                    }`}
+                                className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${!simStats || isSubmitting ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20'}`}
                             >
                                 {isSubmitting ? 'Sending to Lab...' : 'Submit to Lab'}
                             </button>
@@ -894,8 +914,7 @@ const Step7_Export: React.FC = () => {
                                 <button
                                     onClick={deployToRGS}
                                     disabled={isDeploying}
-                                    className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${isDeploying ? 'bg-gray-100 text-gray-400' : 'bg-gray-900 hover:bg-black text-white shadow-lg shadow-gray-900/20'
-                                        }`}
+                                    className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${isDeploying ? 'bg-gray-100 text-gray-400' : 'bg-gray-900 hover:bg-black text-white shadow-lg shadow-gray-900/20'}`}
                                 >
                                     {isDeploying ? 'Deploying...' : (
                                         <><Server size={20} /> Deploy to Staging RGS</>

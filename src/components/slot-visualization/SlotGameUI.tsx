@@ -15,14 +15,30 @@ export const SlotGameUI: React.FC<SlotGameUIProps> = ({
   onQuickSpin,
   className = ''
 }) => {
+  const {
+    config,
+    balance,
+    setBalance,
+    fetchBalance,
+    apiConfig
+  } = useGameStore();
+
   const [isAutoPlay, setIsAutoPlay] = useState(false);
   const [isQuickSpin, setIsQuickSpin] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [bet, setBet] = useState(1.00);
   const [win, setWin] = useState(0.00);
-  const [balance, setBalance] = useState(1000.00);
-  
-  const config = useGameStore(state => state.config);
+
+  // Fetch balance on mount or whenever API config changes
+  React.useEffect(() => {
+    const hasConfig = (apiConfig.baseUrl && apiConfig.getBalanceUrl) ||
+      (config?.api?.baseUrl && config?.api?.getBalanceUrl);
+
+    if (hasConfig) {
+      fetchBalance();
+    }
+  }, [apiConfig.baseUrl, apiConfig.getBalanceUrl, config?.api?.baseUrl, config?.api?.getBalanceUrl, fetchBalance]);
+
   const gameName = config?.gameInfo?.name || config?.theme?.name || 'Slot Game';
 
   const handleAutoPlay = () => {
@@ -37,6 +53,7 @@ export const SlotGameUI: React.FC<SlotGameUIProps> = ({
 
   const handleSpin = () => {
     if (balance >= bet) {
+      // Update store balance
       setBalance(balance - bet);
       onSpin?.();
     }
@@ -53,12 +70,12 @@ export const SlotGameUI: React.FC<SlotGameUIProps> = ({
             <button className="p-2 hover:bg-gray-800 rounded-lg transition-colors">
               <Menu className="w-6 h-6 text-gray-400" />
             </button>
-            
+
             {/* Info Button */}
             <button className="p-2 hover:bg-gray-800 rounded-lg transition-colors">
               <Info className="w-6 h-6 text-gray-400" />
             </button>
-            
+
             {/* Bet Display */}
             <div className="text-center">
               <div className="text-xs text-gray-500 uppercase tracking-wide font-bold">BET</div>
@@ -71,16 +88,15 @@ export const SlotGameUI: React.FC<SlotGameUIProps> = ({
             {/* AutoPlay Button */}
             <button
               onClick={handleAutoPlay}
-              className={`p-3 rounded-full transition-all ${
-                isAutoPlay 
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                  : 'bg-gray-800 hover:bg-gray-700 text-gray-400'
-              }`}
+              className={`p-3 rounded-full transition-all ${isAutoPlay
+                ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                : 'bg-gray-800 hover:bg-gray-700 text-gray-400'
+                }`}
               title="Auto Play"
             >
               <SkipForward className="w-5 h-5" />
             </button>
-            
+
             {/* Main Spin Button */}
             <button
               onClick={handleSpin}
@@ -92,15 +108,14 @@ export const SlotGameUI: React.FC<SlotGameUIProps> = ({
               <Play className="w-8 h-8 text-white fill-white" />
               <div className="absolute inset-0 rounded-full animate-pulse bg-green-400 opacity-0 hover:opacity-20"></div>
             </button>
-            
+
             {/* QuickSpin Button */}
             <button
               onClick={handleQuickSpin}
-              className={`p-3 rounded-full transition-all ${
-                isQuickSpin 
-                  ? 'bg-yellow-600 hover:bg-yellow-700 text-white' 
-                  : 'bg-gray-800 hover:bg-gray-700 text-gray-400'
-              }`}
+              className={`p-3 rounded-full transition-all ${isQuickSpin
+                ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                : 'bg-gray-800 hover:bg-gray-700 text-gray-400'
+                }`}
               title="Quick Spin"
             >
               <Zap className="w-5 h-5" />
@@ -114,13 +129,13 @@ export const SlotGameUI: React.FC<SlotGameUIProps> = ({
               <div className="text-xs text-gray-500 uppercase tracking-wide font-bold">WIN</div>
               <div className="text-xl font-bold text-green-400 mt-1 min-w-[80px]">{win.toFixed(2)}</div>
             </div>
-            
+
             {/* Balance Display */}
             <div className="text-center">
               <div className="text-xs text-gray-500 uppercase tracking-wide font-bold">BALANCE</div>
               <div className="text-xl font-bold text-white mt-1 min-w-[100px]">{balance.toFixed(2)}</div>
             </div>
-            
+
             {/* Sound Toggle */}
             <button
               onClick={() => setIsMuted(!isMuted)}
@@ -135,16 +150,16 @@ export const SlotGameUI: React.FC<SlotGameUIProps> = ({
           </div>
         </div>
       </div>
-      
+
       {/* Bottom Bar with Game Info */}
       <div className="bg-gray-950 border-t border-gray-800">
         <div className="flex items-center justify-between h-10 px-4">
           {/* Left aligned logo and game info */}
           <div className="flex items-center gap-3 text-sm">
             {/* GameCrafter Logo */}
-            <img 
-              src="/assets/brand/logo-small.svg" 
-              alt="GameCrafter" 
+            <img
+              src="/assets/brand/logo-small.svg"
+              alt="GameCrafter"
               className="h-6 w-auto"
             />
             <span className="text-gray-400">
@@ -153,7 +168,7 @@ export const SlotGameUI: React.FC<SlotGameUIProps> = ({
               <span>Game Crafter</span>
             </span>
           </div>
-          
+
           {/* Right side can be used for additional info if needed */}
           <div className="text-xs text-gray-500">
             {/* Future: Version info, RTP, etc */}

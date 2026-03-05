@@ -118,10 +118,16 @@ export const extractSessionFromUrl = (): LatamSession | null => {
     const sessionId = params.get('session_id');
     const playerId = params.get('player_id');
     const operatorEndpoint = params.get('operator_endpoint') || params.get('rgs_base_url'); // Fallback
-    const gameCode = params.get('game_code');
+
+    // Support multiple aliases for game code as seen in platform launch response
+    const gameCode = params.get('game_code') || params.get('game_id') || params.get('gameid');
 
     if (!sessionId || !playerId || !operatorEndpoint) {
-        console.warn("LatamAPI: Missing session parameters in URL");
+        console.warn("LatamAPI: Missing session parameters in URL", {
+            hasSession: !!sessionId,
+            hasPlayer: !!playerId,
+            hasEndpoint: !!operatorEndpoint
+        });
         return null;
     }
 

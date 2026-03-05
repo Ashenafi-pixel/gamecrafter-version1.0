@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Home, Search, Settings, Bell, User, ChevronRight, ChevronLeft,
   Play, Edit, Clock, ArrowRight, Sparkles, Palette, FileText, FileEdit,
-  LayoutGrid, Gamepad2, Ticket, BarChart4, CreditCard, X
+  LayoutGrid, Gamepad2, Ticket, BarChart4, CreditCard, X, Database
 } from 'lucide-react';
 import { useGameStore } from '../store';
 import SavedConfigsSection from './SavedConfigsSection';
@@ -923,6 +923,12 @@ const SidebarNavigation: React.FC<{
       onClick: () => onNavigate('dashboard')
     },
     {
+      icon: Database,
+      label: 'Config',
+      view: 'config',
+      onClick: () => onNavigate('config')
+    },
+    {
       icon: Gamepad2,
       label: 'My Games',
       view: 'myGames',
@@ -1027,6 +1033,129 @@ const SidebarNavigation: React.FC<{
         )}
       </nav>
     </aside>
+  );
+};
+
+// Config View Implementation
+const ConfigView: React.FC = () => {
+  const { apiConfig, setApiConfig, fetchBalance, balance, config, setConfig } = useGameStore();
+  const [localConfig, setLocalConfig] = useState({
+    baseUrl: apiConfig.baseUrl,
+    getBalanceUrl: apiConfig.getBalanceUrl,
+    betUrl: apiConfig.betUrl
+  });
+  const [isTesting, setIsTesting] = useState(false);
+
+  const handleSave = () => {
+    // 1. Update Global API Config (for current session)
+    setApiConfig(localConfig);
+
+    // 2. Sync with persistent GameConfig (for Export bundling)
+    if (config) {
+      const updatedConfig = {
+        ...config,
+        api: {
+          ...(config.api || {}),
+          apiKey: (config.api as any)?.apiKey || '',
+          baseUrl: localConfig.baseUrl,
+          getBalanceUrl: localConfig.getBalanceUrl,
+          betUrl: localConfig.betUrl,
+          // Only enable if both URL fields are filled in
+          enabled: !!(localConfig.baseUrl && localConfig.getBalanceUrl)
+        }
+      };
+      setConfig(updatedConfig);
+    }
+
+    alert('Configuration saved & bundled with game! Re-export your game to apply the new settings.');
+  };
+
+  const handleTest = async () => {
+    // Temporarily save to store to use in fetchBalance
+    setApiConfig(localConfig);
+    setIsTesting(true);
+    await fetchBalance();
+    setIsTesting(false);
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-sm border border-gray-100 mt-10"
+    >
+      <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+        <div className="p-2 bg-red-50 rounded-lg">
+          <Database className="w-6 h-6 text-red-600" />
+        </div>
+        API Configuration
+      </h2>
+
+      <div className="space-y-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Base URL</label>
+          <input
+            type="text"
+            value={localConfig.baseUrl}
+            onChange={(e) => setLocalConfig({ ...localConfig, baseUrl: e.target.value })}
+            placeholder="https://your-api-base-url.com"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all"
+          />
+          <p className="mt-1 text-xs text-gray-500">The root URL of your API service (e.g., http://localhost:3000).</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Balance Endpoint</label>
+          <input
+            type="text"
+            value={localConfig.getBalanceUrl}
+            onChange={(e) => setLocalConfig({ ...localConfig, getBalanceUrl: e.target.value })}
+            placeholder="api/balances"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all"
+          />
+          <p className="mt-1 text-xs text-gray-500">The path after the Base URL to fetch user balance.</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Bet Endpoint</label>
+          <input
+            type="text"
+            value={localConfig.betUrl}
+            onChange={(e) => setLocalConfig({ ...localConfig, betUrl: e.target.value })}
+            placeholder="api/bets"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all"
+          />
+          <p className="mt-1 text-xs text-gray-500">The path after the Base URL to send bet data.</p>
+        </div>
+
+        <div className="pt-4 flex flex-col sm:flex-row gap-4">
+          <button
+            onClick={handleSave}
+            className="flex-1 bg-red-600 text-white py-2.5 px-4 rounded-lg font-semibold hover:bg-red-700 transition-all shadow-sm hover:shadow active:scale-[0.98]"
+          >
+            Save Configuration
+          </button>
+          {/* <button
+            onClick={handleTest}
+            disabled={isTesting || !localConfig.baseUrl || !localConfig.getBalanceUrl}
+            className="flex-1 bg-white text-gray-700 py-2.5 px-4 rounded-lg font-semibold hover:bg-gray-50 transition-all border border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {isTesting && <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>}
+            Test & Fetch Balance
+          </button> */}
+        </div>
+
+        {/* <div className="mt-8 p-5 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between">
+          <div className="flex flex-col">
+            <span className="text-sm text-gray-500 uppercase tracking-wider font-bold">Current Platform Balance</span>
+            <span className="text-3xl font-black text-gray-900 mt-1">${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
+          <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+            <CreditCard className="w-6 h-6 text-green-600" />
+          </div>
+        </div> */}
+      </div>
+    </motion.div>
   );
 };
 
@@ -1259,6 +1388,8 @@ const EnhancedGameCrafterDashboard: React.FC<EnhancedGameCrafterDashboardProps> 
             <SavedConfigsSection onConfigSelect={(config) => {
               console.log('Selected config:', config);
             }} />
+          ) : currentView === 'config' ? (
+            <ConfigView />
           ) : (
             <div className="space-y-12">
               {/* Studio Selection */}

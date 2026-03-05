@@ -80,7 +80,7 @@ body {
   justify-content: center;
 }`;
 
-export const gitignore = () =>`
+export const gitignore = () => `
 # Node modules
 node_modules/
 
@@ -155,9 +155,10 @@ interface GameStore {
     setSoundVolume: (soundVolume: number) => void;
     showAutoPlaySettings: boolean;
     setShowAutoPlaySettings: (showAutoPlaySettings: boolean) => void;
+    fetchBalance: () => Promise<void>;
 }
 
-export const useGameStore = create<GameStore>()((set) => ({
+export const useGameStore = create<GameStore>()((set, get) => ({
     balance: 1000,
     setBalance: (fnOrValue) =>
         set((state) => ({
@@ -197,4 +198,29 @@ export const useGameStore = create<GameStore>()((set) => ({
     setSoundVolume: (soundVolume: number) => set({ soundVolume }),
     showAutoPlaySettings: false,
     setShowAutoPlaySettings: (showAutoPlaySettings: boolean) => set({ showAutoPlaySettings }),
-}));`
+    
+    fetchBalance: async () => {
+        try {
+            const { gameConfig } = await import('./config/gameConfig');
+            const baseUrl = gameConfig.api?.baseUrl;
+            const getBalanceUrl = gameConfig.api?.getBalanceUrl;
+
+            if (!baseUrl || !getBalanceUrl) return;
+
+            const fullUrl = `${ baseUrl.replace(/\/$/, '')}/${getBalanceUrl.replace(/ ^\//, '')}`;
+const response = await fetch(fullUrl, {
+  headers: { 'Accept': 'application/json' }
+});
+
+if (response.ok) {
+  const data = await response.json();
+  const newBalance = data.balance ?? data.amount ?? data.credits;
+  if (typeof newBalance === 'number') {
+    set({ balance: newBalance });
+  }
+}
+        } catch (error) {
+  console.error('Exported game failed to fetch balance:', error);
+}
+    }
+})); `;

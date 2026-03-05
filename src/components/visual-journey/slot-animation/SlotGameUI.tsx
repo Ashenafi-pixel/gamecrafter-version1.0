@@ -99,7 +99,26 @@ const SlotGameUI: React.FC<SlotGameUIProps> = ({
   } = contextData || {};
 
   // Get UI customization config
-  const { config, betAmount, setBetAmount, isSpinning, balance, uiType } = useGameStore();
+  const {
+    config,
+    betAmount,
+    setBetAmount,
+    isSpinning,
+    balance,
+    uiType,
+    apiConfig,
+    fetchBalance
+  } = useGameStore();
+
+  // Fetch balance on mount or whenever API config changes
+  useEffect(() => {
+    const hasConfig = (apiConfig?.baseUrl && apiConfig?.getBalanceUrl) ||
+      (config?.api?.baseUrl && config?.api?.getBalanceUrl);
+
+    if (hasConfig) {
+      fetchBalance();
+    }
+  }, [apiConfig?.baseUrl, apiConfig?.getBalanceUrl, config?.api?.baseUrl, config?.api?.getBalanceUrl, fetchBalance]);
 
   // Get button layout and metadata from config
   const buttonLayout = config?.uiButtonLayout || [];
@@ -304,53 +323,53 @@ const SlotGameUI: React.FC<SlotGameUIProps> = ({
       {/* Main UI Bar - Full width horizontal bar with customizable style */}
       <div className='w-full'>
         {uiType === "modern" && (
-        <ModernUI
-          onSpin={onSpin}
-          BET_VALUES={betValues}
-          toggleMenu={toggleMenu}
-          handleDecreaseBet={handleDecreaseBet}
-          handleIncreaseBet={handleIncreaseBet}
-          isAutoplayActive={isAutoplayActive}
-          toggleAutoplay={toggleAutoplay}
-          spin={spin}
-          onAutoplayToggle={onAutoplayToggle}
-          onMaxBet={onMaxBet}
-          toggleSound={toggleSound}
-          isSoundEnabled={isSoundEnabled}
-          toggleSettings={toggleSettings}
-          customButtons={customButtons}
-        />
+          <ModernUI
+            onSpin={onSpin}
+            BET_VALUES={betValues}
+            toggleMenu={toggleMenu}
+            handleDecreaseBet={handleDecreaseBet}
+            handleIncreaseBet={handleIncreaseBet}
+            isAutoplayActive={isAutoplayActive}
+            toggleAutoplay={toggleAutoplay}
+            spin={spin}
+            onAutoplayToggle={onAutoplayToggle}
+            onMaxBet={onMaxBet}
+            toggleSound={toggleSound}
+            isSoundEnabled={isSoundEnabled}
+            toggleSettings={toggleSettings}
+            customButtons={customButtons}
+          />
         )}
         {uiType === "normal" && (
-        <NormalDesign
-        onSpin={onSpin}
-        toggleMenu={toggleMenu}
-        handleDecreaseBet={handleDecreaseBet}
-        handleIncreaseBet={handleIncreaseBet}
-        isAutoplayActive={isAutoplayActive}
-        toggleAutoplay={toggleAutoplay}
-        onAutoplayToggle={onAutoplayToggle}
-        onMaxBet={onMaxBet}
-        toggleSound={toggleSound}
-        isSoundEnabled={isSoundEnabled}
-        toggleSettings={toggleSettings}
-        customButtons={customButtons}
-        />
+          <NormalDesign
+            onSpin={onSpin}
+            toggleMenu={toggleMenu}
+            handleDecreaseBet={handleDecreaseBet}
+            handleIncreaseBet={handleIncreaseBet}
+            isAutoplayActive={isAutoplayActive}
+            toggleAutoplay={toggleAutoplay}
+            onAutoplayToggle={onAutoplayToggle}
+            onMaxBet={onMaxBet}
+            toggleSound={toggleSound}
+            isSoundEnabled={isSoundEnabled}
+            toggleSettings={toggleSettings}
+            customButtons={customButtons}
+          />
         )}
         {uiType === "ultimate" && (
-        <UltimateDesign
-        onSpin={onSpin}
-        toggleMenu={toggleMenu}
-        handleDecreaseBet={handleDecreaseBet}
-        handleIncreaseBet={handleIncreaseBet}
-        isAutoplayActive={isAutoplayActive}
-        toggleAutoplay={toggleAutoplay}
-        onAutoplayToggle={onAutoplayToggle}
-        toggleSound={toggleSound}
-        isSoundEnabled={isSoundEnabled}
-        toggleSettings={toggleSettings}
-        customButtons={customButtons}
-        />
+          <UltimateDesign
+            onSpin={onSpin}
+            toggleMenu={toggleMenu}
+            handleDecreaseBet={handleDecreaseBet}
+            handleIncreaseBet={handleIncreaseBet}
+            isAutoplayActive={isAutoplayActive}
+            toggleAutoplay={toggleAutoplay}
+            onAutoplayToggle={onAutoplayToggle}
+            toggleSound={toggleSound}
+            isSoundEnabled={isSoundEnabled}
+            toggleSettings={toggleSettings}
+            customButtons={customButtons}
+          />
         )}
       </div>
 
