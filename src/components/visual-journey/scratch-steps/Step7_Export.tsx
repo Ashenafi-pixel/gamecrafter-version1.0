@@ -357,6 +357,8 @@ const Step7_Export: React.FC = () => {
                     baseUrl: apiConfig.baseUrl || (embeddedConfig.api?.baseUrl) || '',
                     getBalanceUrl: apiConfig.getBalanceUrl || (embeddedConfig.api?.getBalanceUrl) || '',
                     betUrl: apiConfig.betUrl || (embeddedConfig.api?.betUrl) || '',
+                    creditUrl: apiConfig.creditUrl || (embeddedConfig.api?.creditUrl) || '',
+                    debitUrl: apiConfig.debitUrl || (embeddedConfig.api?.debitUrl) || '',
                 },
                 theme: {
                     generated: {
@@ -657,6 +659,8 @@ const Step7_Export: React.FC = () => {
                     baseUrl: uploadApiConfig.baseUrl || (embeddedConfig.api?.baseUrl) || '',
                     getBalanceUrl: uploadApiConfig.getBalanceUrl || (embeddedConfig.api?.getBalanceUrl) || '',
                     betUrl: uploadApiConfig.betUrl || (embeddedConfig.api?.betUrl) || '',
+                    creditUrl: uploadApiConfig.creditUrl || (embeddedConfig.api?.creditUrl) || '',
+                    debitUrl: uploadApiConfig.debitUrl || (embeddedConfig.api?.debitUrl) || '',
                 },
                 theme: {
                     generated: {

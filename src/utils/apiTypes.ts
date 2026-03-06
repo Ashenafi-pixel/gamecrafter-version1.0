@@ -6,6 +6,8 @@ export interface ApiConfig {
   apiKey?: string;
   getBalanceUrl?: string;
   betUrl?: string;
+  creditUrl?: string;
+  debitUrl?: string;
   enabled?: boolean;
   useLocalMock?: boolean;
 }

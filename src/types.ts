@@ -240,9 +240,11 @@ export type BonusConfig = {
 
 export type ApiConfig = {
   baseUrl: string;
-  getBalanceUrl: string;
-  betUrl: string;
-  apiKey: string;
+  getBalanceUrl?: string;
+  betUrl?: string;
+  creditUrl?: string;
+  debitUrl?: string;
+  apiKey?: string;
   enabled: boolean;
   lastConnected?: string;
   useLocalMock?: boolean;

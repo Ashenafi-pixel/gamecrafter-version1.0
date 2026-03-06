@@ -516,6 +516,16 @@ const sanitizeConfigForScratch = (config: GameConfig): any => {
  * Generates the standalone HTML player string.
  */
 export const generateScratchHTML = (cleanConfig: any): string => {
+    // Log the API configuration being bundled
+    console.log('📦 Exporting game with API configuration:', {
+        baseUrl: cleanConfig.api?.baseUrl,
+        getBalanceUrl: cleanConfig.api?.getBalanceUrl,
+        betUrl: cleanConfig.api?.betUrl,
+        creditUrl: cleanConfig.api?.creditUrl,
+        debitUrl: cleanConfig.api?.debitUrl,
+        enabled: cleanConfig.api?.enabled
+    });
+
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -919,6 +929,32 @@ export const generateScratchHTML = (cleanConfig: any): string => {
 
         // Place bet via Operator Transaction API (action=debit)
         async function placeBet() {
+            // [FIX] If running in the Crypto-LATAM iframe, proxy via postMessage
+            if (window.self !== window.top) {
+                _currentRoundId = 'rnd-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                return new Promise(function(resolve) {
+                    const reqId = 'bet-' + Date.now();
+                    const timeout = setTimeout(function() { resolve(null); }, 5000);
+                    function onMsg(event) {
+                        const d = event.data;
+                        if (!d || d.type !== 'PLATFORM_API_RESPONSE' || d.requestId !== reqId) return;
+                        clearTimeout(timeout); window.removeEventListener('message', onMsg);
+                        const data = d.payload;
+                        console.log('[Platform] Proxy Debit response arrived:', data);
+                        if (data && (data.code === 0 || data.status === 'Success')) {
+                            const bal = typeof data.cash_balance === 'number' ? data.cash_balance : (typeof data.balance === 'number' ? data.balance : null);
+                            if (bal !== null) { shellState.balance = bal; updateFooterDisplay(); }
+                            _notifyPlatformRefresh();
+                        }
+                        resolve(true);
+                    }
+                    window.addEventListener('message', onMsg);
+                    console.log('[Platform] Sending Proxy PLACE_BET message, reqId:', reqId);
+                    try { window.parent.postMessage({ type: 'PLATFORM_API_REQUEST', action: 'PLACE_BET', requestId: reqId, payload: { amount: shellState.bet, roundId: _currentRoundId } }, '*'); }
+                    catch(e) { console.error('[Platform] postMessage failed:', e); clearTimeout(timeout); resolve(null); }
+                });
+            }
+
             if (_SESSION_ID && _OPERATOR_URL) {
                 _currentRoundId = 'rnd-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
                 const url = _buildTxUrl('debit', {
@@ -945,12 +981,31 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                 return;
             }
 
-            // Fallback: POST to config.api.baseUrl (Matching Postman)
+            // Fallback: POST to Config API (Dynamic Origin for iframes)
             const api = config && config.api;
-            if (api && api.enabled && api.baseUrl) {
+            if (api && api.enabled) {
                 const betEndpoint = api.betUrl || '/api/balance/debit';
-                const sep = (api.baseUrl.endsWith('/') || betEndpoint.startsWith('/')) ? '' : '/';
-                const url = api.baseUrl + sep + betEndpoint;
+                
+                // If we are in an iframe on the same domain or want to relative fetch
+                // We shouldn't use a hardcoded ngrok/localhost from export time
+                let base = window.location.origin;
+                if (api.baseUrl && api.baseUrl.startsWith('http')) {
+                     // Only use explicit baseUrl if it's explicitly set AND we aren't in a local/same-origin iframe
+                     // For our GameHub integration, we want to hit the parent NEXT server
+                     base = api.baseUrl; 
+                }
+                
+                // Override for iframe:
+                if (window !== window.top && !api.baseUrl?.includes('ngrok')) {
+                     // Let relative fetches work naturally or use parent origin if possible
+                     base = ''; 
+                } else if (api.baseUrl?.includes('ngrok') || api.baseUrl?.includes('localhost')) {
+                     // Force relative path if the saved baseUrl was ephemeral
+                     base = '';
+                }
+
+                const sep = (base.endsWith('/') || betEndpoint.startsWith('/')) ? '' : '/';
+                const url = base + sep + betEndpoint;
                 console.log('[Platform] Sending POST bet to:', url);
                 try {
                     const payload = {
@@ -985,9 +1040,34 @@ export const generateScratchHTML = (cleanConfig: any): string => {
 
         // Credit win via Operator Transaction API (action=credit)
         async function creditWin(winAmount) {
+            // [FIX] If running in the Crypto-LATAM iframe, proxy via postMessage unconditionally
+            if (window.self !== window.top) {
+                return new Promise(function(resolve) {
+                    const reqId = 'credit-' + Date.now();
+                    const timeout = setTimeout(function() { resolve(null); }, 5000);
+                    function onMsg(event) {
+                        const d = event.data;
+                        if (!d || d.type !== 'PLATFORM_API_RESPONSE' || d.requestId !== reqId) return;
+                        clearTimeout(timeout); window.removeEventListener('message', onMsg);
+                        const data = d.payload;
+                        console.log('[Platform] Proxy Credit response:', data);
+                        if (data && (data.code === 0 || data.status === 'Success')) {
+                            const bal = typeof data.cash_balance === 'number' ? data.cash_balance : (typeof data.balance === 'number' ? data.balance : null);
+                            if (bal !== null) { shellState.balance = bal; updateFooterDisplay(); }
+                            _notifyPlatformRefresh();
+                        }
+                        resolve(true);
+                    }
+                    window.addEventListener('message', onMsg);
+                    try { window.parent.postMessage({ type: 'PLATFORM_API_REQUEST', action: 'CREDIT_WIN', requestId: reqId, payload: { amount: winAmount, roundId: _currentRoundId || 'unknown' } }, '*'); }
+                    catch(e) { clearTimeout(timeout); resolve(null); }
+                    _currentRoundId = null;
+                });
+            }
+
             if (_SESSION_ID && _OPERATOR_URL && _currentRoundId) {
                 const url = _buildTxUrl('credit', {
-                    win_amount: winAmount.toFixed(2),
+                    win_amount: (winAmount || 0).toFixed(2),
                     round_id: _currentRoundId,
                     tx_id: _genTxId(),
                     round_status: 'completed'
@@ -1010,12 +1090,26 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                 return;
             }
 
-            // Fallback: POST to config.api.baseUrl (Matching Postman)
+            // Fallback: POST to Config API (Dynamic Origin for iframes)
             const api = config && config.api;
-            if (api && api.enabled && api.baseUrl) {
-                const winEndpoint = '/api/balance/credit'; // inferred from sibling endpoint /api/balance/debit
-                const sep = (api.baseUrl.endsWith('/') || winEndpoint.startsWith('/')) ? '' : '/';
-                const url = api.baseUrl + sep + winEndpoint;
+            if (api && api.enabled) {
+                const winEndpoint = api.creditUrl || '/api/balance/credit'; // Use configured credit URL or fallback
+                
+                let base = window.location.origin;
+                if (api.baseUrl && api.baseUrl.startsWith('http')) base = api.baseUrl;
+                
+                // [FIX] Under certain iframes, window.location.origin points to a data: or opaque url. Ask parent if possible.
+                try {
+                    if (window.self !== window.top && window.parent.location.origin && window.parent.location.origin !== 'null') {
+                        base = window.parent.location.origin;
+                    }
+                } catch(e) { /* CORS block means different domain, use exact origin if set */ }
+                
+                if (window !== window.top && !api.baseUrl?.includes('ngrok')) base = ''; 
+                else if (api.baseUrl?.includes('ngrok') || api.baseUrl?.includes('localhost')) base = '';
+
+                const sep = (base.endsWith('/') || winEndpoint.startsWith('/')) ? '' : '/';
+                const url = base + sep + winEndpoint;
                 console.log('[Platform] Sending POST credit to:', url);
                 try {
                     const payload = {
@@ -1094,10 +1188,16 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                 } catch(err) { console.warn('[Platform] Transaction API balance failed:', err.message); }
             }
             const api = config && config.api;
-            if (api && api.enabled && api.baseUrl) {
+            if (api && api.enabled) {
                 const getEndpoint = api.getBalanceUrl || '/api/balance';
-                const sep = (api.baseUrl.endsWith('/') || getEndpoint.startsWith('/')) ? '' : '/';
-                const url = api.baseUrl + sep + getEndpoint;
+                
+                let base = window.location.origin;
+                if (api.baseUrl && api.baseUrl.startsWith('http')) base = api.baseUrl;
+                if (window !== window.top && !api.baseUrl?.includes('ngrok')) base = ''; 
+                else if (api.baseUrl?.includes('ngrok') || api.baseUrl?.includes('localhost')) base = '';
+
+                const sep = (base.endsWith('/') || getEndpoint.startsWith('/')) ? '' : '/';
+                const url = base + sep + getEndpoint;
                 try {
                     const headers = { 'Content-Type': 'application/json' };
                     if (_SESSION_ID && _SESSION_ID !== 'demo') {
@@ -1274,10 +1374,10 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                     spawnWinConfetti(); // Trigger celebration
                     playSound('win'); // [FIX] Add win sound parity with preview
                     hasCelebrated = true;
-                    if (_SESSION_ID && _OPERATOR_URL) {
+                    if (_SESSION_ID && _OPERATOR_URL && shellState.win > 0) {
                         // REAL MODE (Operator URL): credit the win via the platform API
                         creditWin(shellState.win);
-                    } else if (config && config.api && config.api.enabled) {
+                    } else if (config && config.api && config.api.enabled && shellState.win > 0) {
                         // REAL MODE (Fallback API): credit the win via the POST /api/balance/credit
                         creditWin(shellState.win);
                     } else {
@@ -1321,7 +1421,10 @@ export const generateScratchHTML = (cleanConfig: any): string => {
         function buyTicket() {
             if (shellState.gameState === 'playing' || shellState.balance < shellState.bet || shellState.isAutoPlaying) return;
             const isApiMode = config && config.api && config.api.enabled;
-            if (!isApiMode && (!_SESSION_ID || !_OPERATOR_URL)) {
+            // [FIX] If running in an iframe, allow buyTicket to proceed so the postMessage proxy can handle it.
+            const isIframe = window.self !== window.top;
+
+            if (!isApiMode && (!isIframe && (!_SESSION_ID || !_OPERATOR_URL))) {
                 shellState.balance -= shellState.bet;
             }
             shellState.win = 0;
@@ -1339,8 +1442,16 @@ export const generateScratchHTML = (cleanConfig: any): string => {
             setupScene();
             updateFooterDisplay();
             
-            // Send bet to API if configured
-            placeBet();
+            // Send bet to API or Proxy
+            placeBet().then(function(success) {
+                if(success) {
+                    startGame();
+                } else {
+                    shellState.gameState = 'idle';
+                    updateFooterDisplay();
+                    log("Bet failed", "warn");
+                }
+            });
         }
 
 
@@ -2143,6 +2254,9 @@ function setupScene() {
 
 
     function onDragStart(e) { 
+        // [FIX] Only allow scratching when game is PLAYING
+        if (shellState.gameState !== 'playing') return;
+
         // [FIX] Restrict scratch start to the Card Area (Grid/Foil) only
         var localPos = surfaceContainer.toLocal(e.global);
         var margin = 10;
@@ -2314,6 +2428,12 @@ async function checkScratchProgress() {
             shellState.win = currentOutcome.win;
             // [FIX] Sync with Preview State Machine (won vs revealed)
             shellState.gameState = shellState.win > 0 ? 'won' : 'revealed'; 
+            
+            // [FIX] If the round was a loss, we still need to settle the round 
+            // by calling creditWin(0) to notify the Operator API.
+            if (shellState.win === 0) {
+                 creditWin(0);
+            }
             
             // [FIX] Auto-reveal the rest of the foil (Clarity + Parity)
             mCtx.clearRect(0, 0, mCanvas.width, mCanvas.height); 

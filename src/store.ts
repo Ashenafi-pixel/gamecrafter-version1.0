@@ -168,6 +168,8 @@ interface GameStore {
     baseUrl: string;
     getBalanceUrl: string;
     betUrl: string;
+    creditUrl?: string;
+    debitUrl?: string;
   };
   setApiConfig: (config: Partial<GameStore['apiConfig']>) => void;
   fetchBalance: () => Promise<void>;
@@ -401,6 +403,8 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     baseUrl: localStorage.getItem('slotai_api_base_url') || '',
     getBalanceUrl: localStorage.getItem('slotai_api_get_balance_url') || '',
     betUrl: localStorage.getItem('slotai_api_bet_url') || '',
+    creditUrl: localStorage.getItem('slotai_api_credit_url') || '',
+    debitUrl: localStorage.getItem('slotai_api_debit_url') || '',
   },
 
   setApiConfig: (newConfig) => {
@@ -411,6 +415,8 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       if (newConfig.baseUrl !== undefined) localStorage.setItem('slotai_api_base_url', newConfig.baseUrl);
       if (newConfig.getBalanceUrl !== undefined) localStorage.setItem('slotai_api_get_balance_url', newConfig.getBalanceUrl);
       if (newConfig.betUrl !== undefined) localStorage.setItem('slotai_api_bet_url', newConfig.betUrl);
+      if (newConfig.creditUrl !== undefined) localStorage.setItem('slotai_api_credit_url', newConfig.creditUrl);
+      if (newConfig.debitUrl !== undefined) localStorage.setItem('slotai_api_debit_url', newConfig.debitUrl);
 
       return { apiConfig: updatedConfig };
     });
@@ -464,17 +470,32 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     config: {
       ...state.config,
       crash: {
-        // Default values if undefined
+        // Default values
         growthRate: 0.1,
         houseEdge: 4,
         minMultiplier: 1.0,
         maxMultiplier: 1000,
+        algorithm: 'linear',
+        direction: 'up',
+        physics: 'standard',
+        betting: {
+          maxBets: 1,
+          autoCashoutEnabled: true,
+          minAutoCashout: 1.5,
+          maxAutoCashout: 100
+        },
+        behaviors: {
+          crashThresholds: {
+            instaCrashChance: 0.01
+          }
+        },
         visuals: {
           lineColor: '#EF4444',
           gridColor: '#334155',
           textColor: '#F8FAFC',
           objectType: 'rocket'
         },
+        // Merge existing config and updates
         ...state.config.crash,
         ...updates
       }
@@ -484,6 +505,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   // UI buttons
   isAutoplayActive: false,
   showSettings: false,
+  // ... (rest of the code remains the same)
   showMenu: false,
   isSoundEnabled: true,
   volume: 100,
@@ -808,15 +830,21 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   setShowStandaloneGameModal: (show) => set({ showStandaloneGameModal: show }),
 
   // Hold & Spin actions
-  setHoldSpinState: (state) => set((currentState) => ({
-    holdSpinState: { ...currentState.holdSpinState, ...state }
+  setHoldSpinState: (newState) => set((currentState) => ({
+    holdSpinState: {
+      isActive: newState.isActive ?? currentState.holdSpinState.isActive,
+      lockedSymbols: newState.lockedSymbols ?? currentState.holdSpinState.lockedSymbols,
+      spinsRemaining: newState.spinsRemaining ?? currentState.holdSpinState.spinsRemaining,
+      totalWin: newState.totalWin ?? currentState.holdSpinState.totalWin,
+      showModal: newState.showModal ?? currentState.holdSpinState.showModal
+    }
   })),
 
   triggerHoldSpin: (lockedSymbols) => {
     const { config } = get();
     const initialRespins = config.bonus?.holdAndSpin?.initialRespins || 3;
 
-    set((state) => ({
+    set(() => ({
       holdSpinState: {
         isActive: true,
         lockedSymbols,
@@ -827,22 +855,22 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     }));
   },
 
-  addLockedSymbol: (symbol) => set((state) => ({
+  addLockedSymbol: (symbol) => set((currentState) => ({
     holdSpinState: {
-      ...state.holdSpinState,
-      lockedSymbols: [...state.holdSpinState.lockedSymbols, symbol],
-      totalWin: state.holdSpinState.totalWin + symbol.value
+      ...currentState.holdSpinState,
+      lockedSymbols: [...currentState.holdSpinState.lockedSymbols, symbol],
+      totalWin: currentState.holdSpinState.totalWin + symbol.value
     }
   })),
 
-  updateHoldSpinWin: (additionalWin) => set((state) => ({
+  updateHoldSpinWin: (additionalWin) => set((currentState) => ({
     holdSpinState: {
-      ...state.holdSpinState,
-      totalWin: state.holdSpinState.totalWin + additionalWin
+      ...currentState.holdSpinState,
+      totalWin: currentState.holdSpinState.totalWin + additionalWin
     }
   })),
 
-  endHoldSpin: () => set((state) => ({
+  endHoldSpin: () => set((currentState) => ({
     holdSpinState: {
       isActive: false,
       lockedSymbols: [],

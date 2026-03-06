@@ -1038,13 +1038,15 @@ const SidebarNavigation: React.FC<{
 
 // Config View Implementation
 const ConfigView: React.FC = () => {
-  const { apiConfig, setApiConfig, fetchBalance, balance, config, setConfig } = useGameStore();
+  const { apiConfig, setApiConfig, config, setConfig } = useGameStore();
   const [localConfig, setLocalConfig] = useState({
     baseUrl: apiConfig.baseUrl,
     getBalanceUrl: apiConfig.getBalanceUrl,
-    betUrl: apiConfig.betUrl
+    betUrl: apiConfig.betUrl,
+    creditUrl: apiConfig.creditUrl,
+    debitUrl: apiConfig.debitUrl
   });
-  const [isTesting, setIsTesting] = useState(false);
+  const [showNotification, setShowNotification] = useState(false);
 
   const handleSave = () => {
     // 1. Update Global API Config (for current session)
@@ -1060,6 +1062,8 @@ const ConfigView: React.FC = () => {
           baseUrl: localConfig.baseUrl,
           getBalanceUrl: localConfig.getBalanceUrl,
           betUrl: localConfig.betUrl,
+          creditUrl: localConfig.creditUrl,
+          debitUrl: localConfig.debitUrl,
           // Only enable if both URL fields are filled in
           enabled: !!(localConfig.baseUrl && localConfig.getBalanceUrl)
         }
@@ -1067,15 +1071,9 @@ const ConfigView: React.FC = () => {
       setConfig(updatedConfig);
     }
 
-    alert('Configuration saved & bundled with game! Re-export your game to apply the new settings.');
-  };
-
-  const handleTest = async () => {
-    // Temporarily save to store to use in fetchBalance
-    setApiConfig(localConfig);
-    setIsTesting(true);
-    await fetchBalance();
-    setIsTesting(false);
+    // Show success notification
+    setShowNotification(true);
+    setTimeout(() => setShowNotification(false), 3000);
   };
 
   return (
@@ -1128,6 +1126,30 @@ const ConfigView: React.FC = () => {
           <p className="mt-1 text-xs text-gray-500">The path after the Base URL to send bet data.</p>
         </div>
 
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Credit Endpoint</label>
+          <input
+            type="text"
+            value={localConfig.creditUrl}
+            onChange={(e) => setLocalConfig({ ...localConfig, creditUrl: e.target.value })}
+            placeholder="api/balance/credit"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all"
+          />
+          <p className="mt-1 text-xs text-gray-500">The path after the Base URL to credit winnings.</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Debit Endpoint</label>
+          <input
+            type="text"
+            value={localConfig.debitUrl}
+            onChange={(e) => setLocalConfig({ ...localConfig, debitUrl: e.target.value })}
+            placeholder="api/balance/debit"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all"
+          />
+          <p className="mt-1 text-xs text-gray-500">The path after the Base URL to debit bets.</p>
+        </div>
+
         <div className="pt-4 flex flex-col sm:flex-row gap-4">
           <button
             onClick={handleSave}
@@ -1145,15 +1167,25 @@ const ConfigView: React.FC = () => {
           </button> */}
         </div>
 
-        {/* <div className="mt-8 p-5 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between">
-          <div className="flex flex-col">
-            <span className="text-sm text-gray-500 uppercase tracking-wider font-bold">Current Platform Balance</span>
-            <span className="text-3xl font-black text-gray-900 mt-1">${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-          </div>
-          <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-            <CreditCard className="w-6 h-6 text-green-600" />
-          </div>
-        </div> */}
+        {/* Success Notification Toast */}
+        {showNotification && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 z-50"
+          >
+            <div className="w-5 h-5 bg-white rounded-full flex items-center justify-center">
+              <svg className="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div>
+              <p className="font-semibold">Configuration Saved!</p>
+              <p className="text-sm opacity-90">Re-export your game to apply the new settings.</p>
+            </div>
+          </motion.div>
+        )}
       </div>
     </motion.div>
   );
@@ -1161,22 +1193,17 @@ const ConfigView: React.FC = () => {
 
 // Main dashboard component that integrates all subcomponents
 const EnhancedGameCrafterDashboard: React.FC<EnhancedGameCrafterDashboardProps> = ({
-  setGameType,
-  setStep,
-  setShowConfig
+  setGameType
 }) => {
   // Router hooks
   const navigate = useNavigate();
 
   // UI States
-  const [selectedGame, setSelectedGame] = useState<GameItem | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [currentView, setCurrentView] = useState<string>('dashboard');
 
   // Handle game selection
   const handleGameSelect = (game: GameItem) => {
-    setSelectedGame(game);
-
     // Navigate to the game in the actual application
     if (game.type) {
       setGameType(game.type);

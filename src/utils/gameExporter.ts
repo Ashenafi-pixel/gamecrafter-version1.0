@@ -29,6 +29,16 @@ export const exportGameAsHTML = async (options: ExportOptions): Promise<ExportRe
 
         console.log('🎮 [GameExporter] Exporting game:', gameId);
 
+        // Log the API configuration being bundled
+        console.log('📦 [GameExporter] Exporting game with API configuration:', {
+            baseUrl: gameConfig.api?.baseUrl,
+            getBalanceUrl: gameConfig.api?.getBalanceUrl,
+            betUrl: gameConfig.api?.betUrl,
+            creditUrl: gameConfig.api?.creditUrl,
+            debitUrl: gameConfig.api?.debitUrl,
+            enabled: gameConfig.api?.enabled
+        });
+
         // Helper function to get symbol URLs from both array and object formats
         const getSymbolUrls = (symbols: string[] | Record<string, string> | undefined): string[] => {
             if (!symbols) return [];
@@ -456,7 +466,7 @@ const generateStandaloneHTML = (params: {
         rtp: (gameConfig?.rtp && (gameConfig.rtp as any).target) || 96,
         volatility: gameConfig?.volatility?.level || 'medium',
         bonus: gameConfig?.bonus || {},
-        api: gameConfig?.api || { enabled: false, baseUrl: '', getBalanceUrl: '', betUrl: '' }
+        api: gameConfig?.api || { enabled: false, baseUrl: '', getBalanceUrl: '', betUrl: '', creditUrl: '', debitUrl: '' }
     }, null, 2)};
         
         console.log('🎮 Game configuration loaded:', GAME_CONFIG);

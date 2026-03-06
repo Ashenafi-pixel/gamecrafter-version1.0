@@ -394,6 +394,8 @@ const Step12_APIExport: React.FC = () => {
           baseUrl: apiConfig.baseUrl || config.api?.baseUrl || '',
           getBalanceUrl: apiConfig.getBalanceUrl || config.api?.getBalanceUrl || '',
           betUrl: apiConfig.betUrl || config.api?.betUrl || '',
+          creditUrl: apiConfig.creditUrl || config.api?.creditUrl || '',
+          debitUrl: apiConfig.debitUrl || config.api?.debitUrl || '',
           apiKey: (config.api as any)?.apiKey || ''
         }
       };
