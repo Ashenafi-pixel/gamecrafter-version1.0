@@ -177,10 +177,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
 
     // Engine
-
-    const engineEnabled = true;
-
-
+    // (We will use gameState to determine if the engine is enabled instead of a hardcoded value)
 
     // --- Session Logic (Hook) ---
 
@@ -586,7 +583,7 @@ const ScratchGridPreview: React.FC<ScratchGridPreviewProps> = ({
 
         brushSize: brushSize,
 
-        enabled: engineEnabled,
+        enabled: gameState === 'playing',
 
         image: config.scratch?.layers?.foil?.image,
 
