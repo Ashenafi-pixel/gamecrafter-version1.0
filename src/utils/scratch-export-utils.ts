@@ -1517,11 +1517,11 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                 
                 // Determine initial background color for the Pixi app canvas
                 // Determine initial background color for the Pixi app canvas
-                var bgColor = '#1e293b'; // Default fallback color
-                // [FIX] Pixi backgroundColor ONLY supports hex/rgb, NOT gradients.
-                // If gradient detected, use fallback here. The actual gradient is rendered in setupScene via Canvas/Texture.
-                if (bgUrl && (bgUrl.startsWith('#') || bgUrl.includes('rgb')) && !bgUrl.includes('gradient')) {
-                    bgColor = bgUrl;
+                var bgColor = 0x1e293b; // Use numeric hex, never a URL
+                if (bgUrl && !bgUrl.includes('/') && !bgUrl.startsWith('data:')) {
+                    if (bgUrl.startsWith('#') || (bgUrl.includes('rgb') && !bgUrl.includes('gradient'))) {
+                        bgColor = bgUrl;
+                    }
                 }
 
                 app = new PIXI.Application();
@@ -1928,9 +1928,17 @@ function setupScene() {
                 bgSprite.anchor.set(0.5);
                 bgContainer.addChild(bgSprite);
             } else {
-                var bgGfx = new PIXI.Graphics().rect(0, 0, app.screen.width, app.screen.height).fill({ color: bgUrl });
-                bgContainer.addChild(bgGfx);
-            }
+    // bgUrl is unknown/unparseable — never pass it as a color
+    var bgGfx = new PIXI.Graphics().rect(0, 0, app.screen.width, app.screen.height)
+        .fill({ color: 0x1e293b });
+    bgContainer.addChild(bgGfx);
+    // Still try to load it as an image in case it's a URL we didn't recognize
+    if (bgUrl && bgUrl.length > 10) {
+        var fallbackSprite = PIXI.Sprite.from(bgUrl);
+        fallbackSprite.anchor.set(0.5);
+        bgContainer.addChild(fallbackSprite);
+    }
+}
         }
     } else {
         var g = new PIXI.Graphics().rect(0, 0, app.screen.width, app.screen.height).fill({ color: 0x1e293b });
@@ -1967,7 +1975,10 @@ function setupScene() {
 
     // A.1 Card Base Background (Always Bottom)
     var overlayConf = config.scratch?.layers?.overlay || {};
-    var overlayColor = overlayConf.color || '#F2F0EB';
+    var rawOverlayColor = overlayConf.color || '#F2F0EB';
+    // Only use as color if it actually looks like a color, not a URL
+    var overlayColor = (rawOverlayColor.startsWith('#') || rawOverlayColor.startsWith('rgb') || rawOverlayColor === 'transparent')
+        ? rawOverlayColor : '#F2F0EB';
     if (overlayColor !== 'transparent') {
         var cardBg = new PIXI.Graphics().rect(0, 0, CARD_WIDTH, CARD_HEIGHT).fill({ color: overlayColor });
         innerCardGroup.addChild(cardBg);
@@ -2007,7 +2018,9 @@ function setupScene() {
     var gridScaleY = (config.scratch?.layout?.grid?.scaleY ?? config.scratch?.layout?.grid?.scale ?? 79) / 100;
     var gridX = (config.scratch?.layout?.grid?.x ?? 0) + (CARD_WIDTH / 2); // Center relative to card pivot
     var gridY = (config.scratch?.layout?.grid?.y ?? 42) + (CARD_HEIGHT / 2);
-    var gridBgColor = config.scratch?.layout?.gridBackgroundColor || '#ffffff';
+    var rawGridBgColor = config.scratch?.layout?.gridBackgroundColor || '#ffffff';
+    var gridBgColor = (rawGridBgColor.startsWith('#') || rawGridBgColor.startsWith('rgb') || rawGridBgColor === 'transparent')
+    ? rawGridBgColor : '#ffffff';
     var cellStyle = config.scratch?.layout?.cellStyle || 'boxed';
 
     var gridContainer = new PIXI.Container();
