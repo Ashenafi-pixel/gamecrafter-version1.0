@@ -1288,6 +1288,11 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                 const dummy = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFRm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==");
                 dummy.play().catch(function() {});
                 log("Audio Unlocked");
+
+                // [FIX] Start Background Ambience (Loop) and Intro Sound on first interaction
+                playSound('bgm', true);
+                playSound('intro');
+
                 window.removeEventListener('pointerdown', unlock);
                 window.removeEventListener('touchstart', unlock);
             };
@@ -1324,11 +1329,20 @@ export const generateScratchHTML = (cleanConfig: any): string => {
 
         function playSound(nameOrUrl, loop) {
             let sound = audioCache.get(nameOrUrl);
+            let slotId = nameOrUrl;
             if (!sound && config.scratch && config.scratch.audio) {
                 const path = config.scratch.audio[nameOrUrl];
-                if (path) sound = audioCache.get(path);
+                if (path) {
+                    sound = audioCache.get(path);
+                    slotId = nameOrUrl; // Use key for volume lookup (e.g. 'bgm', 'win')
+                }
             }
             if (sound) {
+                // [FIX] Apply adjusted volume from config
+                const volumes = (config.scratch && config.scratch.audioVolumes) || {};
+                const vol = typeof volumes[slotId] === 'number' ? volumes[slotId] : 0.5;
+                sound.volume = vol;
+
                 if (loop) sound.loop = true;
                 
                 // If it's a loop and already playing, don't restart it (prevents stutter)
@@ -1337,7 +1351,14 @@ export const generateScratchHTML = (cleanConfig: any): string => {
                 sound.currentTime = 0;
                 const p = sound.play();
                 if (p !== undefined) {
-                    p.catch(function(e) { log("Play failed: " + e.message, "warn"); });
+                    p.catch(function(e) { 
+                        // It's expected to fail if browser blocks autoplay
+                        if (nameOrUrl === 'bgm' || nameOrUrl === 'intro') {
+                            log("Autoplay blocked - waiting for interaction", "info");
+                        } else {
+                            log("Play failed: " + e.message, "warn"); 
+                        }
+                    });
                 }
             }
         }
@@ -1754,6 +1775,10 @@ export const generateScratchHTML = (cleanConfig: any): string => {
              // 4. Build Scene
              setupScene();
              document.getElementById('loading').style.display = 'none';
+
+             // [FIX] Attempt to start audio immediately (if browser allows)
+             playSound('bgm', true);
+             playSound('intro');
         }
 
 
