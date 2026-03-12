@@ -4,7 +4,7 @@ import { Play, CheckCircle, FileJson, Activity, ShieldCheck, Server, Send } from
 import { useGameStore } from '../../../store';
 import { useSuccessPopup, useWarningPopup } from '../../popups';
 import { slotApiClient } from '../../../utils/apiClient';
-import { getScratchMathConfig, generateScratchHTML } from '../../../utils/scratch-export-utils';
+import { transformToRGS, generateRGSConfig, generateScratchHTML, getScratchMathConfig } from '../../../utils/scratch-export-utils';
 
 const Step7_Export: React.FC = () => {
     const { config } = useGameStore();
@@ -259,8 +259,12 @@ const Step7_Export: React.FC = () => {
             zip.file("project_scratch.json", JSON.stringify(cleanConfig, null, 2));
 
             // 2. Math Config (Strict Rules)
-            const mathConfig = getScratchMathConfig(config as any);
+            const mathConfig = transformToRGS(config as any);
             zip.file("math.json", JSON.stringify(mathConfig, null, 2));
+
+            // RGS Config
+            const rgsConfig = generateRGSConfig(cleanConfig as any);
+            zip.file("rgs_config.json", JSON.stringify(rgsConfig, null, 2));
 
             // 3. Simple Visuals export (subset of cleanConfig)
             const visualExport = {
@@ -601,8 +605,11 @@ const Step7_Export: React.FC = () => {
             const cleanConfig = await processValue(JSON.parse(JSON.stringify(fullConfig)));
 
             zip.file("project_scratch.json", JSON.stringify(cleanConfig, null, 2));
-            const mathConfig = getScratchMathConfig(config as any);
+            const mathConfig = transformToRGS(config as any);
             zip.file("math.json", JSON.stringify(mathConfig, null, 2));
+            // RGS Config uses cleanConfig to get the correct asset paths (assets/img_XYZ.png) instead of raw base64
+            const rgsConfig = generateRGSConfig(cleanConfig as any);
+            zip.file("rgs_config.json", JSON.stringify(rgsConfig, null, 2));
             const visualExport = {
                 ...cleanConfig,
                 math: undefined,
