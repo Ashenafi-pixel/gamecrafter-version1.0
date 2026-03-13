@@ -1269,11 +1269,11 @@ const EnhancedGameCrafterDashboard: React.FC<EnhancedGameCrafterDashboardProps> 
       if (createNewGameSession()) {
 
         // Navigate to premium slot experience using React Router
-        navigate('/new-game?step=0&force=true');
+        window.location.href = '/new-game?step=0&force=true';
       } else {
         // Fallback - navigate to dashboard if session creation fails
         console.error('Failed to create game session, redirecting to home');
-        navigate('/home');
+        window.location.href = '/home';
       }
     } else {
       // For other game types, use the same approach for consistency
@@ -1315,11 +1315,11 @@ const EnhancedGameCrafterDashboard: React.FC<EnhancedGameCrafterDashboardProps> 
       if (createNewGameSession()) {
 
         // Use consistent navigation pattern for all game types
-        navigate(`/new-game?step=0&force=true&gameType=${type}`);
+        window.location.href = `/new-game?step=0&force=true&gameType=${type}`;
       } else {
         // Fallback - navigate to dashboard if session creation fails
         console.error('Failed to create game session, redirecting to home');
-        navigate('/home');
+        window.location.href = '/home';
       }
     }
   };
@@ -1363,7 +1363,7 @@ const EnhancedGameCrafterDashboard: React.FC<EnhancedGameCrafterDashboardProps> 
       // Update store with initial config
       useGameStore.getState().updateConfig(initialConfig);
       // Navigate to premium experience with proper URL parameters including template and step=0
-      navigate(`/new-game?step=0&force=true&template=${template.id}`);
+      window.location.href = `/new-game?step=0&force=true&template=${template.id}`;
     }
   };
 

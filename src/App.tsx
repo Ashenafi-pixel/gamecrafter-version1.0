@@ -219,7 +219,7 @@ function App() {
   // Define app routes
   return (
     <PopupProvider>
-      <StoreLogger />
+      {/* <StoreLogger /> disabled for performance */}
       <BrowserRouter>
         <Suspense fallback={<Loading />}>
           <Routes>
