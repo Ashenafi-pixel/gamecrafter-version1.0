@@ -1924,7 +1924,8 @@ export const slotApiClient = {
           ...(rgsApiConfig.apiKey ? { 'Authorization': `Bearer ${rgsApiConfig.apiKey}` } : {})
         },
         body: JSON.stringify(payload),
-        mode: 'cors'
+        mode: 'cors',
+        signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined
       });
 
       if (!response.ok) {
